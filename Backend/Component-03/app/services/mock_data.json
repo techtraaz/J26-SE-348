@@ -1,0 +1,54 @@
+{
+  "rules_by_doc_type": {
+    "invoice": [
+      {
+        "rule_id": "POL-07",
+        "text": "Purchases above Rs. 100,000 need dual approval.",
+        "limit": 100000
+      }
+    ],
+    "balance_sheet": []
+  },
+  "check_rules_by_doc_type": {
+    "balance_sheet": [
+      {
+        "rule_id": "CHK-001",
+        "name": "Accounting equation",
+        "expression": "assets == liabilities + capital",
+        "severity": "high"
+      }
+    ],
+    "invoice": []
+  },
+  "sample_case": {
+    "case_id": "CASE-TV",
+    "docs": [
+      {
+        "doc_id": "BS26",
+        "case_id": "CASE-TV",
+        "doc_type": "balance_sheet",
+        "period_year": 2026,
+        "parent_doc_id": null,
+        "fields": {
+          "assets": 40000,
+          "liabilities": 30000,
+          "capital": 20000
+        },
+        "confidences": {},
+        "methods": {}
+      },
+      {
+        "doc_id": "INV1",
+        "case_id": "CASE-TV",
+        "doc_type": "invoice",
+        "period_year": 2026,
+        "parent_doc_id": "BS26",
+        "fields": {
+          "amount": 250000
+        },
+        "confidences": {},
+        "methods": {}
+      }
+    ]
+  }
+}

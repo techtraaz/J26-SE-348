@@ -1,4 +1,6 @@
 """Fixed KG doors. LLM never writes Cypher — blocked by design."""
+import json
+from pathlib import Path
 from app import config
 
 
@@ -11,6 +13,15 @@ def _block_free_cypher(text: str) -> None:
                 raise ValueError(f"Free Cypher blocked: found '{bad.strip()}'. Use fixed functions only.")
 
 
+def _load_mock_file() -> dict:
+    """Mock data stays in mock_data.json next to this file. Committed in git."""
+    path = Path(__file__).with_name("mock_data.json")
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return {"rules_by_doc_type": {}, "check_rules_by_doc_type": {}}
+
+
 class KGClient:
     """Mock now, live Neo4j later. Same function names, so agents don't change."""
 
@@ -19,11 +30,8 @@ class KGClient:
 
     def get_rules(self, doc_type: str) -> list[dict]:
         """POL rules with limits, e.g. dual approval above 100000."""
-        if doc_type == "invoice":
-            return [{"rule_id": "POL-07",
-                     "text": "Purchases above Rs. 100,000 need dual approval.",
-                     "limit": 100000}]
-        return []
+        data = _load_mock_file()
+        return list(data.get("rules_by_doc_type", {}).get(doc_type, []))
 
     def get_evidence_chain(self, doc_id: str) -> list[str]:
         """IDs linked to this doc (parent + children). Mock returns itself."""
@@ -42,8 +50,5 @@ class KGClient:
 
     def get_check_rules(self, doc_type: str) -> list[dict]:
         """Step-2 scalable rules as data. Agents run them with generic runner."""
-        if doc_type == "balance_sheet":
-            return [{"rule_id": "CHK-001", "name": "Accounting equation",
-                     "expression": "assets == liabilities + capital",
-                     "severity": "high"}]
-        return []
+        data = _load_mock_file()
+        return list(data.get("check_rules_by_doc_type", {}).get(doc_type, []))
