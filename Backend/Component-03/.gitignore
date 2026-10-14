@@ -1,0 +1,19 @@
+# Virtual environment
+.venv/
+env/
+venv/
+
+# Bytecode & Caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.ruff_cache/
+
+# Project-specific test inputs/outputs
+data/samples/
+data/results/
+*.log
+
+# Environment variables
+.env
