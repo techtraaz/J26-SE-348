@@ -8,7 +8,13 @@ import numpy as np
 import pytest
 
 from app.schemas.extraction import EngineInfo, ExtractionResult, PageResult
-from app.services.ocr.paddle import lines_from_result
+from app.services.ocr.paddle import (
+    PaddleSettings,
+    build_paddle_kwargs,
+    cpu_flags,
+    lines_from_result,
+    ocr_image_from_result,
+)
 
 
 def _fake_result() -> dict:
@@ -67,3 +73,43 @@ def test_mismatched_array_lengths_raise():
     broken["rec_scores"] = [0.99]
     with pytest.raises(ValueError):
         lines_from_result(broken)
+
+
+def test_ocr_image_prefers_preprocessed_output():
+    fallback = np.zeros((10, 20, 3), dtype=np.uint8)
+    processed = np.ones((12, 18, 3), dtype=np.uint8)
+    res = {"doc_preprocessor_res": {"output_img": processed}}
+
+    out = ocr_image_from_result(res, fallback)
+
+    assert out.shape == (12, 18, 3)  # preprocessed size, not the input size
+
+
+def test_ocr_image_falls_back_to_input_when_no_preprocessing():
+    fallback = np.zeros((10, 20, 3), dtype=np.uint8)
+
+    assert ocr_image_from_result({}, fallback) is fallback
+    assert ocr_image_from_result({"doc_preprocessor_res": {}}, fallback) is fallback
+
+
+def test_default_kwargs():
+    kwargs = build_paddle_kwargs(PaddleSettings())
+
+    assert kwargs["enable_mkldnn"] is False
+    assert kwargs["use_doc_unwarping"] is False
+    assert "engine" not in kwargs and "engine_config" not in kwargs
+    assert "text_detection_model_name" not in kwargs  # None -> not passed
+
+
+def test_model_names_are_passed_only_when_set():
+    kwargs = build_paddle_kwargs(
+        PaddleSettings(text_detection_model_name="det-x", text_recognition_model_name="rec-y")
+    )
+
+    assert kwargs["text_detection_model_name"] == "det-x"
+    assert kwargs["text_recognition_model_name"] == "rec-y"
+
+
+def test_cpu_flags_follow_mkldnn_setting():
+    assert cpu_flags(PaddleSettings())["FLAGS_use_mkldnn"] == "0"
+    assert cpu_flags(PaddleSettings(enable_mkldnn=True))["FLAGS_use_mkldnn"] == "1"
