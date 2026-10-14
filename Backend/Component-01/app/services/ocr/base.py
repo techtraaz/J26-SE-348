@@ -1,4 +1,4 @@
-"""Interface every recognition engine implements (Paddle now, VLM in Phase 2)."""
+"""Interface every recognition engine implements."""
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -10,14 +10,7 @@ from app.schemas.extraction import EngineInfo, PageResult
 
 @dataclass
 class PageRecognition:
-    """What an engine returns for one page.
-
-    `page` holds the schema data (JSON-safe). `ocr_image` is the exact image
-    the box coordinates refer to: the engine's own preprocessed image
-    (rotated / unwarped) when it has one, otherwise the input image.
-    It is a numpy array, so it stays out of the schema and is stored by the
-    storage layer as a file (design decision D3).
-    """
+    """What an engine returns for one page."""
 
     page: PageResult
     ocr_image: np.ndarray

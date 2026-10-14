@@ -1,7 +1,7 @@
 """Single place that decides which engine implementation to build.
 
 The API layer and scripts call create_engine(); nothing else imports a
-concrete engine. Phase 2 adds a "vlm" kind here.
+concrete engine.
 """
 
 from pathlib import Path

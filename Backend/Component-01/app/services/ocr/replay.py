@@ -1,11 +1,5 @@
 """Replay engine: serves a saved extraction result instead of running OCR.
-
-For APP DEVELOPMENT ONLY (ingestion, API, review UI, job status), where real
-OCR takes about a minute per page on the dev laptop.
-
-Never use it for research runs. Its results carry engine name "replay" and
-record what they were replayed from, so they can be filtered out, and the
-Phase 4 harness should refuse to score them.
+For APP DEVELOPMENT ONLY (ingestion, API, review UI, job status).
 """
 
 import time

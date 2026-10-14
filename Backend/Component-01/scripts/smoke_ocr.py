@@ -1,14 +1,4 @@
-"""Standalone OCR smoke test / latency probe through the engine + schema.
-
-Run from the backend folder:
-    uv run python scripts/smoke_ocr.py [image] [--repeat N]
-                                       [--unwarp] [--no-doc-orientation] [--mkldnn]
-                                       [--det-model NAME] [--rec-model NAME]
-                                       [--engine replay [--fixture PATH] [--delay SECONDS]]
-
-Defaults to data/samples/sample_invoice.png, 2 runs in one process so the
-first (warm-up) timing can be separated from steady-state timing.
-"""
+"""Standalone OCR smoke test / latency probe through the engine + schema."""
 
 import argparse
 import sys
