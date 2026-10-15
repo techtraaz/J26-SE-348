@@ -9,7 +9,6 @@ from pathlib import Path
 from app.services.ocr.base import OCREngine
 from app.services.ocr.paddle import PaddleSettings
 
-
 def create_engine(
     kind: str,
     *,
@@ -25,7 +24,7 @@ def create_engine(
     if kind == "replay":
         if fixture is None:
             raise ValueError("The replay engine needs a fixture path.")
-        from app.services.ocr.replay import ReplayEngine
+        from app.services.replay import ReplayEngine
 
         return ReplayEngine(fixture, simulate_delay_s)
 

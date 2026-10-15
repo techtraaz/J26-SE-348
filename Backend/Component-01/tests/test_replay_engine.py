@@ -5,8 +5,8 @@ import numpy as np
 import pytest
 
 from app.schemas.extraction import EngineInfo, ExtractionResult, OCRLine, PageResult
-from app.services.ocr.factory import create_engine
-from app.services.ocr.replay import ReplayEngine
+from app.services.factory import create_engine
+from app.services.replay import ReplayEngine
 
 
 def _fixture_result(pages: int = 1) -> ExtractionResult:

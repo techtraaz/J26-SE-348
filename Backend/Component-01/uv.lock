@@ -1606,6 +1606,8 @@ dependencies = [
     { name = "fastapi", extra = ["standard"] },
     { name = "paddleocr" },
     { name = "paddlepaddle" },
+    { name = "pillow" },
+    { name = "pypdfium2" },
 ]
 
 [package.dev-dependencies]
@@ -1619,6 +1621,8 @@ requires-dist = [
     { name = "fastapi", extras = ["standard"], specifier = ">=0.143.0" },
     { name = "paddleocr", specifier = ">=3.7.0" },
     { name = "paddlepaddle", specifier = ">=3.3.1" },
+    { name = "pillow", specifier = ">=12.3.0" },
+    { name = "pypdfium2", specifier = ">=5.14.0" },
 ]
 
 [package.metadata.requires-dev]
