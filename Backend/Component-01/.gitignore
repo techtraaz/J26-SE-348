@@ -13,6 +13,7 @@ __pycache__/
 # Project-specific test inputs/outputs
 data/samples/
 data/results/
+data/*
 *.log
 
 # Environment variables
