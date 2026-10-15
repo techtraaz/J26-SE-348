@@ -15,10 +15,13 @@ import asyncio
 import json
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import FileResponse
 from sse_starlette.sse import EventSourceResponse
 
+from app.reporting import pdf_renderer
 from app.services import database as db
 from app.services import sse_manager
 from app.services import subscriber
@@ -114,3 +117,43 @@ async def stream_traces(case_id: str, request: Request):
             }
 
     return EventSourceResponse(_event_generator())
+
+
+# ── PDF Report generation ─────────────────────────────────────────────
+
+@app.post("/report/generate/{case_id}")
+async def generate_report(case_id: str):
+    """Generate a deterministic PDF audit report for the given case.
+
+    Fetches verified traces from the Middle DB, fills the Jinja2 template,
+    and renders a PDF via WeasyPrint.  Returns metadata with a download URL.
+    """
+    try:
+        result = await pdf_renderer.generate_report(case_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+    return {
+        "status": "report_ready",
+        "case_id": result["case_id"],
+        "filename": result["filename"],
+        "generated_at": result["generated_at"],
+        "download_url": f"/report/download/{result['filename']}",
+    }
+
+
+@app.get("/report/download/{filename}")
+async def download_report(filename: str):
+    """Serve a previously generated PDF report as a file download."""
+    reports_dir = Path(__file__).resolve().parent.parent / "reports"
+    file_path = reports_dir / filename
+
+    if not file_path.is_file():
+        raise HTTPException(status_code=404, detail=f"Report '{filename}' not found.")
+
+    return FileResponse(
+        path=str(file_path),
+        media_type="application/pdf",
+        filename=filename,
+    )
+
