@@ -10,7 +10,7 @@ dependencies = [
     "pydantic>=2.0",
     "redis[hiredis]>=5.0",
     "sse-starlette>=2.0",
-    "weasyprint>=70.0",
+    "xhtml2pdf>=0.2.24",
 ]
 
 [build-system]

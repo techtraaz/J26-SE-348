@@ -1,13 +1,13 @@
 """Deterministic slot-filling PDF report generator.
 
 Fetches verified audit data from the SQLite Middle DB, fills slots in
-the Jinja2 HTML template, and converts the result to PDF via WeasyPrint.
+the Jinja2 HTML template, and converts the result to PDF via xhtml2pdf.
 
 This module owns the full pipeline:
   1. Query DB for audit_run metadata + traces + (future) findings
   2. Build a template context dict
   3. Render HTML from the Jinja2 template
-  4. Convert HTML → PDF via WeasyPrint
+  4. Convert HTML → PDF via xhtml2pdf (pure Python, no system deps)
   5. Save the PDF to the local ``reports/`` directory
 """
 
@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader
-from weasyprint import HTML
+from xhtml2pdf import pisa
 
 from app.services import database as db
 
@@ -123,14 +123,16 @@ async def generate_report(case_id: str) -> dict:
     template = _jinja_env.get_template("audit_report.html")
     rendered_html = template.render(**context)
 
-    # 4. Convert HTML → PDF via WeasyPrint
+    # 4. Convert HTML → PDF via xhtml2pdf
     out_dir = _ensure_reports_dir()
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     filename = f"audit_report_{case_id}_{timestamp}.pdf"
     pdf_path = out_dir / filename
 
-    html_doc = HTML(string=rendered_html)
-    html_doc.write_pdf(str(pdf_path))
+    with open(pdf_path, "w+b") as pdf_file:
+        status = pisa.CreatePDF(rendered_html, dest=pdf_file)
+        if status.err:
+            raise RuntimeError(f"xhtml2pdf failed to render PDF for case={case_id}")
 
     logger.info("PDF report generated: %s", pdf_path)
 

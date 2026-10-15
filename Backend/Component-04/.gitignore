@@ -9,6 +9,9 @@ __pycache__/
 # SQLite runtime database (generated at runtime, not committed)
 *.db
 
+# Generated PDF reports (runtime output, not committed)
+reports/
+
 # IDE
 .idea/
 .vscode/
