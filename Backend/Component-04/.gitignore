@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Virtual environment
+.venv/
+
+# SQLite runtime database (generated at runtime, not committed)
+*.db
+
+# Generated PDF reports (runtime output, not committed)
+reports/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db

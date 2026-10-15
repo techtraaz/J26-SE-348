@@ -1,0 +1,30 @@
+[project]
+name = "nomos-component-04"
+version = "0.1.0"
+description = "XAI Trace Collector & Deterministic Reporting Engine (Component 04)"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "aiosqlite>=0.20",
+    "fastapi[standard]>=0.143.0",
+    "pydantic>=2.0",
+    "redis[hiredis]>=5.0",
+    "sse-starlette>=2.0",
+    "xhtml2pdf>=0.2.24",
+]
+
+[build-system]
+requires = ["uv_build>=0.13.1,<0.14.0"]
+build-backend = "uv_build"
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "ruff>=0.17.0",
+]
