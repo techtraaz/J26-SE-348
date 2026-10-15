@@ -12,12 +12,15 @@ loop but never blocks the HTTP request path.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from sse_starlette.sse import EventSourceResponse
 
 from app.services import database as db
+from app.services import sse_manager
 from app.services import subscriber
 
 # ── Logging ────────────────────────────────────────────────────────────
@@ -68,7 +71,11 @@ app = FastAPI(
 
 @app.get("/health")
 async def health():
-    return {"ok": True, "service": "component-04-xai-trace-collector"}
+    return {
+        "ok": True,
+        "service": "component-04-xai-trace-collector",
+        "active_sse_cases": sse_manager.active_case_ids(),
+    }
 
 
 # ── Trace query endpoints ─────────────────────────────────────────────
@@ -82,6 +89,28 @@ async def list_runs(limit: int = 50):
 
 @app.get("/traces/{case_id}")
 async def get_traces(case_id: str):
-    """Return all enriched traces for a given case, ordered by step."""
+    """Return all completed traces for a case from SQLite, ordered by step."""
     traces = await db.get_traces_for_case(case_id)
     return {"case_id": case_id, "trace_count": len(traces), "traces": traces}
+
+
+# ── Real-time SSE stream ──────────────────────────────────────────────
+
+@app.get("/traces/stream/{case_id}")
+async def stream_traces(case_id: str, request: Request):
+    """Server-Sent Events endpoint — pushes live trace updates for a case.
+
+    The frontend opens an EventSource connection to this URL.  Each time
+    the subscriber persists a new trace, it is broadcast here in real time.
+    """
+
+    async def _event_generator():
+        async for payload in sse_manager.subscribe(case_id):
+            if await request.is_disconnected():
+                break
+            yield {
+                "event": payload.get("event_type", "trace"),
+                "data": json.dumps(payload),
+            }
+
+    return EventSourceResponse(_event_generator())
