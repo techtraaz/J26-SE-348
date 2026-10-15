@@ -5,6 +5,7 @@ Runs as a long-lived asyncio background task that:
   2. Deserialises each incoming message into a typed Pydantic model.
   3. Enriches the event with a ``received_at`` timestamp.
   4. Persists the event into the local SQLite Middle DB.
+  5. Broadcasts the enriched trace to connected SSE clients in real time.
 
 Design principles:
   - **Non-blocking**: runs inside ``asyncio.create_task`` so the FastAPI
@@ -31,6 +32,7 @@ from app.schemas.trace_events import (
     parse_trace_event,
 )
 from app.services import database as db
+from app.services import sse_manager
 
 logger = logging.getLogger("c04.subscriber")
 
@@ -59,6 +61,7 @@ async def _handle_pipeline_start(evt: PipelineStartEvent) -> None:
     _active_runs[evt.case_id] = run_id
     _step_counters[evt.case_id] = 0
 
+    received = _now_iso()
     await db.insert_trace(
         run_id=run_id,
         case_id=evt.case_id,
@@ -69,9 +72,17 @@ async def _handle_pipeline_start(evt: PipelineStartEvent) -> None:
         findings_count=None,
         step_index=0,
         source_timestamp=evt.ts,
-        received_at=_now_iso(),
+        received_at=received,
         raw_payload=evt.model_dump(),
     )
+    await sse_manager.broadcast(evt.case_id, {
+        "event_type": "pipeline_start",
+        "case_id": evt.case_id,
+        "step_index": 0,
+        "detail": f"Pipeline started with {evt.doc_count} document(s).",
+        "source_timestamp": evt.ts,
+        "received_at": received,
+    })
     logger.info("▶ Pipeline started  case=%s  docs=%s  run_id=%s", evt.case_id, evt.doc_count, run_id)
 
 
@@ -85,6 +96,7 @@ async def _handle_agent_end(evt: AgentEndEvent) -> None:
     _step_counters[evt.case_id] = _step_counters.get(evt.case_id, 0) + 1
     step = _step_counters[evt.case_id]
 
+    received = _now_iso()
     await db.insert_trace(
         run_id=run_id,
         case_id=evt.case_id,
@@ -95,9 +107,20 @@ async def _handle_agent_end(evt: AgentEndEvent) -> None:
         findings_count=evt.findings_count,
         step_index=step,
         source_timestamp=evt.ts,
-        received_at=_now_iso(),
+        received_at=received,
         raw_payload=evt.model_dump(),
     )
+    await sse_manager.broadcast(evt.case_id, {
+        "event_type": "agent_end",
+        "case_id": evt.case_id,
+        "agent_name": evt.agent,
+        "decision_type": evt.trace.get("decision_type"),
+        "detail": evt.trace.get("detail"),
+        "findings_count": evt.findings_count,
+        "step_index": step,
+        "source_timestamp": evt.ts,
+        "received_at": received,
+    })
     logger.info("  ├─ Agent done  agent=%s  findings=%s  step=%s", evt.agent, evt.findings_count, step)
 
 
@@ -114,6 +137,7 @@ async def _handle_pipeline_end(evt: PipelineEndEvent) -> None:
         case_id=evt.case_id,
         total_findings=evt.total_findings,
     )
+    received = _now_iso()
     await db.insert_trace(
         run_id=run_id,
         case_id=evt.case_id,
@@ -124,9 +148,18 @@ async def _handle_pipeline_end(evt: PipelineEndEvent) -> None:
         findings_count=evt.total_findings,
         step_index=step,
         source_timestamp=evt.ts,
-        received_at=_now_iso(),
+        received_at=received,
         raw_payload=evt.model_dump(),
     )
+    await sse_manager.broadcast(evt.case_id, {
+        "event_type": "pipeline_end",
+        "case_id": evt.case_id,
+        "total_findings": evt.total_findings,
+        "step_index": step,
+        "detail": f"Pipeline completed with {evt.total_findings} total finding(s).",
+        "source_timestamp": evt.ts,
+        "received_at": received,
+    })
     logger.info("■ Pipeline ended  case=%s  total_findings=%s", evt.case_id, evt.total_findings)
 
 
