@@ -1,0 +1,337 @@
+version: 1
+name: Sri Lankan Audit Ontology
+
+# added to every node
+common_properties:
+  source: string
+  confidence: float
+  created_at: datetime
+  ontology_version: int
+
+layers:
+  regulatory: Who issues the rules and what the standards and laws say
+  reporting: Financial statements, accounts and the equations between them
+  audit: Assertions, procedures, risks and the checks run by the audit agents
+  evidence: Client documents and ledger entries that findings cite
+  provenance: Where extracted knowledge came from
+
+nodes:
+  RegulatoryBody:
+    layer: regulatory
+    key: code
+    description: Body that issues or enforces standards (CA Sri Lanka, SEC, CBSL, IRD)
+    properties: {code: string, name: string, country: string}
+    required: [name]
+
+  Framework:
+    layer: regulatory
+    key: code
+    description: Set of standards (SLFRS, SLFRS for SMEs, SLAuS, Statutory)
+    properties: {code: string, name: string}
+    required: [name]
+
+  # family: CF, LKAS, SLFRS, SoRP, SoAT, IFRIC, SIC, SLAuS (LKAS 1.7)
+  # authority: 1 specific standard, 2 similar standard, 3 Conceptual Framework (LKAS 8.11)
+  Standard:
+    layer: regulatory
+    key: code
+    description: One accounting or auditing standard, e.g. LKAS 16, SLAuS 500
+    properties:
+      code: string
+      title: string
+      family: string
+      authority: int
+      effective_from: date
+      status: string
+      version: string
+    required: [title, family]
+
+  Amendment:
+    layer: regulatory
+    key: id
+    description: Change to a standard, e.g. Disclosure Initiative (Amendments to LKAS 1)
+    properties:
+      id: string
+      title: string
+      issued: date
+      effective_from: date
+    required: [title]
+
+  Legislation:
+    layer: regulatory
+    key: code
+    description: Act or regulation, e.g. Companies Act No. 7 of 2007
+    properties: {code: string, title: string, year: int, status: string}
+    required: [title]
+
+  Section:
+    layer: regulatory
+    key: id
+    description: Paragraph or section of a standard or act
+    properties: {id: string, number: string, heading: string, text: string}
+    required: [number]
+
+  # type: recognition, measurement, presentation, classification, disclosure, transition
+  # obligation: shall (bold paragraphs), should, may
+  Requirement:
+    layer: regulatory
+    key: id
+    description: Single rule stated in a section
+    properties:
+      id: string
+      type: string
+      obligation: string
+      text: string
+    required: [type, text]
+
+  Definition:
+    layer: regulatory
+    key: id
+    description: Term defined in a standard
+    properties: {id: string, term: string, text: string}
+    required: [term, text]
+
+  FinancialStatement:
+    layer: reporting
+    key: code
+    description: SFP, SPL, SCF, SCE or Notes
+    properties: {code: string, name: string}
+    required: [name]
+
+  LineItem:
+    layer: reporting
+    key: code
+    description: Line shown on a financial statement, e.g. Property, plant and equipment
+    properties: {code: string, name: string}
+    required: [name]
+
+  AccountClass:
+    layer: reporting
+    key: code
+    description: Asset, liability, equity, income or expense and their sub classes
+    properties: {code: string, name: string, normal_balance: string}
+    required: [name, normal_balance]
+
+  # kind: within_statement, cross_statement, measurement, bookkeeping
+  Equation:
+    layer: reporting
+    key: code
+    description: Relationship that must hold between amounts, e.g. assets = liabilities + equity
+    properties: {code: string, name: string, expression: string, kind: string}
+    required: [name, expression, kind]
+
+  MeasurementBasis:
+    layer: reporting
+    key: code
+    description: Historical cost, current cost, realisable value, present value, fair value, NRV
+    properties: {code: string, name: string}
+    required: [name]
+
+  QualitativeCharacteristic:
+    layer: reporting
+    key: code
+    description: Relevance, faithful representation, comparability, verifiability, timeliness, understandability
+    properties: {code: string, name: string, type: string}
+    required: [name, type]
+
+  Ratio:
+    layer: reporting
+    key: code
+    description: Analytical ratio used in analytical procedures
+    properties: {code: string, name: string, expression: string}
+    required: [name, expression]
+
+  AuditAssertion:
+    layer: audit
+    key: code
+    description: Management assertion tested by the auditor (SLAuS 315)
+    properties: {code: string, name: string, category: string}
+    required: [name]
+
+  AuditProcedure:
+    layer: audit
+    key: code
+    description: Way of collecting evidence (SLAuS 500), e.g. inspection, confirmation
+    properties: {code: string, name: string, type: string}
+    required: [name]
+
+  Risk:
+    layer: audit
+    key: code
+    description: Risk of material misstatement due to fraud or error
+    properties: {code: string, name: string, type: string}
+    required: [name]
+
+  CheckRule:
+    layer: audit
+    key: rule_id
+    description: Machine checkable rule run by the audit agents
+    properties:
+      rule_id: string
+      name: string
+      expression: string
+      severity: string
+    required: [name, severity]
+
+  PolicyRule:
+    layer: audit
+    key: rule_id
+    description: Client or engagement policy with a limit
+    properties: {rule_id: string, text: string, limit: float}
+    required: [text]
+
+  DocumentType:
+    layer: audit
+    key: code
+    description: Kind of client document, e.g. balance_sheet, invoice
+    properties: {code: string, name: string}
+    required: [name]
+
+  Client:
+    layer: evidence
+    key: id
+    description: Audited entity
+    properties: {id: string, name: string, registration_no: string}
+    required: [name]
+
+  Engagement:
+    layer: evidence
+    key: case_id
+    description: One audit case for a client and year
+    properties: {case_id: string, year: int, materiality: float}
+    required: [year]
+
+  SourceDocument:
+    layer: evidence
+    key: doc_id
+    description: Uploaded client document stored in object storage
+    properties:
+      doc_id: string
+      doc_type: string
+      period_year: int
+      object_key: string
+      sha256: string
+    required: [doc_type, object_key, sha256]
+
+  LedgerEntry:
+    layer: evidence
+    key: entry_id
+    description: Append only record of an evidence event, hash chained
+    properties:
+      entry_id: string
+      seq: int
+      action: string
+      hash: string
+      prev_hash: string
+    required: [seq, action, hash]
+
+  SourceChunk:
+    layer: provenance
+    key: id
+    description: Text chunk of an ingested compliance document
+    properties: {id: string, file: string, page: int, text: string}
+    required: [file, text]
+
+  OntologyVersion:
+    layer: provenance
+    key: version
+    description: Change log entry when the ontology or graph is updated
+    properties: {version: int, summary: string}
+    required: [summary]
+
+relationships:
+  ISSUED_BY:
+    from: [Standard, Legislation, Framework]
+    to: [RegulatoryBody]
+  BELONGS_TO:
+    from: [Standard]
+    to: [Framework]
+  HAS_SECTION:
+    from: [Standard, Legislation, Section]
+    to: [Section]
+  HAS_REQUIREMENT:
+    from: [Section]
+    to: [Requirement]
+  DEFINES:
+    from: [Section]
+    to: [Definition]
+  AMENDS:
+    from: [Standard, Legislation, Amendment]
+    to: [Standard, Legislation, Section]
+  SUPERSEDES:
+    from: [Standard, Legislation]
+    to: [Standard, Legislation]
+  REFERS_TO:
+    from: [Section, Requirement]
+    to: [Standard, Legislation, Section]
+  GOVERNS:
+    from: [Standard]
+    to: [AccountClass, LineItem, FinancialStatement, DocumentType]
+  APPLIES_TO:
+    from: [Requirement]
+    to: [AccountClass, LineItem, FinancialStatement, DocumentType]
+  # section: current, non_current, operating, investing, financing, oci_reclassified, oci_not_reclassified
+  PRESENTED_IN:
+    from: [LineItem]
+    to: [FinancialStatement]
+    properties: {section: string, order: int}
+  CLASSIFIED_AS:
+    from: [LineItem]
+    to: [AccountClass]
+  DEFINED_BY:
+    from: [AccountClass, LineItem, FinancialStatement, MeasurementBasis, QualitativeCharacteristic]
+    to: [Definition]
+  MEASURED_AT:
+    from: [AccountClass, LineItem]
+    to: [MeasurementBasis]
+    properties: {condition: string}
+  SUBCLASS_OF:
+    from: [AccountClass]
+    to: [AccountClass]
+  # role: lhs, rhs; sign: 1 or -1
+  USES:
+    from: [Equation, Ratio, CheckRule]
+    to: [AccountClass, LineItem]
+    properties: {role: string, sign: int}
+  HOLDS_IN:
+    from: [Equation, Ratio]
+    to: [FinancialStatement]
+  DERIVED_FROM:
+    from: [Equation, CheckRule, Requirement, AuditAssertion, AuditProcedure, MeasurementBasis, QualitativeCharacteristic]
+    to: [Standard, Section]
+  IMPLEMENTS:
+    from: [CheckRule]
+    to: [Equation, Requirement]
+  TESTS:
+    from: [CheckRule, AuditProcedure]
+    to: [AuditAssertion]
+  ADDRESSES:
+    from: [AuditProcedure, CheckRule]
+    to: [Risk]
+  CHECKS_DOC_TYPE:
+    from: [CheckRule, PolicyRule]
+    to: [DocumentType]
+  FOR_CLIENT:
+    from: [Engagement]
+    to: [Client]
+  IN_ENGAGEMENT:
+    from: [SourceDocument]
+    to: [Engagement]
+  OF_TYPE:
+    from: [SourceDocument]
+    to: [DocumentType]
+  CHILD_OF:
+    from: [SourceDocument]
+    to: [SourceDocument]
+  RECORDS:
+    from: [LedgerEntry]
+    to: [SourceDocument]
+  PREV:
+    from: [LedgerEntry]
+    to: [LedgerEntry]
+  EXTRACTED_FROM:
+    from: [Standard, Legislation, Amendment, Section, Requirement, Definition, Equation, Ratio]
+    to: [SourceChunk]
+  CHANGED_IN:
+    from: [Standard, Legislation, Amendment, Section, Requirement, Definition]
+    to: [OntologyVersion]
