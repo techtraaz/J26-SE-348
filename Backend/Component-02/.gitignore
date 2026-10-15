@@ -1,0 +1,22 @@
+# Virtual environment
+.venv/
+env/
+venv/
+
+# Bytecode & Caches
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+build/
+.pytest_cache/
+.ruff_cache/
+
+# Standards PDFs
+data/standards/raw/
+data/standards/processed/
+data/ledger/
+*.log
+
+# Environment variables
+.env
