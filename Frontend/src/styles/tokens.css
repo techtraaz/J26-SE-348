@@ -1,0 +1,11 @@
+:root {
+  --bg:#F7F9FC; --surface:#FFFFFF; --surface-muted:#EEF2F7; --border:#D9E0EA;
+  --text:#0F1B2D; --text-muted:#5B6B80; --nav:#0B2545; --primary:#1D5FD0;
+  --success:#15803D; --warning:#B45309; --danger:#B91C1C; --info:#0369A1;
+  --radius:8px; --radius-lg:12px;
+}
+[data-theme="dark"] {
+  --bg:#0B1220; --surface:#111A2C; --surface-muted:#18243A; --border:#26344D;
+  --text:#E6EDF7; --text-muted:#98A6BC; --nav:#0A1830; --primary:#6EA2FF;
+  --success:#4ADE80; --warning:#FBBF24; --danger:#F87171; --info:#38BDF8;
+}
