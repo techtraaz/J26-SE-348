@@ -18,7 +18,9 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from sse_starlette.sse import EventSourceResponse
 
 from app.reporting import pdf_renderer
@@ -68,6 +70,25 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+
+# ── CORS (allow the dashboard to talk to the API) ─────────────────────
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# ── Static files & Dashboard ──────────────────────────────────────────
+_STATIC_DIR = Path(__file__).resolve().parent / "static"
+app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
+
+
+@app.get("/", response_class=HTMLResponse)
+async def dashboard():
+    """Serve the XAI Trace Dashboard."""
+    index = _STATIC_DIR / "index.html"
+    return HTMLResponse(content=index.read_text(encoding="utf-8"))
 
 
 # ── Health check ───────────────────────────────────────────────────────
