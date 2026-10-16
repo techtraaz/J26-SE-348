@@ -65,6 +65,7 @@ pytest
 - `GET /query/standards/{code}`, `/query/sections/{id}`, `/query/line-items/{code}`,
   `/query/equations?statement=&kind=`, `/query/definitions/{term}`
 - `GET /query/search?q=&mode=keyword|semantic|hybrid&standard=`: search the standards
+- `POST /query/cypher`: read-only Cypher for debugging and demos (`QUERY_CYPHER_ENABLED`)
 
 See [docs/ontology.md](docs/ontology.md) for the ontology and
 [docs/kg_construction.md](docs/kg_construction.md) for KG construction.

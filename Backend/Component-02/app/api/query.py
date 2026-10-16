@@ -1,9 +1,11 @@
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, HTTPException, Query
-from neo4j.exceptions import DriverError, Neo4jError
+from neo4j.exceptions import ClientError, CypherSyntaxError, DriverError, Forbidden, Neo4jError
+from pydantic import BaseModel, Field
 
-from app.query import contract, lookup, search
+from app.config import get_settings
+from app.query import contract, cypher, lookup, search
 
 router = APIRouter(prefix="/query", tags=["kg query"])
 
@@ -97,3 +99,28 @@ def search_standards(q: Annotated[str, Query(min_length=2, max_length=500)],
                      standard: str | None = None) -> dict:
     """Search the standards. A paragraph reference such as 'LKAS 2:9' goes straight to it."""
     return _call(search.search, q, mode, limit, standard)
+
+
+class CypherRequest(BaseModel):
+    query: str = Field(min_length=1, max_length=5000)
+    params: dict = Field(default_factory=dict)
+
+
+@router.post("/cypher")
+def run_cypher(body: CypherRequest) -> dict:
+    """Read-only Cypher for people. Agents use the fixed endpoints above."""
+    if not get_settings().query_cypher_enabled:
+        raise HTTPException(403, "Cypher endpoint is disabled (QUERY_CYPHER_ENABLED=false)")
+    try:
+        return cypher.run_checked(body.query, body.params)
+    except cypher.CypherRejected as exc:
+        raise HTTPException(400, str(exc)) from exc
+    except CypherSyntaxError as exc:
+        raise HTTPException(400, f"Cypher syntax error: {exc.message}") from exc
+    except Forbidden as exc:
+        raise HTTPException(403, f"Refused by Neo4j: {exc.message}") from exc
+    except ClientError as exc:
+        status = 408 if "timedout" in (exc.code or "").lower().replace(" ", "") else 400
+        raise HTTPException(status, f"{exc.code}: {exc.message}") from exc
+    except (DriverError, Neo4jError) as exc:
+        raise HTTPException(503, f"Neo4j unavailable: {exc}") from exc
