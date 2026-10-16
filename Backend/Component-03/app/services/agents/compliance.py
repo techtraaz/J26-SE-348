@@ -1,6 +1,6 @@
 """Agent 2: Compliance — equation + debit/credit + KG policy limits."""
 from app.schemas.case import AuditCase
-from app.schemas.findings import Finding, TraceEntry
+from app.schemas.findings import EvidenceClaim, Finding, TraceEntry
 from app.services import rule_engine
 from app.services.kg_client import KGClient
 
@@ -19,7 +19,9 @@ def run(case: AuditCase, kg: KGClient) -> tuple[list[Finding], list[TraceEntry]]
                     finding_id=f"{d.doc_id}-{r['rule_id']}", rule_id=r["rule_id"],
                     category="compliance", severity="high",
                     message=f"{r['text']} Got {amt:.0f} in {d.doc_id}.",
-                    evidence_ids=[d.doc_id], policy_ids=[r["rule_id"]]))
+                    evidence_ids=[d.doc_id], policy_ids=[r["rule_id"]],
+                    claims=[EvidenceClaim(evidence_id=d.doc_id, field="amount",
+                                           claimed_value=float(amt))]))
     trace = [TraceEntry(agent_name="compliance", decision_type="check",
                         detail=f"Compliance checked {len(case.docs)} doc(s), {len(findings)} finding(s).")]
     return findings, trace

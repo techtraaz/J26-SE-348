@@ -1,7 +1,9 @@
-"""Plain Python maths checks. No LLM here — fast and exact."""
+"""Plain Python maths checks. No LLM here — fast and exact.
+Every value-based finding carries structured claims so Validation can verify
+the cited document's field really holds the claimed value (in code)."""
 from app import config
 from app.schemas.case import AuditCase, AuditDocument
-from app.schemas.findings import Finding
+from app.schemas.findings import EvidenceClaim, Finding
 
 
 def _num(doc: AuditDocument, key: str) -> float | None:
@@ -11,10 +13,23 @@ def _num(doc: AuditDocument, key: str) -> float | None:
     return None
 
 
+def required_fields_for(doc_type: str) -> list[str]:
+    return {"balance_sheet": ["assets", "liabilities", "capital"],
+            "invoice": ["amount"]}.get(doc_type, [])
+
+
+def rejected_doc_ids(case: AuditCase) -> list[str]:
+    """Doc IDs missing a required field. Computed from fields, never from message text."""
+    out = []
+    for d in case.docs:
+        if any(f not in d.fields or d.fields[f] is None for f in required_fields_for(d.doc_type)):
+            out.append(d.doc_id)
+    return out
+
+
 def check_required_fields(doc: AuditDocument) -> list[Finding]:
     """CHK-006: required fields + format present."""
-    required = {"balance_sheet": ["assets", "liabilities", "capital"],
-                "invoice": ["amount"]}.get(doc.doc_type, [])
+    required = required_fields_for(doc.doc_type)
     out: list[Finding] = []
     for f in required:
         if f not in doc.fields or doc.fields[f] is None:
@@ -44,7 +59,10 @@ def check_accounting_equation(doc: AuditDocument) -> list[Finding]:
             finding_id=f"{doc.doc_id}-CHK001", rule_id="CHK-001",
             category="ledger", severity="high",
             message=f"Equation broken in {doc.doc_id}: assets {a} != liabilities {l} + capital {c}.",
-            evidence_ids=[doc.doc_id])]
+            evidence_ids=[doc.doc_id],
+            claims=[EvidenceClaim(evidence_id=doc.doc_id, field="assets", claimed_value=a),
+                    EvidenceClaim(evidence_id=doc.doc_id, field="liabilities", claimed_value=l),
+                    EvidenceClaim(evidence_id=doc.doc_id, field="capital", claimed_value=c)])]
     return []
 
 
@@ -58,7 +76,9 @@ def check_debit_credit(doc: AuditDocument) -> list[Finding]:
             finding_id=f"{doc.doc_id}-CHK002", rule_id="CHK-002",
             category="ledger", severity="high",
             message=f"Debit {d} != credit {cr} in {doc.doc_id}. Wrong side or wrong account (e.g. TV as liability).",
-            evidence_ids=[doc.doc_id])]
+            evidence_ids=[doc.doc_id],
+            claims=[EvidenceClaim(evidence_id=doc.doc_id, field="debit_total", claimed_value=d),
+                    EvidenceClaim(evidence_id=doc.doc_id, field="credit_total", claimed_value=cr)])]
     return []
 
 
@@ -76,7 +96,9 @@ def check_parent_amount_match(case: AuditCase) -> list[Finding]:
                 finding_id=f"{d.doc_id}-CHK003", rule_id="CHK-003",
                 category="arithmetic", severity="high",
                 message=f"Amount mismatch: {d.doc_id} has {da} but parent {p.doc_id} has {pa}.",
-                evidence_ids=[d.doc_id, p.doc_id]))
+                evidence_ids=[d.doc_id, p.doc_id],
+                claims=[EvidenceClaim(evidence_id=d.doc_id, field="amount", claimed_value=da),
+                        EvidenceClaim(evidence_id=p.doc_id, field="amount", claimed_value=pa)]))
     return out
 
 
@@ -116,7 +138,9 @@ def check_cash_without_asset(case: AuditCase) -> list[Finding]:
                 finding_id=f"{d.doc_id}-CHK005", rule_id="CHK-005",
                 category="possible_fraud", severity="high",
                 message=f"Cash {cash_out:.0f} left in {d.doc_id} but purchase booked as credit with no asset in. Needs auditor review.",
-                evidence_ids=[d.doc_id]))
+                evidence_ids=[d.doc_id],
+                claims=[EvidenceClaim(evidence_id=d.doc_id, field="cash_out", claimed_value=cash_out),
+                        EvidenceClaim(evidence_id=d.doc_id, field="purchase_basis", claimed_value="credit")]))
     return out
 
 

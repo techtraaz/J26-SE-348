@@ -11,6 +11,14 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+class EvidenceClaim(BaseModel):
+    """One checkable claim: doc's field really holds this value.
+    Validation verifies it in code (numbers within tolerance)."""
+    evidence_id: str
+    field: str
+    claimed_value: float | str
+
+
 class Finding(BaseModel):
     finding_id: str
     rule_id: str  # e.g. CHK-001, POL-07 — always cite, so trace stays
@@ -20,7 +28,9 @@ class Finding(BaseModel):
     evidence_ids: list[str] = []
     policy_ids: list[str] = []
     confidence: float = 1.0
-    # Contract fields promised to Component-04 (Thennakoon). Optional so old data still loads.
+    # Structured claims Validation actually checks (existence + value match).
+    claims: list[EvidenceClaim] = Field(default_factory=list)
+    # Contract fields for Component-04 (Thennakoon). Filled by Reasoning, not empty.
     reasoning_chain: list[str] = Field(default_factory=list)
     evidence_validation: str = "unverified"
     citation_unverified: bool = False
@@ -32,7 +42,7 @@ class TraceEntry(BaseModel):
     agent_name: str
     decision_type: str
     detail: str
-    seq: int = 0  # execution order number, set inside node at run time (no sorting)
+    seq: int = 0  # completion-order stamp, set inside node at run time (not start order)
 
 
 class RejectedFinding(BaseModel):
@@ -43,6 +53,8 @@ class RejectedFinding(BaseModel):
 class AuditResult(BaseModel):
     case_id: str
     version: int = 1
+    # pending_auditor_review = checked, needs human. not_auditable = nothing
+    # could be checked (empty or all-rejected case); findings carry the DQ reasons.
     status: str = "pending_auditor_review"
     findings: list[Finding] = []
     trace: list[TraceEntry] = []
