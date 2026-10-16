@@ -40,6 +40,7 @@ copy .env.example .env      # fill in AuraDB credentials
 python -m scripts.check_neo4j
 python -m scripts.migrate   # constraints + indexes, safe to re-run
 python -m scripts.seed      # load seed data (--check to validate only)
+python -m scripts.ingest_all  # ingest all standards PDFs, resumable
 uvicorn app.main:app --reload --port 8002
 pytest
 ```
@@ -52,4 +53,10 @@ pytest
 - `GET /ontology/diagram?layer=`: Mermaid diagram
 - `GET /ontology/stats`: live node and relationship counts
 
-See [docs/ontology.md](docs/ontology.md) for the ontology design and diagrams.
+- `POST /kg/ingest/pdf`: upload a standard PDF, returns a job
+- `POST /kg/ingest/ocr`: Component 01 OCR output for scanned documents
+- `GET /kg/jobs/{id}`: job status and summary
+- `GET /kg/pipeline`: KG construction pipeline diagram
+
+See [docs/ontology.md](docs/ontology.md) for the ontology and
+[docs/kg_construction.md](docs/kg_construction.md) for KG construction.

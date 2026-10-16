@@ -115,7 +115,9 @@ def chunk_by_size(doc: LoadedDocument, limit: int = MAX_CHARS) -> list[Chunk]:
     return chunks
 
 
+# a known standard keeps its paragraphs even when short (a one page amendment);
+# other documents need a few numbered paragraphs before we trust the numbering
 def chunk_document(doc: LoadedDocument) -> list[Chunk]:
     chunks = chunk_paragraphs(doc)
     numbered = sum(1 for c in chunks if c.number)
-    return chunks if numbered >= 3 else chunk_by_size(doc)
+    return chunks if numbered >= (1 if doc.code else 3) else chunk_by_size(doc)

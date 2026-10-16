@@ -83,6 +83,11 @@ def test_long_paragraph_is_split():
     assert chunks[0].id == "LKAS 2:5#1" and all(len(c.text) <= 2600 for c in chunks)
 
 
+def test_short_standard_keeps_its_paragraphs():
+    doc = _doc("41  An entity shall disclose the carrying amount of inventories pledged.")
+    assert [c.id for c in chunk_document(doc)] == ["LKAS 2:41"]
+
+
 def test_unnumbered_document_falls_back_to_size_chunks():
     doc = _doc("Invoice No 123\n\nCustomer ABC Ltd\n\nTotal Rs. 250,000", code=None)
     chunks = chunk_document(doc)

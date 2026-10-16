@@ -54,6 +54,21 @@ class IngestResult:
     plan_errors: list[str] = field(default_factory=list)
     written: dict[str, int] = field(default_factory=dict)
 
+    def summary(self) -> dict:
+        ext = [r.extraction for r in self.results]
+        return {
+            "file": self.file, "code": self.code, "kind": self.kind, "chunks": self.chunks,
+            "sent_to_llm": len(self.results) + len(self.errors), "skipped": len(self.skipped),
+            "llm_errors": len(self.errors),
+            "requirements": sum(len(e.requirements) for e in ext),
+            "definitions": sum(len(e.definitions) for e in ext),
+            "equations": sum(len(e.equations) for e in ext),
+            "issues": dict(Counter(i.action for r in self.results for i in r.issues)),
+            "created": dict(self.created), "matched": dict(self.matched),
+            "proposals": len(self.proposals), "plan_errors": self.plan_errors,
+            "written": sum(self.written.values()),
+        }
+
     def to_dict(self) -> dict:
         return {
             "file": self.file, "code": self.code, "kind": self.kind, "chunks": self.chunks,
