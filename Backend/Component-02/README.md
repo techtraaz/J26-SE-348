@@ -38,6 +38,7 @@ python -m venv .venv
 python -m pip install -e ".[dev]"
 copy .env.example .env      # fill in AuraDB credentials
 python -m scripts.check_neo4j
+python -m scripts.migrate   # constraints + indexes, safe to re-run
 uvicorn app.main:app --reload --port 8002
 pytest
 ```

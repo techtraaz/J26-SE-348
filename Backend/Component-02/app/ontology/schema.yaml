@@ -229,7 +229,7 @@ nodes:
     layer: provenance
     key: id
     description: Text chunk of an ingested compliance document
-    properties: {id: string, file: string, page: int, text: string}
+    properties: {id: string, file: string, page: int, text: string, embedding: vector}
     required: [file, text]
 
   OntologyVersion:
