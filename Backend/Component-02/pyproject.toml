@@ -10,6 +10,7 @@ dependencies = [
     "pydantic-settings>=2.4",
     "neo4j>=5.25",
     "pyyaml>=6.0",
+    "pypdf[crypto]>=5.0",
 ]
 
 [project.optional-dependencies]
