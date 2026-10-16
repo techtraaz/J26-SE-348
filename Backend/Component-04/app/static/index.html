@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NOMOS — XAI Trace Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg-primary: #0a0e1a;
+      --bg-card: #111827;
+      --bg-card-hover: #1a2236;
+      --border: #1e293b;
+      --text-primary: #e2e8f0;
+      --text-secondary: #94a3b8;
+      --text-muted: #64748b;
+      --accent-blue: #3b82f6;
+      --accent-purple: #8b5cf6;
+      --accent-emerald: #10b981;
+      --accent-amber: #f59e0b;
+      --accent-rose: #f43f5e;
+      --gradient-start: #3b82f6;
+      --gradient-end: #8b5cf6;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      min-height: 100vh;
+    }
+
+    /* ── Header ─────────────────────────────────────── */
+    .header {
+      background: linear-gradient(135deg, rgba(59,130,246,0.08), rgba(139,92,246,0.08));
+      border-bottom: 1px solid var(--border);
+      padding: 20px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .header-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .header-brand .logo {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, var(--gradient-start), var(--gradient-end));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      font-weight: 700;
+    }
+    .header h1 {
+      font-size: 18px;
+      font-weight: 700;
+      background: linear-gradient(135deg, var(--gradient-start), var(--gradient-end));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .header .subtitle {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    /* ── Controls Bar ───────────────────────────────── */
+    .controls {
+      padding: 16px 32px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+    .controls input {
+      flex: 1;
+      max-width: 340px;
+      padding: 10px 16px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--bg-card);
+      color: var(--text-primary);
+      font-size: 14px;
+      font-family: inherit;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .controls input:focus {
+      border-color: var(--accent-blue);
+    }
+    .controls input::placeholder {
+      color: var(--text-muted);
+    }
+
+    .btn {
+      padding: 10px 20px;
+      border-radius: 10px;
+      border: none;
+      font-size: 13px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--gradient-start), var(--gradient-end));
+      color: #fff;
+    }
+    .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); }
+    .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+    .btn-outline {
+      background: transparent;
+      color: var(--accent-emerald);
+      border: 1px solid var(--accent-emerald);
+    }
+    .btn-outline:hover { background: rgba(16,185,129,0.1); }
+    .btn-outline:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .btn-report {
+      background: linear-gradient(135deg, var(--accent-emerald), #059669);
+      color: #fff;
+    }
+    .btn-report:hover { opacity: 0.9; transform: translateY(-1px); }
+    .btn-report:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+    /* ── Status Indicator ───────────────────────────── */
+    .status-bar {
+      padding: 10px 32px;
+      font-size: 12px;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--text-muted);
+    }
+    .status-dot.connected { background: var(--accent-emerald); animation: pulse 2s infinite; }
+    .status-dot.error { background: var(--accent-rose); }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    /* ── Main Layout ────────────────────────────────── */
+    .main {
+      display: grid;
+      grid-template-columns: 1fr 340px;
+      gap: 0;
+      min-height: calc(100vh - 160px);
+    }
+
+    /* ── Timeline Panel ─────────────────────────────── */
+    .timeline-panel {
+      padding: 24px 32px;
+      overflow-y: auto;
+      max-height: calc(100vh - 160px);
+    }
+    .timeline-panel h2 {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 16px;
+    }
+
+    .timeline {
+      position: relative;
+      padding-left: 28px;
+    }
+    .timeline::before {
+      content: '';
+      position: absolute;
+      left: 7px;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      background: linear-gradient(180deg, var(--accent-blue), var(--accent-purple), transparent);
+    }
+
+    .trace-card {
+      position: relative;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px 18px;
+      margin-bottom: 12px;
+      animation: slideIn 0.35s ease-out;
+      transition: border-color 0.2s;
+    }
+    .trace-card:hover { border-color: var(--accent-blue); }
+
+    .trace-card::before {
+      content: '';
+      position: absolute;
+      left: -24px;
+      top: 18px;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      border: 2px solid var(--accent-blue);
+      background: var(--bg-primary);
+    }
+
+    .trace-card.pipeline_start::before { border-color: var(--accent-emerald); background: var(--accent-emerald); }
+    .trace-card.agent_end::before { border-color: var(--accent-blue); }
+    .trace-card.pipeline_end::before { border-color: var(--accent-purple); background: var(--accent-purple); }
+
+    .trace-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+    .trace-agent {
+      font-weight: 600;
+      font-size: 14px;
+    }
+    .trace-badge {
+      font-size: 11px;
+      padding: 2px 10px;
+      border-radius: 20px;
+      font-weight: 600;
+    }
+    .badge-start { background: rgba(16,185,129,0.15); color: var(--accent-emerald); }
+    .badge-agent { background: rgba(59,130,246,0.15); color: var(--accent-blue); }
+    .badge-end { background: rgba(139,92,246,0.15); color: var(--accent-purple); }
+    .badge-findings { background: rgba(245,158,11,0.15); color: var(--accent-amber); }
+
+    .trace-detail {
+      font-size: 13px;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+    .trace-time {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 6px;
+    }
+
+    /* ── Insight Card ────────────────────────────────── */
+    .insight-card {
+      position: relative;
+      background: linear-gradient(135deg, rgba(245,158,11,0.08), rgba(139,92,246,0.08));
+      border: 1px solid var(--accent-amber);
+      border-radius: 14px;
+      padding: 18px 20px;
+      margin-top: 16px;
+      animation: glowIn 0.5s ease-out;
+    }
+    .insight-card .insight-header {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--accent-amber);
+      margin-bottom: 8px;
+    }
+    .insight-card .insight-text {
+      font-size: 14px;
+      color: var(--text-primary);
+      line-height: 1.6;
+    }
+
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes glowIn {
+      from { opacity: 0; transform: scale(0.96); }
+      to   { opacity: 1; transform: scale(1); }
+    }
+
+    /* ── Empty State ────────────────────────────────── */
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--text-muted);
+    }
+    .empty-state .icon {
+      font-size: 48px;
+      margin-bottom: 16px;
+    }
+    .empty-state p {
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    /* ── Side Panel ─────────────────────────────────── */
+    .side-panel {
+      border-left: 1px solid var(--border);
+      padding: 24px 20px;
+      background: rgba(17,24,39,0.5);
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+    .side-panel h3 {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .stat-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .stat-box {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px;
+      text-align: center;
+    }
+    .stat-box .stat-value {
+      font-size: 22px;
+      font-weight: 700;
+      background: linear-gradient(135deg, var(--gradient-start), var(--gradient-end));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .stat-box .stat-label {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .history-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      max-height: 260px;
+      overflow-y: auto;
+    }
+    .history-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 12px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: border-color 0.2s;
+    }
+    .history-item:hover { border-color: var(--accent-blue); }
+    .history-item .case-name { font-weight: 600; }
+    .history-item .case-status { color: var(--accent-emerald); }
+
+    /* ── Thinking animation ─────────────────────────── */
+    .thinking-dots {
+      display: inline-flex;
+      gap: 4px;
+      margin-left: 8px;
+    }
+    .thinking-dots span {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--accent-blue);
+      animation: blink 1.4s infinite both;
+    }
+    .thinking-dots span:nth-child(2) { animation-delay: 0.2s; }
+    .thinking-dots span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes blink {
+      0%, 80%, 100% { opacity: 0.2; }
+      40% { opacity: 1; }
+    }
+
+    /* ── Toast ──────────────────────────────────────── */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: var(--bg-card);
+      border: 1px solid var(--accent-emerald);
+      border-radius: 12px;
+      padding: 14px 20px;
+      color: var(--text-primary);
+      font-size: 13px;
+      display: none;
+      z-index: 100;
+      animation: slideIn 0.3s ease-out;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ═══ HEADER ═══ -->
+  <header class="header">
+    <div class="header-brand">
+      <div class="logo">N</div>
+      <div>
+        <h1>NOMOS XAI Dashboard</h1>
+        <div class="subtitle">Component 04 — Trace Collector & Reporting Engine</div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ═══ CONTROLS ═══ -->
+  <div class="controls">
+    <input type="text" id="caseInput" placeholder="Enter Case ID (e.g. CASE-001)" />
+    <button class="btn btn-primary" id="connectBtn" onclick="connectToCase()">
+      ▶ Connect Live
+    </button>
+    <button class="btn btn-outline" id="loadBtn" onclick="loadHistory()">
+      ↻ Load History
+    </button>
+    <button class="btn btn-report" id="reportBtn" onclick="downloadReport()" disabled>
+      📄 Download Audit Report
+    </button>
+  </div>
+
+  <!-- ═══ STATUS ═══ -->
+  <div class="status-bar">
+    <div class="status-dot" id="statusDot"></div>
+    <span id="statusText">Disconnected — enter a Case ID to begin</span>
+  </div>
+
+  <!-- ═══ MAIN ═══ -->
+  <div class="main">
+    <!-- Timeline -->
+    <div class="timeline-panel">
+      <h2>Agent Execution Trace
+        <span id="thinkingIndicator" style="display:none">
+          <span class="thinking-dots"><span></span><span></span><span></span></span>
+        </span>
+      </h2>
+      <div id="timeline" class="timeline">
+        <div class="empty-state" id="emptyState">
+          <div class="icon">🔍</div>
+          <p>No traces yet.<br>Connect to a live case or load history to see the agent thinking timeline.</p>
+        </div>
+      </div>
+      <div id="insightContainer"></div>
+    </div>
+
+    <!-- Side Panel -->
+    <div class="side-panel">
+      <div>
+        <h3>Live Stats</h3>
+        <div class="stat-grid" style="margin-top: 10px;">
+          <div class="stat-box">
+            <div class="stat-value" id="statAgents">0</div>
+            <div class="stat-label">Agents</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-value" id="statFindings">0</div>
+            <div class="stat-label">Findings</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-value" id="statTraces">0</div>
+            <div class="stat-label">Traces</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-value" id="statStatus">—</div>
+            <div class="stat-label">Status</div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <h3>Recent Runs</h3>
+        <ul class="history-list" id="historyList">
+          <li style="color: var(--text-muted); font-size: 12px; padding: 12px;">Loading…</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <script>
+    // ── State ──────────────────────────────────────────
+    let eventSource = null;
+    let currentCaseId = null;
+    let stats = { agents: 0, findings: 0, traces: 0 };
+
+    const API = window.location.origin;
+
+    // ── DOM refs ──────────────────────────────────────
+    const timeline      = document.getElementById('timeline');
+    const emptyState    = document.getElementById('emptyState');
+    const insightBox    = document.getElementById('insightContainer');
+    const statusDot     = document.getElementById('statusDot');
+    const statusText    = document.getElementById('statusText');
+    const thinkingInd   = document.getElementById('thinkingIndicator');
+    const caseInput     = document.getElementById('caseInput');
+    const reportBtn     = document.getElementById('reportBtn');
+
+    // ── Load recent runs on page load ─────────────────
+    window.addEventListener('DOMContentLoaded', loadRecentRuns);
+
+    async function loadRecentRuns() {
+      try {
+        const resp = await fetch(`${API}/runs?limit=10`);
+        const data = await resp.json();
+        const list = document.getElementById('historyList');
+        if (data.runs.length === 0) {
+          list.innerHTML = '<li style="color: var(--text-muted); font-size:12px; padding:12px;">No audit runs yet</li>';
+          return;
+        }
+        list.innerHTML = data.runs.map(r => `
+          <li class="history-item" onclick="loadCase('${r.case_id}')">
+            <span class="case-name">${r.case_id}</span>
+            <span class="case-status">${r.status}</span>
+          </li>
+        `).join('');
+      } catch { /* silent */ }
+    }
+
+    // ── Connect to live SSE stream ────────────────────
+    function connectToCase() {
+      const caseId = caseInput.value.trim();
+      if (!caseId) return;
+      if (eventSource) eventSource.close();
+
+      currentCaseId = caseId;
+      stats = { agents: 0, findings: 0, traces: 0 };
+      timeline.innerHTML = '';
+      insightBox.innerHTML = '';
+      emptyState.style.display = 'none';
+      reportBtn.disabled = true;
+      updateStats();
+      setStatus('connected', `Connected to ${caseId} — waiting for traces…`);
+      thinkingInd.style.display = 'inline';
+
+      eventSource = new EventSource(`${API}/traces/stream/${caseId}`);
+
+      eventSource.addEventListener('pipeline_start', (e) => {
+        const d = JSON.parse(e.data);
+        addTraceCard('pipeline_start', '▶ Pipeline Started', d.detail, d.source_timestamp);
+        stats.traces++;
+        setStatus('connected', `Receiving traces for ${caseId}…`);
+        updateStats('▶');
+      });
+
+      eventSource.addEventListener('agent_end', (e) => {
+        const d = JSON.parse(e.data);
+        const title = d.agent_name || 'Agent';
+        const badge = d.findings_count > 0 ? ` · ${d.findings_count} findings` : '';
+        addTraceCard('agent_end', title, (d.detail || 'Completed') + badge, d.source_timestamp, d.findings_count);
+        stats.agents++;
+        stats.findings += (d.findings_count || 0);
+        stats.traces++;
+        updateStats('⚙');
+      });
+
+      eventSource.addEventListener('pipeline_end', (e) => {
+        const d = JSON.parse(e.data);
+        addTraceCard('pipeline_end', '■ Pipeline Complete', d.detail, d.source_timestamp);
+        stats.traces++;
+        thinkingInd.style.display = 'none';
+        reportBtn.disabled = false;
+        setStatus('connected', `Pipeline complete for ${caseId}`);
+        updateStats('✓');
+      });
+
+      eventSource.addEventListener('insight_summary', (e) => {
+        const d = JSON.parse(e.data);
+        showInsight(d.summary);
+      });
+
+      eventSource.onerror = () => {
+        setStatus('error', 'Connection lost — retrying…');
+      };
+    }
+
+    // ── Load historical traces ────────────────────────
+    async function loadHistory() {
+      const caseId = caseInput.value.trim();
+      if (!caseId) return;
+      loadCase(caseId);
+    }
+
+    async function loadCase(caseId) {
+      if (eventSource) { eventSource.close(); eventSource = null; }
+      currentCaseId = caseId;
+      caseInput.value = caseId;
+      stats = { agents: 0, findings: 0, traces: 0 };
+      timeline.innerHTML = '';
+      insightBox.innerHTML = '';
+      emptyState.style.display = 'none';
+      thinkingInd.style.display = 'none';
+
+      try {
+        const resp = await fetch(`${API}/traces/${caseId}`);
+        const data = await resp.json();
+
+        if (data.traces.length === 0) {
+          emptyState.style.display = 'block';
+          setStatus('', `No traces found for ${caseId}`);
+          reportBtn.disabled = true;
+          return;
+        }
+
+        data.traces.forEach(t => {
+          addTraceCard(t.event_type, t.agent_name || t.event_type, t.detail, t.source_timestamp, t.findings_count);
+          stats.traces++;
+          if (t.event_type === 'agent_end') {
+            stats.agents++;
+            stats.findings += (t.findings_count || 0);
+          }
+        });
+
+        reportBtn.disabled = false;
+        setStatus('connected', `Loaded ${data.trace_count} traces for ${caseId}`);
+        updateStats('✓');
+        loadRecentRuns();
+      } catch (err) {
+        setStatus('error', 'Failed to load traces');
+      }
+    }
+
+    // ── Add a trace card to the timeline ──────────────
+    function addTraceCard(type, title, detail, timestamp, findings) {
+      const card = document.createElement('div');
+      card.className = `trace-card ${type}`;
+
+      const badgeClass = type === 'pipeline_start' ? 'badge-start'
+                       : type === 'pipeline_end'   ? 'badge-end'
+                       : 'badge-agent';
+      const badgeLabel = type === 'pipeline_start' ? 'START'
+                       : type === 'pipeline_end'   ? 'DONE'
+                       : 'AGENT';
+
+      let findingsBadge = '';
+      if (findings && findings > 0) {
+        findingsBadge = `<span class="trace-badge badge-findings">${findings} findings</span>`;
+      }
+
+      const time = timestamp ? new Date(timestamp).toLocaleTimeString() : '';
+
+      card.innerHTML = `
+        <div class="trace-header">
+          <span class="trace-agent">${title}</span>
+          <div style="display:flex;gap:6px;">
+            ${findingsBadge}
+            <span class="trace-badge ${badgeClass}">${badgeLabel}</span>
+          </div>
+        </div>
+        <div class="trace-detail">${detail || ''}</div>
+        <div class="trace-time">${time}</div>
+      `;
+      timeline.appendChild(card);
+      card.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }
+
+    // ── Show insight summary ──────────────────────────
+    function showInsight(summary) {
+      insightBox.innerHTML = `
+        <div class="insight-card">
+          <div class="insight-header">💡 AI Insight</div>
+          <div class="insight-text">${summary}</div>
+        </div>
+      `;
+    }
+
+    // ── Download PDF report ───────────────────────────
+    async function downloadReport() {
+      if (!currentCaseId) return;
+      reportBtn.disabled = true;
+      reportBtn.textContent = '⏳ Generating…';
+
+      try {
+        const resp = await fetch(`${API}/report/generate/${currentCaseId}`, { method: 'POST' });
+        if (!resp.ok) throw new Error('Generation failed');
+        const data = await resp.json();
+
+        // Trigger download
+        const a = document.createElement('a');
+        a.href = `${API}${data.download_url}`;
+        a.download = data.filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        showToast('✅ Report downloaded successfully!');
+      } catch (err) {
+        showToast('❌ Report generation failed');
+      } finally {
+        reportBtn.disabled = false;
+        reportBtn.textContent = '📄 Download Audit Report';
+      }
+    }
+
+    // ── Helpers ───────────────────────────────────────
+    function setStatus(state, text) {
+      statusDot.className = 'status-dot' + (state ? ` ${state}` : '');
+      statusText.textContent = text;
+    }
+
+    function updateStats(statusChar) {
+      document.getElementById('statAgents').textContent = stats.agents;
+      document.getElementById('statFindings').textContent = stats.findings;
+      document.getElementById('statTraces').textContent = stats.traces;
+      if (statusChar) document.getElementById('statStatus').textContent = statusChar;
+    }
+
+    function showToast(msg) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.style.display = 'block';
+      setTimeout(() => { t.style.display = 'none'; }, 3000);
+    }
+  </script>
+</body>
+</html>
