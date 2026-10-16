@@ -10,7 +10,7 @@ def run(case: AuditCase, findings: list[Finding]) -> tuple[list[Finding], list[T
         if not f.policy_ids and f.rule_id.startswith("CHK"):
             f.policy_ids = [f.rule_id]
     summary = explain_with_llm(
-        f"Summarise {len(findings)} audit findings in one short line.",
+        f"Say only: case {case.case_id} has {len(findings)} finding(s). No other facts.",
         fallback=f"Case {case.case_id}: {len(findings)} finding(s), all {config.FINDINGS_STATUS_DEFAULT}.")
     trace = [TraceEntry(agent_name="reasoning", decision_type="merge", detail=summary)]
     return findings, trace
