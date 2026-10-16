@@ -16,6 +16,7 @@ _TYPES = {
     "bool": (bool,),
     "date": (date,),
     "datetime": (datetime,),
+    "list": (list,),
     "vector": (list,),
 }
 

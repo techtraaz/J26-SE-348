@@ -104,7 +104,8 @@ nodes:
     layer: reporting
     key: code
     description: Line shown on a financial statement, e.g. Property, plant and equipment
-    properties: {code: string, name: string}
+    # aliases: other field names for the same amount, e.g. capital for total_equity (Component 03)
+    properties: {code: string, name: string, aliases: list}
     required: [name]
 
   AccountClass:
@@ -299,7 +300,7 @@ relationships:
     from: [Equation, Ratio]
     to: [FinancialStatement]
   DERIVED_FROM:
-    from: [Equation, CheckRule, Requirement, AuditAssertion, AuditProcedure, MeasurementBasis, QualitativeCharacteristic]
+    from: [Equation, CheckRule, Requirement, AuditAssertion, AuditProcedure, Risk, MeasurementBasis, QualitativeCharacteristic]
     to: [Standard, Section]
   IMPLEMENTS:
     from: [CheckRule]
