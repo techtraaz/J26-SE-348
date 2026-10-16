@@ -1,0 +1,285 @@
+# Key paragraphs of CF, LKAS 1, 2, 7, 8, 10. Short paraphrases only; full text comes from the PDFs.
+nodes:
+  Section:
+    - {id: "CF:OB2", number: OB2, heading: Objective of general purpose financial reporting}
+    - {id: "CF:QC5", number: QC5, heading: Fundamental qualitative characteristics}
+    - {id: "CF:QC11", number: QC11, heading: Materiality}
+    - {id: "CF:QC12", number: QC12, heading: Faithful representation}
+    - {id: "CF:QC19", number: QC19, heading: Enhancing qualitative characteristics}
+    - {id: "CF:4.1", number: "4.1", heading: Going concern}
+    - {id: "CF:4.4", number: "4.4", heading: Elements of financial position}
+    - {id: "CF:4.25", number: "4.25", heading: Elements of performance}
+    - {id: "CF:4.38", number: "4.38", heading: Recognition criteria}
+    - {id: "CF:4.55", number: "4.55", heading: Measurement bases}
+
+    - {id: "LKAS 1:7", number: "7", heading: Definitions}
+    - {id: "LKAS 1:10", number: "10", heading: Complete set of financial statements}
+    - {id: "LKAS 1:15", number: "15", heading: Fair presentation and compliance with SLFRSs}
+    - {id: "LKAS 1:25", number: "25", heading: Going concern}
+    - {id: "LKAS 1:27", number: "27", heading: Accrual basis of accounting}
+    - {id: "LKAS 1:29", number: "29", heading: Materiality and aggregation}
+    - {id: "LKAS 1:32", number: "32", heading: Offsetting}
+    - {id: "LKAS 1:38", number: "38", heading: Minimum comparative information}
+    - {id: "LKAS 1:54", number: "54", heading: Information to be presented in the statement of financial position}
+    - {id: "LKAS 1:60", number: "60", heading: Current/non-current distinction}
+    - {id: "LKAS 1:66", number: "66", heading: Current assets}
+    - {id: "LKAS 1:69", number: "69", heading: Current liabilities}
+    - {id: "LKAS 1:81A", number: "81A", heading: Statement of profit or loss and other comprehensive income}
+    - {id: "LKAS 1:82", number: "82", heading: Information to be presented in the profit or loss section}
+    - {id: "LKAS 1:87", number: "87", heading: Extraordinary items}
+    - {id: "LKAS 1:99", number: "99", heading: Analysis of expenses}
+    - {id: "LKAS 1:103", number: "103", heading: Function of expense method}
+    - {id: "LKAS 1:106", number: "106", heading: Statement of changes in equity}
+    - {id: "LKAS 1:117", number: "117", heading: Disclosure of accounting policies}
+
+    - {id: "LKAS 2:6", number: "6", heading: Definitions}
+    - {id: "LKAS 2:9", number: "9", heading: Measurement of inventories}
+    - {id: "LKAS 2:10", number: "10", heading: Cost of inventories}
+    - {id: "LKAS 2:25", number: "25", heading: Cost formulas}
+    - {id: "LKAS 2:34", number: "34", heading: Recognition as an expense}
+    - {id: "LKAS 2:36", number: "36", heading: Disclosure}
+
+    - {id: "LKAS 7:6", number: "6", heading: Definitions}
+    - {id: "LKAS 7:10", number: "10", heading: Presentation of a statement of cash flows}
+    - {id: "LKAS 7:18", number: "18", heading: Reporting cash flows from operating activities}
+    - {id: "LKAS 7:28", number: "28", heading: Effect of exchange rate changes on cash}
+    - {id: "LKAS 7:31", number: "31", heading: Interest and dividends}
+    - {id: "LKAS 7:35", number: "35", heading: Taxes on income}
+    - {id: "LKAS 7:43", number: "43", heading: Non-cash transactions}
+    - {id: "LKAS 7:45", number: "45", heading: Components of cash and cash equivalents}
+
+    - {id: "LKAS 8:5", number: "5", heading: Definitions}
+    - {id: "LKAS 8:10", number: "10", heading: Selection of accounting policies without a specific SLFRS}
+    - {id: "LKAS 8:11", number: "11", heading: Sources of guidance in descending order}
+    - {id: "LKAS 8:14", number: "14", heading: Changes in accounting policies}
+    - {id: "LKAS 8:36", number: "36", heading: Changes in accounting estimates}
+    - {id: "LKAS 8:42", number: "42", heading: Correction of prior period errors}
+    - {id: "LKAS 8:49", number: "49", heading: Disclosure of prior period errors}
+
+    - {id: "LKAS 10:3", number: "3", heading: Definitions}
+    - {id: "LKAS 10:8", number: "8", heading: Adjusting events after the reporting period}
+    - {id: "LKAS 10:10", number: "10", heading: Non-adjusting events after the reporting period}
+    - {id: "LKAS 10:12", number: "12", heading: Dividends}
+    - {id: "LKAS 10:14", number: "14", heading: Going concern}
+    - {id: "LKAS 10:17", number: "17", heading: Date of authorisation for issue}
+    - {id: "LKAS 10:21", number: "21", heading: Disclosure of non-adjusting events}
+
+  Requirement:
+    - {id: "CF:4.38#R1", type: recognition, obligation: should, text: "Recognise an item meeting an element definition when future benefit is probable and cost or value can be measured reliably"}
+    - {id: "LKAS 1:10#R1", type: presentation, obligation: shall, text: "Present SFP, SPLOCI, SCE, SCF, notes and comparative information as a complete set"}
+    - {id: "LKAS 1:15#R1", type: presentation, obligation: shall, text: "Financial statements present fairly financial position, performance and cash flows"}
+    - {id: "LKAS 1:25#R1", type: disclosure, obligation: shall, text: "Assess going concern and disclose material uncertainties or a non going concern basis"}
+    - {id: "LKAS 1:27#R1", type: recognition, obligation: shall, text: "Prepare financial statements on the accrual basis except cash flow information"}
+    - {id: "LKAS 1:29#R1", type: presentation, obligation: shall, text: "Present each material class of similar items separately"}
+    - {id: "LKAS 1:32#R1", type: presentation, obligation: shall, text: "Do not offset assets and liabilities or income and expenses unless an SLFRS requires or permits"}
+    - {id: "LKAS 1:38#R1", type: presentation, obligation: shall, text: "Present comparative information for the preceding period for all amounts reported"}
+    - {id: "LKAS 1:54#R1", type: presentation, obligation: shall, text: "SFP includes minimum line items such as PPE, inventories, receivables, cash, payables, provisions, tax and equity"}
+    - {id: "LKAS 1:60#R1", type: classification, obligation: shall, text: "Present current and non-current assets and liabilities separately unless a liquidity presentation is more relevant"}
+    - {id: "LKAS 1:66#R1", type: classification, obligation: shall, text: "Classify an asset as current when realised in the operating cycle, held for trading, realised within twelve months or is unrestricted cash"}
+    - {id: "LKAS 1:69#R1", type: classification, obligation: shall, text: "Classify a liability as current when settled in the operating cycle, held for trading, due within twelve months or settlement cannot be deferred"}
+    - {id: "LKAS 1:81A#R1", type: presentation, obligation: shall, text: "Present profit or loss, total other comprehensive income and total comprehensive income"}
+    - {id: "LKAS 1:82#R1", type: presentation, obligation: shall, text: "Profit or loss includes revenue, finance costs, share of associates, tax expense and discontinued operations"}
+    - {id: "LKAS 1:87#R1", type: presentation, obligation: shall, text: "Do not present any item of income or expense as extraordinary"}
+    - {id: "LKAS 1:99#R1", type: presentation, obligation: shall, text: "Analyse expenses by nature or by function"}
+    - {id: "LKAS 1:106#R1", type: presentation, obligation: shall, text: "SCE shows total comprehensive income, restatements and a reconciliation of each equity component"}
+    - {id: "LKAS 1:117#R1", type: disclosure, obligation: shall, text: "Disclose significant accounting policies including measurement bases"}
+    - {id: "LKAS 2:9#R1", type: measurement, obligation: shall, text: "Measure inventories at the lower of cost and net realisable value"}
+    - {id: "LKAS 2:10#R1", type: measurement, obligation: shall, text: "Cost of inventories includes purchase, conversion and other costs to bring them to present location and condition"}
+    - {id: "LKAS 2:25#R1", type: measurement, obligation: shall, text: "Assign cost using FIFO or weighted average for interchangeable items"}
+    - {id: "LKAS 2:34#R1", type: recognition, obligation: shall, text: "Expense the carrying amount of inventories sold in the period revenue is recognised, and expense write-downs to NRV"}
+    - {id: "LKAS 2:36#R1", type: disclosure, obligation: shall, text: "Disclose inventory policies, carrying amounts, amounts expensed, write-downs and inventories pledged"}
+    - {id: "LKAS 7:10#R1", type: presentation, obligation: shall, text: "Classify cash flows into operating, investing and financing activities"}
+    - {id: "LKAS 7:18#R1", type: presentation, obligation: shall, text: "Report operating cash flows using the direct or indirect method"}
+    - {id: "LKAS 7:31#R1", type: disclosure, obligation: shall, text: "Disclose interest and dividends received and paid separately and classify them consistently"}
+    - {id: "LKAS 7:35#R1", type: classification, obligation: shall, text: "Disclose taxes on income separately and classify them as operating unless linked to investing or financing"}
+    - {id: "LKAS 7:43#R1", type: presentation, obligation: shall, text: "Exclude non-cash investing and financing transactions from the cash flow statement"}
+    - {id: "LKAS 7:45#R1", type: disclosure, obligation: shall, text: "Disclose components of cash and cash equivalents and reconcile them to the SFP"}
+    - {id: "LKAS 8:11#R1", type: measurement, obligation: shall, text: "Without a specific SLFRS, refer first to SLFRSs on similar issues, then to the Conceptual Framework"}
+    - {id: "LKAS 8:14#R1", type: measurement, obligation: shall, text: "Change an accounting policy only if an SLFRS requires it or it gives more relevant information"}
+    - {id: "LKAS 8:36#R1", type: measurement, obligation: shall, text: "Recognise changes in accounting estimates prospectively in profit or loss"}
+    - {id: "LKAS 8:42#R1", type: measurement, obligation: shall, text: "Correct material prior period errors retrospectively by restating comparatives or opening balances"}
+    - {id: "LKAS 8:49#R1", type: disclosure, obligation: shall, text: "Disclose the nature and amount of prior period error corrections"}
+    - {id: "LKAS 10:8#R1", type: measurement, obligation: shall, text: "Adjust amounts for adjusting events after the reporting period"}
+    - {id: "LKAS 10:10#R1", type: measurement, obligation: shall, text: "Do not adjust amounts for non-adjusting events after the reporting period"}
+    - {id: "LKAS 10:12#R1", type: recognition, obligation: shall, text: "Dividends declared after the reporting period are not a liability at period end"}
+    - {id: "LKAS 10:14#R1", type: measurement, obligation: shall, text: "Do not use the going concern basis if management decides after period end to liquidate or stop trading"}
+    - {id: "LKAS 10:17#R1", type: disclosure, obligation: shall, text: "Disclose the date the financial statements were authorised for issue and who authorised them"}
+    - {id: "LKAS 10:21#R1", type: disclosure, obligation: shall, text: "Disclose the nature and estimated effect of material non-adjusting events"}
+
+  Definition:
+    - {id: "DEF:asset", term: Asset, text: "Resource controlled by the entity from past events with expected future economic benefits"}
+    - {id: "DEF:liability", term: Liability, text: "Present obligation from past events expected to cause an outflow of economic benefits"}
+    - {id: "DEF:equity", term: Equity, text: "Residual interest in assets after deducting all liabilities"}
+    - {id: "DEF:income", term: Income, text: "Increases in economic benefits that increase equity, other than owner contributions"}
+    - {id: "DEF:expenses", term: Expenses, text: "Decreases in economic benefits that decrease equity, other than owner distributions"}
+    - {id: "DEF:going_concern", term: Going concern, text: "Assumption the entity will continue operating for the foreseeable future"}
+    - {id: "DEF:material", term: Material, text: "Omission or misstatement that could influence users' economic decisions, judged by size and nature"}
+    - {id: "DEF:profit_or_loss", term: Profit or loss, text: "Total of income less expenses, excluding other comprehensive income"}
+    - {id: "DEF:oci", term: Other comprehensive income, text: "Income and expense items not recognised in profit or loss as required or permitted by SLFRSs"}
+    - {id: "DEF:tci", term: Total comprehensive income, text: "Change in equity in a period other than from transactions with owners"}
+    - {id: "DEF:inventories", term: Inventories, text: "Assets held for sale, in production for sale, or materials and supplies used in production or services"}
+    - {id: "DEF:nrv", term: Net realisable value, text: "Estimated selling price less estimated costs of completion and costs to sell"}
+    - {id: "DEF:cash", term: Cash, text: "Cash on hand and demand deposits"}
+    - {id: "DEF:cash_equivalents", term: Cash equivalents, text: "Short-term highly liquid investments readily convertible to known cash with insignificant risk of value change"}
+    - {id: "DEF:operating_activities", term: Operating activities, text: "Principal revenue-producing activities and other activities not investing or financing"}
+    - {id: "DEF:investing_activities", term: Investing activities, text: "Acquisition and disposal of long-term assets and investments not in cash equivalents"}
+    - {id: "DEF:financing_activities", term: Financing activities, text: "Activities changing the size and composition of contributed equity and borrowings"}
+    - {id: "DEF:accounting_policies", term: Accounting policies, text: "Specific principles, bases, conventions, rules and practices used to prepare financial statements"}
+    - {id: "DEF:change_in_estimate", term: Change in accounting estimate, text: "Adjustment of a carrying amount from new information about assets and liabilities, not an error correction"}
+    - {id: "DEF:prior_period_error", term: Prior period errors, text: "Omissions or misstatements in prior periods from failing to use reliable information, including fraud"}
+    - {id: "DEF:adjusting_event", term: Adjusting event after the reporting period, text: "Event giving evidence of conditions that existed at the end of the reporting period"}
+    - {id: "DEF:non_adjusting_event", term: Non-adjusting event after the reporting period, text: "Event indicating conditions that arose after the reporting period"}
+
+  Amendment:
+    - {id: "AMD:LKAS1-OCI-2014", title: Presentation of Items of Other Comprehensive Income (Amendments to LKAS 1), issued: 2014-01-01, effective_from: 2014-01-01}
+    - {id: "AMD:LKAS1-DI-2015", title: Disclosure Initiative (Amendments to LKAS 1), issued: 2015-03-01, effective_from: 2016-01-01}
+    - {id: "AMD:LKAS7-DI-2016", title: Disclosure Initiative (Amendments to LKAS 7), issued: 2016-09-01, effective_from: 2017-01-01}
+
+relationships:
+  HAS_SECTION:
+    - ["Standard:CF", "Section:CF:OB2"]
+    - ["Standard:CF", "Section:CF:QC5"]
+    - ["Standard:CF", "Section:CF:QC11"]
+    - ["Standard:CF", "Section:CF:QC12"]
+    - ["Standard:CF", "Section:CF:QC19"]
+    - ["Standard:CF", "Section:CF:4.1"]
+    - ["Standard:CF", "Section:CF:4.4"]
+    - ["Standard:CF", "Section:CF:4.25"]
+    - ["Standard:CF", "Section:CF:4.38"]
+    - ["Standard:CF", "Section:CF:4.55"]
+    - ["Standard:LKAS 1", "Section:LKAS 1:7"]
+    - ["Standard:LKAS 1", "Section:LKAS 1:10"]
+    - ["Standard:LKAS 1", "Section:LKAS 1:15"]
+    - ["Standard:LKAS 1", "Section:LKAS 1:25"]
+    - ["Standard:LKAS 1", "Section:LKAS 1:27"]
+    - ["Standard:LKAS 1", "Section:LKAS 1:29"]
+    - ["Standard:LKAS 1", "Section:LKAS 1:32"]
+    - ["Standard:LKAS 1", "Section:LKAS 1:38"]
+    - ["Standard:LKAS 1", "Section:LKAS 1:54"]
+    - ["Standard:LKAS 1", "Section:LKAS 1:60"]
+    - ["Standard:LKAS 1", "Section:LKAS 1:66"]
+    - ["Standard:LKAS 1", "Section:LKAS 1:69"]
+    - ["Standard:LKAS 1", "Section:LKAS 1:81A"]
+    - ["Standard:LKAS 1", "Section:LKAS 1:82"]
+    - ["Standard:LKAS 1", "Section:LKAS 1:87"]
+    - ["Standard:LKAS 1", "Section:LKAS 1:99"]
+    - ["Standard:LKAS 1", "Section:LKAS 1:103"]
+    - ["Standard:LKAS 1", "Section:LKAS 1:106"]
+    - ["Standard:LKAS 1", "Section:LKAS 1:117"]
+    - ["Standard:LKAS 2", "Section:LKAS 2:6"]
+    - ["Standard:LKAS 2", "Section:LKAS 2:9"]
+    - ["Standard:LKAS 2", "Section:LKAS 2:10"]
+    - ["Standard:LKAS 2", "Section:LKAS 2:25"]
+    - ["Standard:LKAS 2", "Section:LKAS 2:34"]
+    - ["Standard:LKAS 2", "Section:LKAS 2:36"]
+    - ["Standard:LKAS 7", "Section:LKAS 7:6"]
+    - ["Standard:LKAS 7", "Section:LKAS 7:10"]
+    - ["Standard:LKAS 7", "Section:LKAS 7:18"]
+    - ["Standard:LKAS 7", "Section:LKAS 7:28"]
+    - ["Standard:LKAS 7", "Section:LKAS 7:31"]
+    - ["Standard:LKAS 7", "Section:LKAS 7:35"]
+    - ["Standard:LKAS 7", "Section:LKAS 7:43"]
+    - ["Standard:LKAS 7", "Section:LKAS 7:45"]
+    - ["Standard:LKAS 8", "Section:LKAS 8:5"]
+    - ["Standard:LKAS 8", "Section:LKAS 8:10"]
+    - ["Standard:LKAS 8", "Section:LKAS 8:11"]
+    - ["Standard:LKAS 8", "Section:LKAS 8:14"]
+    - ["Standard:LKAS 8", "Section:LKAS 8:36"]
+    - ["Standard:LKAS 8", "Section:LKAS 8:42"]
+    - ["Standard:LKAS 8", "Section:LKAS 8:49"]
+    - ["Standard:LKAS 10", "Section:LKAS 10:3"]
+    - ["Standard:LKAS 10", "Section:LKAS 10:8"]
+    - ["Standard:LKAS 10", "Section:LKAS 10:10"]
+    - ["Standard:LKAS 10", "Section:LKAS 10:12"]
+    - ["Standard:LKAS 10", "Section:LKAS 10:14"]
+    - ["Standard:LKAS 10", "Section:LKAS 10:17"]
+    - ["Standard:LKAS 10", "Section:LKAS 10:21"]
+
+  HAS_REQUIREMENT:
+    - ["Section:CF:4.38", "Requirement:CF:4.38#R1"]
+    - ["Section:LKAS 1:10", "Requirement:LKAS 1:10#R1"]
+    - ["Section:LKAS 1:15", "Requirement:LKAS 1:15#R1"]
+    - ["Section:LKAS 1:25", "Requirement:LKAS 1:25#R1"]
+    - ["Section:LKAS 1:27", "Requirement:LKAS 1:27#R1"]
+    - ["Section:LKAS 1:29", "Requirement:LKAS 1:29#R1"]
+    - ["Section:LKAS 1:32", "Requirement:LKAS 1:32#R1"]
+    - ["Section:LKAS 1:38", "Requirement:LKAS 1:38#R1"]
+    - ["Section:LKAS 1:54", "Requirement:LKAS 1:54#R1"]
+    - ["Section:LKAS 1:60", "Requirement:LKAS 1:60#R1"]
+    - ["Section:LKAS 1:66", "Requirement:LKAS 1:66#R1"]
+    - ["Section:LKAS 1:69", "Requirement:LKAS 1:69#R1"]
+    - ["Section:LKAS 1:81A", "Requirement:LKAS 1:81A#R1"]
+    - ["Section:LKAS 1:82", "Requirement:LKAS 1:82#R1"]
+    - ["Section:LKAS 1:87", "Requirement:LKAS 1:87#R1"]
+    - ["Section:LKAS 1:99", "Requirement:LKAS 1:99#R1"]
+    - ["Section:LKAS 1:106", "Requirement:LKAS 1:106#R1"]
+    - ["Section:LKAS 1:117", "Requirement:LKAS 1:117#R1"]
+    - ["Section:LKAS 2:9", "Requirement:LKAS 2:9#R1"]
+    - ["Section:LKAS 2:10", "Requirement:LKAS 2:10#R1"]
+    - ["Section:LKAS 2:25", "Requirement:LKAS 2:25#R1"]
+    - ["Section:LKAS 2:34", "Requirement:LKAS 2:34#R1"]
+    - ["Section:LKAS 2:36", "Requirement:LKAS 2:36#R1"]
+    - ["Section:LKAS 7:10", "Requirement:LKAS 7:10#R1"]
+    - ["Section:LKAS 7:18", "Requirement:LKAS 7:18#R1"]
+    - ["Section:LKAS 7:31", "Requirement:LKAS 7:31#R1"]
+    - ["Section:LKAS 7:35", "Requirement:LKAS 7:35#R1"]
+    - ["Section:LKAS 7:43", "Requirement:LKAS 7:43#R1"]
+    - ["Section:LKAS 7:45", "Requirement:LKAS 7:45#R1"]
+    - ["Section:LKAS 8:11", "Requirement:LKAS 8:11#R1"]
+    - ["Section:LKAS 8:14", "Requirement:LKAS 8:14#R1"]
+    - ["Section:LKAS 8:36", "Requirement:LKAS 8:36#R1"]
+    - ["Section:LKAS 8:42", "Requirement:LKAS 8:42#R1"]
+    - ["Section:LKAS 8:49", "Requirement:LKAS 8:49#R1"]
+    - ["Section:LKAS 10:8", "Requirement:LKAS 10:8#R1"]
+    - ["Section:LKAS 10:10", "Requirement:LKAS 10:10#R1"]
+    - ["Section:LKAS 10:12", "Requirement:LKAS 10:12#R1"]
+    - ["Section:LKAS 10:14", "Requirement:LKAS 10:14#R1"]
+    - ["Section:LKAS 10:17", "Requirement:LKAS 10:17#R1"]
+    - ["Section:LKAS 10:21", "Requirement:LKAS 10:21#R1"]
+
+  DEFINES:
+    - ["Section:CF:4.4", "Definition:DEF:asset"]
+    - ["Section:CF:4.4", "Definition:DEF:liability"]
+    - ["Section:CF:4.4", "Definition:DEF:equity"]
+    - ["Section:CF:4.25", "Definition:DEF:income"]
+    - ["Section:CF:4.25", "Definition:DEF:expenses"]
+    - ["Section:CF:4.1", "Definition:DEF:going_concern"]
+    - ["Section:CF:QC11", "Definition:DEF:material"]
+    - ["Section:LKAS 1:7", "Definition:DEF:material"]
+    - ["Section:LKAS 8:5", "Definition:DEF:material"]
+    - ["Section:LKAS 1:7", "Definition:DEF:profit_or_loss"]
+    - ["Section:LKAS 1:7", "Definition:DEF:oci"]
+    - ["Section:LKAS 1:7", "Definition:DEF:tci"]
+    - ["Section:LKAS 2:6", "Definition:DEF:inventories"]
+    - ["Section:LKAS 2:6", "Definition:DEF:nrv"]
+    - ["Section:LKAS 7:6", "Definition:DEF:cash"]
+    - ["Section:LKAS 7:6", "Definition:DEF:cash_equivalents"]
+    - ["Section:LKAS 7:6", "Definition:DEF:operating_activities"]
+    - ["Section:LKAS 7:6", "Definition:DEF:investing_activities"]
+    - ["Section:LKAS 7:6", "Definition:DEF:financing_activities"]
+    - ["Section:LKAS 8:5", "Definition:DEF:accounting_policies"]
+    - ["Section:LKAS 8:5", "Definition:DEF:change_in_estimate"]
+    - ["Section:LKAS 8:5", "Definition:DEF:prior_period_error"]
+    - ["Section:LKAS 10:3", "Definition:DEF:adjusting_event"]
+    - ["Section:LKAS 10:3", "Definition:DEF:non_adjusting_event"]
+
+  REFERS_TO:
+    - ["Section:LKAS 1:15", "Standard:CF"]
+    - ["Section:LKAS 1:25", "Section:CF:4.1"]
+    - ["Section:LKAS 10:14", "Section:LKAS 1:25"]
+    - ["Section:LKAS 8:11", "Standard:CF"]
+    - ["Section:LKAS 7:45", "Standard:LKAS 1"]
+    - ["Section:LKAS 1:117", "Section:CF:4.55"]
+    - ["Section:LKAS 2:9", "Section:LKAS 2:6"]
+
+  AMENDS:
+    - ["Amendment:AMD:LKAS1-OCI-2014", "Standard:LKAS 1"]
+    - ["Amendment:AMD:LKAS1-OCI-2014", "Section:LKAS 1:7"]
+    - ["Amendment:AMD:LKAS1-OCI-2014", "Section:LKAS 1:10"]
+    - ["Amendment:AMD:LKAS1-OCI-2014", "Section:LKAS 1:81A"]
+    - ["Amendment:AMD:LKAS1-OCI-2014", "Section:LKAS 1:82"]
+    - ["Amendment:AMD:LKAS1-DI-2015", "Standard:LKAS 1"]
+    - ["Amendment:AMD:LKAS1-DI-2015", "Section:LKAS 1:10"]
+    - ["Amendment:AMD:LKAS1-DI-2015", "Section:LKAS 1:54"]
+    - ["Amendment:AMD:LKAS1-DI-2015", "Section:LKAS 1:117"]
+    - ["Amendment:AMD:LKAS7-DI-2016", "Standard:LKAS 7"]

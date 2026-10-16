@@ -1,0 +1,148 @@
+# CA Sri Lanka standards catalogue. file = PDF in data/standards/raw/
+# SLFRS 9, 15, 16 have no PDF yet
+nodes:
+  Standard:
+    - {code: CF, title: Conceptual Framework for Financial Reporting, family: CF, authority: 2, status: active, file: CF_Conceptual_Framework_for_Financial_Reporting.pdf}
+    - {code: LKAS 1, title: "Presentation of Financial Statements", family: LKAS, authority: 1, effective_from: 2012-01-01, status: active, file: LKAS_01_Presentation_of_Financial_Statements.pdf}
+    - {code: LKAS 2, title: "Inventories", family: LKAS, authority: 1, effective_from: 2012-01-01, status: active, file: LKAS_02_Inventories.pdf}
+    - {code: LKAS 7, title: "Statement of Cash Flows", family: LKAS, authority: 1, effective_from: 2012-01-01, status: active, file: LKAS_07_Statement_of_Cash_Flows.pdf}
+    - {code: LKAS 8, title: "Accounting Policies, Changes in Accounting Estimates and Errors", family: LKAS, authority: 1, effective_from: 2012-01-01, status: active, file: LKAS_08_Accounting_Policies_Changes_in_Accounting_Estimates_and_Errors.pdf}
+    - {code: LKAS 10, title: "Events after the Reporting Period", family: LKAS, authority: 1, effective_from: 2012-01-01, status: active, file: LKAS_10_Events_after_the_Reporting_Period.pdf}
+    - {code: LKAS 11, title: "Construction Contracts", family: LKAS, authority: 1, effective_from: 2012-01-01, status: superseded, file: LKAS_11_Construction_Contracts.pdf}
+    - {code: LKAS 12, title: "Income Taxes", family: LKAS, authority: 1, effective_from: 2012-01-01, status: active, file: LKAS_12_Income_Taxes.pdf}
+    - {code: LKAS 16, title: "Property, Plant and Equipment", family: LKAS, authority: 1, effective_from: 2012-01-01, status: active, file: LKAS_16_Property_Plant_and_Equipment.pdf}
+    - {code: LKAS 17, title: "Leases", family: LKAS, authority: 1, effective_from: 2012-01-01, status: superseded, file: LKAS_17_Leases.pdf}
+    - {code: LKAS 18, title: "Revenue", family: LKAS, authority: 1, effective_from: 2012-01-01, status: superseded, file: LKAS_18_Revenue.pdf}
+    - {code: LKAS 19, title: "Employee Benefits", family: LKAS, authority: 1, effective_from: 2012-01-01, status: active, file: LKAS_19_Employee_Benefits.pdf}
+    - {code: LKAS 20, title: "Accounting for Government Grants and Disclosure of Government Assistance", family: LKAS, authority: 1, effective_from: 2012-01-01, status: active, file: LKAS_20_Accounting_for_Government_Grants_and_Disclosure_of_Government_Assistance.pdf}
+    - {code: LKAS 21, title: "The Effects of Changes in Foreign Exchange Rates", family: LKAS, authority: 1, effective_from: 2012-01-01, status: active, file: LKAS_21_The_Effects_of_Changes_in_Foreign_Exchange_Rates.pdf}
+    - {code: LKAS 23, title: "Borrowing Costs", family: LKAS, authority: 1, effective_from: 2012-01-01, status: active, file: LKAS_23_Borrowing_Costs.pdf}
+    - {code: LKAS 24, title: "Related Party Disclosures", family: LKAS, authority: 1, effective_from: 2012-01-01, status: active, file: LKAS_24_Related_Party_Disclosures.pdf}
+    - {code: LKAS 26, title: "Accounting and Reporting by Retirement Benefit Plans", family: LKAS, authority: 1, effective_from: 2012-01-01, status: active, file: LKAS_26_Accounting_and_Reporting_by_Retirement_Benefit_Plans.pdf}
+    - {code: LKAS 27, title: "Separate Financial Statements", family: LKAS, authority: 1, effective_from: 2014-01-01, status: active, file: LKAS_27_Separate_Financial_Statements.pdf}
+    - {code: LKAS 28, title: "Investments in Associates and Joint Ventures", family: LKAS, authority: 1, effective_from: 2014-01-01, status: active, file: LKAS_28_Investments_in_Associates_and_Joint_Ventures.pdf}
+    - {code: LKAS 29, title: "Financial Reporting in Hyperinflationary Economies", family: LKAS, authority: 1, effective_from: 2012-01-01, status: active, file: LKAS_29_Financial_Reporting_in_Hyperinflationary_Economies.pdf}
+    - {code: LKAS 32, title: "Financial Instruments: Presentation", family: LKAS, authority: 1, effective_from: 2012-01-01, status: active, file: LKAS_32_Financial_Instruments_Presentation.pdf}
+    - {code: LKAS 33, title: "Earnings per Share", family: LKAS, authority: 1, effective_from: 2012-01-01, status: active, file: LKAS_33_Earnings_per_Share.pdf}
+    - {code: LKAS 34, title: "Interim Financial Reporting", family: LKAS, authority: 1, effective_from: 2012-01-01, status: active, file: LKAS_34_Interim_Financial_Reporting.pdf}
+    - {code: LKAS 36, title: "Impairment of Assets", family: LKAS, authority: 1, effective_from: 2012-01-01, status: active, file: LKAS_36_Impairment_of_Assets.pdf}
+    - {code: LKAS 37, title: "Provisions, Contingent Liabilities and Contingent Assets", family: LKAS, authority: 1, effective_from: 2012-01-01, status: active, file: LKAS_37_Provisions_Contingent_Liabilities_and_Contingent_Assets.pdf}
+    - {code: LKAS 38, title: "Intangible Assets", family: LKAS, authority: 1, effective_from: 2012-01-01, status: active, file: LKAS_38_Intangible_Assets.pdf}
+    - {code: LKAS 39, title: "Financial Instruments: Recognition and Measurement", family: LKAS, authority: 1, effective_from: 2012-01-01, status: superseded, file: LKAS_39_Financial_Instruments_Recognition_and_Measurement.pdf}
+    - {code: LKAS 40, title: "Investment Property", family: LKAS, authority: 1, effective_from: 2012-01-01, status: active, file: LKAS_40_Investment_Property.pdf}
+    - {code: LKAS 41, title: "Agriculture", family: LKAS, authority: 1, effective_from: 2012-01-01, status: active, file: LKAS_41_Agriculture.pdf}
+    - {code: SLFRS 1, title: "First-time Adoption of Sri Lanka Accounting Standards", family: SLFRS, authority: 1, effective_from: 2012-01-01, status: active, file: SLFRS_01_First_time_Adoption_of_Sri_Lanka_Accounting_Standards.pdf}
+    - {code: SLFRS 2, title: "Share-based Payment", family: SLFRS, authority: 1, effective_from: 2012-01-01, status: active, file: SLFRS_02_Share_based_Payment.pdf}
+    - {code: SLFRS 3, title: "Business Combinations", family: SLFRS, authority: 1, effective_from: 2012-01-01, status: active, file: SLFRS_03_Business_Combinations.pdf}
+    - {code: SLFRS 4, title: "Insurance Contracts", family: SLFRS, authority: 1, effective_from: 2012-01-01, status: active, file: SLFRS_04_Insurance_Contracts.pdf}
+    - {code: SLFRS 5, title: "Non-current Assets Held for Sale and Discontinued Operations", family: SLFRS, authority: 1, effective_from: 2012-01-01, status: active, file: SLFRS_05_Non_current_Assets_Held_for_Sale_and_Discontinued_Operations.pdf}
+    - {code: SLFRS 6, title: "Exploration for and Evaluation of Mineral Resources", family: SLFRS, authority: 1, effective_from: 2012-01-01, status: active, file: SLFRS_06_Exploration_for_and_Evaluation_of_Mineral_Resources.pdf}
+    - {code: SLFRS 7, title: "Financial Instruments: Disclosures", family: SLFRS, authority: 1, effective_from: 2012-01-01, status: active, file: SLFRS_07_Financial_Instruments_Disclosures.pdf}
+    - {code: SLFRS 8, title: "Operating Segments", family: SLFRS, authority: 1, effective_from: 2012-01-01, status: active, file: SLFRS_08_Operating_Segments.pdf}
+    - {code: SLFRS 10, title: "Consolidated Financial Statements", family: SLFRS, authority: 1, effective_from: 2014-01-01, status: active, file: SLFRS_10_Consolidated_Financial_Statements.pdf}
+    - {code: SLFRS 11, title: "Joint Arrangements", family: SLFRS, authority: 1, effective_from: 2014-01-01, status: active, file: SLFRS_11_Joint_Arrangements.pdf}
+    - {code: SLFRS 12, title: "Disclosure of Interests in Other Entities", family: SLFRS, authority: 1, effective_from: 2014-01-01, status: active, file: SLFRS_12_Disclosure_of_Interests_in_Other_Entities.pdf}
+    - {code: SLFRS 13, title: "Fair Value Measurement", family: SLFRS, authority: 1, effective_from: 2014-01-01, status: active, file: SLFRS_13_Fair_Value_Measurement.pdf}
+    - {code: SLFRS 14, title: "Regulatory Deferral Accounts", family: SLFRS, authority: 1, effective_from: 2016-01-01, status: active, file: SLFRS_14_Regulatory_Deferral_Accounts.pdf}
+    - {code: SLFRS 9, title: "Financial Instruments", family: SLFRS, authority: 1, effective_from: 2018-01-01, status: active}
+    - {code: SLFRS 15, title: "Revenue from Contracts with Customers", family: SLFRS, authority: 1, effective_from: 2018-01-01, status: active}
+    - {code: SLFRS 16, title: "Leases", family: SLFRS, authority: 1, effective_from: 2019-01-01, status: active}
+
+relationships:
+  ISSUED_BY:
+    - ["Standard:CF", RegulatoryBody:CASL]
+    - ["Standard:LKAS 1", RegulatoryBody:CASL]
+    - ["Standard:LKAS 2", RegulatoryBody:CASL]
+    - ["Standard:LKAS 7", RegulatoryBody:CASL]
+    - ["Standard:LKAS 8", RegulatoryBody:CASL]
+    - ["Standard:LKAS 10", RegulatoryBody:CASL]
+    - ["Standard:LKAS 11", RegulatoryBody:CASL]
+    - ["Standard:LKAS 12", RegulatoryBody:CASL]
+    - ["Standard:LKAS 16", RegulatoryBody:CASL]
+    - ["Standard:LKAS 17", RegulatoryBody:CASL]
+    - ["Standard:LKAS 18", RegulatoryBody:CASL]
+    - ["Standard:LKAS 19", RegulatoryBody:CASL]
+    - ["Standard:LKAS 20", RegulatoryBody:CASL]
+    - ["Standard:LKAS 21", RegulatoryBody:CASL]
+    - ["Standard:LKAS 23", RegulatoryBody:CASL]
+    - ["Standard:LKAS 24", RegulatoryBody:CASL]
+    - ["Standard:LKAS 26", RegulatoryBody:CASL]
+    - ["Standard:LKAS 27", RegulatoryBody:CASL]
+    - ["Standard:LKAS 28", RegulatoryBody:CASL]
+    - ["Standard:LKAS 29", RegulatoryBody:CASL]
+    - ["Standard:LKAS 32", RegulatoryBody:CASL]
+    - ["Standard:LKAS 33", RegulatoryBody:CASL]
+    - ["Standard:LKAS 34", RegulatoryBody:CASL]
+    - ["Standard:LKAS 36", RegulatoryBody:CASL]
+    - ["Standard:LKAS 37", RegulatoryBody:CASL]
+    - ["Standard:LKAS 38", RegulatoryBody:CASL]
+    - ["Standard:LKAS 39", RegulatoryBody:CASL]
+    - ["Standard:LKAS 40", RegulatoryBody:CASL]
+    - ["Standard:LKAS 41", RegulatoryBody:CASL]
+    - ["Standard:SLFRS 1", RegulatoryBody:CASL]
+    - ["Standard:SLFRS 2", RegulatoryBody:CASL]
+    - ["Standard:SLFRS 3", RegulatoryBody:CASL]
+    - ["Standard:SLFRS 4", RegulatoryBody:CASL]
+    - ["Standard:SLFRS 5", RegulatoryBody:CASL]
+    - ["Standard:SLFRS 6", RegulatoryBody:CASL]
+    - ["Standard:SLFRS 7", RegulatoryBody:CASL]
+    - ["Standard:SLFRS 8", RegulatoryBody:CASL]
+    - ["Standard:SLFRS 10", RegulatoryBody:CASL]
+    - ["Standard:SLFRS 11", RegulatoryBody:CASL]
+    - ["Standard:SLFRS 12", RegulatoryBody:CASL]
+    - ["Standard:SLFRS 13", RegulatoryBody:CASL]
+    - ["Standard:SLFRS 14", RegulatoryBody:CASL]
+    - ["Standard:SLFRS 9", RegulatoryBody:CASL]
+    - ["Standard:SLFRS 15", RegulatoryBody:CASL]
+    - ["Standard:SLFRS 16", RegulatoryBody:CASL]
+  BELONGS_TO:
+    - ["Standard:CF", Framework:SLFRS]
+    - ["Standard:LKAS 1", Framework:SLFRS]
+    - ["Standard:LKAS 2", Framework:SLFRS]
+    - ["Standard:LKAS 7", Framework:SLFRS]
+    - ["Standard:LKAS 8", Framework:SLFRS]
+    - ["Standard:LKAS 10", Framework:SLFRS]
+    - ["Standard:LKAS 11", Framework:SLFRS]
+    - ["Standard:LKAS 12", Framework:SLFRS]
+    - ["Standard:LKAS 16", Framework:SLFRS]
+    - ["Standard:LKAS 17", Framework:SLFRS]
+    - ["Standard:LKAS 18", Framework:SLFRS]
+    - ["Standard:LKAS 19", Framework:SLFRS]
+    - ["Standard:LKAS 20", Framework:SLFRS]
+    - ["Standard:LKAS 21", Framework:SLFRS]
+    - ["Standard:LKAS 23", Framework:SLFRS]
+    - ["Standard:LKAS 24", Framework:SLFRS]
+    - ["Standard:LKAS 26", Framework:SLFRS]
+    - ["Standard:LKAS 27", Framework:SLFRS]
+    - ["Standard:LKAS 28", Framework:SLFRS]
+    - ["Standard:LKAS 29", Framework:SLFRS]
+    - ["Standard:LKAS 32", Framework:SLFRS]
+    - ["Standard:LKAS 33", Framework:SLFRS]
+    - ["Standard:LKAS 34", Framework:SLFRS]
+    - ["Standard:LKAS 36", Framework:SLFRS]
+    - ["Standard:LKAS 37", Framework:SLFRS]
+    - ["Standard:LKAS 38", Framework:SLFRS]
+    - ["Standard:LKAS 39", Framework:SLFRS]
+    - ["Standard:LKAS 40", Framework:SLFRS]
+    - ["Standard:LKAS 41", Framework:SLFRS]
+    - ["Standard:SLFRS 1", Framework:SLFRS]
+    - ["Standard:SLFRS 2", Framework:SLFRS]
+    - ["Standard:SLFRS 3", Framework:SLFRS]
+    - ["Standard:SLFRS 4", Framework:SLFRS]
+    - ["Standard:SLFRS 5", Framework:SLFRS]
+    - ["Standard:SLFRS 6", Framework:SLFRS]
+    - ["Standard:SLFRS 7", Framework:SLFRS]
+    - ["Standard:SLFRS 8", Framework:SLFRS]
+    - ["Standard:SLFRS 10", Framework:SLFRS]
+    - ["Standard:SLFRS 11", Framework:SLFRS]
+    - ["Standard:SLFRS 12", Framework:SLFRS]
+    - ["Standard:SLFRS 13", Framework:SLFRS]
+    - ["Standard:SLFRS 14", Framework:SLFRS]
+    - ["Standard:SLFRS 9", Framework:SLFRS]
+    - ["Standard:SLFRS 15", Framework:SLFRS]
+    - ["Standard:SLFRS 16", Framework:SLFRS]
+  SUPERSEDES:
+    - ["Standard:SLFRS 9", "Standard:LKAS 39"]
+    - ["Standard:SLFRS 15", "Standard:LKAS 11"]
+    - ["Standard:SLFRS 15", "Standard:LKAS 18"]
+    - ["Standard:SLFRS 16", "Standard:LKAS 17"]

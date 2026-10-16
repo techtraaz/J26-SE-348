@@ -31,7 +31,8 @@ nodes:
     required: [name]
 
   # family: CF, LKAS, SLFRS, SoRP, SoAT, IFRIC, SIC, SLAuS (LKAS 1.7)
-  # authority: 1 specific standard, 2 similar standard, 3 Conceptual Framework (LKAS 8.11)
+  # authority: 1 SLFRS/LKAS, 2 Conceptual Framework (standards prevail, LKAS 8.11)
+  # status: active, superseded
   Standard:
     layer: regulatory
     key: code
@@ -44,6 +45,7 @@ nodes:
       effective_from: date
       status: string
       version: string
+      file: string
     required: [title, family]
 
   Amendment:
@@ -61,7 +63,7 @@ nodes:
     layer: regulatory
     key: code
     description: Act or regulation, e.g. Companies Act No. 7 of 2007
-    properties: {code: string, title: string, year: int, status: string}
+    properties: {code: string, title: string, year: int, status: string, file: string}
     required: [title]
 
   Section:
