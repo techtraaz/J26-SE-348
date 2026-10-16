@@ -13,7 +13,9 @@ from __future__ import annotations
 
 import json
 import logging
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
+from typing import AsyncGenerator
 
 import aiosqlite
 
@@ -59,18 +61,19 @@ CREATE INDEX IF NOT EXISTS idx_traces_case ON traces(case_id);
 
 # ── Connection helpers ─────────────────────────────────────────────────
 
-async def get_connection() -> aiosqlite.Connection:
-    """Open (or reuse) an async SQLite connection with WAL mode."""
-    conn = await aiosqlite.connect(config.DATABASE_PATH)
-    await conn.execute("PRAGMA journal_mode=WAL;")
-    await conn.execute("PRAGMA foreign_keys=ON;")
-    conn.row_factory = aiosqlite.Row
-    return conn
+@asynccontextmanager
+async def _connect() -> AsyncGenerator[aiosqlite.Connection, None]:
+    """Yield a fresh async SQLite connection with WAL mode and FK enabled."""
+    async with aiosqlite.connect(config.DATABASE_PATH) as conn:
+        await conn.execute("PRAGMA journal_mode=WAL;")
+        await conn.execute("PRAGMA foreign_keys=ON;")
+        conn.row_factory = aiosqlite.Row
+        yield conn
 
 
 async def init_db() -> None:
     """Create tables if they do not exist.  Safe to call on every startup."""
-    async with await get_connection() as db:
+    async with _connect() as db:
         await db.execute(_CREATE_AUDIT_RUNS)
         await db.execute(_CREATE_TRACES)
         await db.execute(_CREATE_INDEX)
@@ -86,7 +89,7 @@ async def insert_audit_run(
     started_at: str,
 ) -> int:
     """Create a new audit_run row and return its id."""
-    async with await get_connection() as db:
+    async with _connect() as db:
         cursor = await db.execute(
             "INSERT INTO audit_runs (case_id, doc_count, started_at) VALUES (?, ?, ?)",
             (case_id, doc_count, started_at),
@@ -103,12 +106,11 @@ async def complete_audit_run(
 ) -> None:
     """Mark the most recent 'running' audit_run for this case as completed."""
     ended_at = datetime.now(timezone.utc).isoformat()
-    async with await get_connection() as db:
+    async with _connect() as db:
         await db.execute(
             """UPDATE audit_runs
                SET status = 'completed', ended_at = ?, total_findings = ?
-               WHERE case_id = ? AND status = 'running'
-               ORDER BY id DESC LIMIT 1""",
+               WHERE case_id = ? AND status = 'running'""",
             (ended_at, total_findings, case_id),
         )
         await db.commit()
@@ -130,7 +132,7 @@ async def insert_trace(
     raw_payload: dict,
 ) -> int:
     """Persist a single trace row and return its id."""
-    async with await get_connection() as db:
+    async with _connect() as db:
         cursor = await db.execute(
             """INSERT INTO traces
                (run_id, case_id, event_type, agent_name, decision_type,
@@ -151,7 +153,7 @@ async def insert_trace(
 
 async def get_runs(limit: int = 50) -> list[dict]:
     """Return the most recent audit runs."""
-    async with await get_connection() as db:
+    async with _connect() as db:
         cursor = await db.execute(
             "SELECT * FROM audit_runs ORDER BY id DESC LIMIT ?", (limit,),
         )
@@ -161,7 +163,7 @@ async def get_runs(limit: int = 50) -> list[dict]:
 
 async def get_traces_for_case(case_id: str) -> list[dict]:
     """Return all traces for a given case, ordered by step index."""
-    async with await get_connection() as db:
+    async with _connect() as db:
         cursor = await db.execute(
             "SELECT * FROM traces WHERE case_id = ? ORDER BY step_index ASC",
             (case_id,),
