@@ -7,6 +7,5 @@ from sqlalchemy.dialects.postgresql import JSONB
 # (SQLite in unit tests).
 JsonType = JSON().with_variant(JSONB(), "postgresql")
 
-
 def utcnow() -> datetime:
     return datetime.now(timezone.utc)

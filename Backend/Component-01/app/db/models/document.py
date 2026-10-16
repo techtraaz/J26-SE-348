@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -8,6 +9,8 @@ from app.db.base import Base
 from app.db.enums import DocumentSource, DocumentStatus
 from app.db.types import utcnow
 
+if TYPE_CHECKING:
+    from app.db.models.extraction import ExtractionRun  # noqa: F401
 
 class Document(Base):
     __tablename__ = "documents"

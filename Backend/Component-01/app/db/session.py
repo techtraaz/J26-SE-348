@@ -17,10 +17,8 @@ def create_db_engine(url: str) -> Engine:
 
     return engine
 
-
 def create_session_factory(engine: Engine) -> sessionmaker[Session]:
     return sessionmaker(bind=engine, expire_on_commit=False)
-
 
 def session_scope(factory: sessionmaker[Session]) -> Iterator[Session]:
     """Yield a session; commit on success, roll back on error."""

@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import (
     Boolean,
@@ -17,6 +18,8 @@ from app.db.base import Base
 from app.db.enums import PipelineMode, RunStatus
 from app.db.types import JsonType, utcnow
 
+if TYPE_CHECKING:
+    from app.db.models.document import Document  # noqa: F401
 
 class ExtractionRun(Base):
     """One execution of a pipeline over a document. Immutable once finished,
