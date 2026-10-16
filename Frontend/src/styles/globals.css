@@ -1,0 +1,8 @@
+@import "tailwindcss";
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/jetbrains-mono";
+@import "./tokens.css";
+
+body { background:var(--bg); color:var(--text); font-family:'Inter Variable',system-ui,sans-serif; }
+.num, td.amount { font-variant-numeric: tabular-nums; }
+code, .id { font-family:'JetBrains Mono Variable',monospace; }
