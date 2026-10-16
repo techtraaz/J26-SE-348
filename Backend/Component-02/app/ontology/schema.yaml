@@ -26,7 +26,7 @@ nodes:
   Framework:
     layer: regulatory
     key: code
-    description: Set of standards (SLFRS, SLFRS for SMEs, SLAuS, Statutory)
+    description: Set of standards (SLFRS, SLFRS for SMEs, SLAuS)
     properties: {code: string, name: string}
     required: [name]
 
@@ -96,7 +96,7 @@ nodes:
   FinancialStatement:
     layer: reporting
     key: code
-    description: SFP, SPL, SCF, SCE or Notes
+    description: SFP, SPLOCI, SCE, SCF or Notes
     properties: {code: string, name: string}
     required: [name]
 

@@ -47,3 +47,9 @@ pytest
 ## Doors (FastAPI)
 
 - `GET /health`: alive check + Neo4j connectivity
+- `GET /ontology`: full ontology schema (layers, node and relationship types)
+- `GET /ontology/nodes/{label}`: one node type with its relationships
+- `GET /ontology/diagram?layer=`: Mermaid diagram
+- `GET /ontology/stats`: live node and relationship counts
+
+See [docs/ontology.md](docs/ontology.md) for the ontology design and diagrams.
