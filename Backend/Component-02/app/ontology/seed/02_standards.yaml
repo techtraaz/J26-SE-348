@@ -1,5 +1,4 @@
 # CA Sri Lanka standards catalogue. file = PDF in data/standards/raw/
-# SLFRS 9, 15, 16 have no PDF yet
 nodes:
   Standard:
     - {code: CF, title: Conceptual Framework for Financial Reporting, family: CF, authority: 2, status: active, file: CF_Conceptual_Framework_for_Financial_Reporting.pdf}
@@ -44,9 +43,9 @@ nodes:
     - {code: SLFRS 12, title: "Disclosure of Interests in Other Entities", family: SLFRS, authority: 1, effective_from: 2014-01-01, status: active, file: SLFRS_12_Disclosure_of_Interests_in_Other_Entities.pdf}
     - {code: SLFRS 13, title: "Fair Value Measurement", family: SLFRS, authority: 1, effective_from: 2014-01-01, status: active, file: SLFRS_13_Fair_Value_Measurement.pdf}
     - {code: SLFRS 14, title: "Regulatory Deferral Accounts", family: SLFRS, authority: 1, effective_from: 2016-01-01, status: active, file: SLFRS_14_Regulatory_Deferral_Accounts.pdf}
-    - {code: SLFRS 9, title: "Financial Instruments", family: SLFRS, authority: 1, effective_from: 2018-01-01, status: active}
-    - {code: SLFRS 15, title: "Revenue from Contracts with Customers", family: SLFRS, authority: 1, effective_from: 2018-01-01, status: active}
-    - {code: SLFRS 16, title: "Leases", family: SLFRS, authority: 1, effective_from: 2019-01-01, status: active}
+    - {code: SLFRS 9, title: "Financial Instruments", family: SLFRS, authority: 1, effective_from: 2018-01-01, status: active, file: SLFRS_09_Financial_Instruments.pdf}
+    - {code: SLFRS 15, title: "Revenue from Contracts with Customers", family: SLFRS, authority: 1, effective_from: 2018-01-01, status: active, file: SLFRS_15_Revenue_from_Contracts_with_Customers.pdf}
+    - {code: SLFRS 16, title: "Leases", family: SLFRS, authority: 1, effective_from: 2019-01-01, status: active, file: SLFRS_16_Leases.pdf}
 
 relationships:
   ISSUED_BY:
