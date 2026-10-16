@@ -73,9 +73,11 @@ def _check_props(owner: str, props: dict, allowed: dict[str, str]) -> list[str]:
     return errors
 
 
-def validate(seed: Seed, onto: Ontology) -> list[str]:
+# existing: keys already in the graph, so relationships may point at them
+def validate(seed: Seed, onto: Ontology, existing: dict[str, set] | None = None) -> list[str]:
     errors: list[str] = []
     keys: dict[str, set] = defaultdict(set)
+    known = existing or {}
     for label, items in seed.nodes.items():
         if label not in onto.nodes:
             errors.append(f"unknown node label '{label}'")
@@ -93,7 +95,7 @@ def validate(seed: Seed, onto: Ontology) -> list[str]:
             missing = [r for r in node.required if item.get(r) is None]
             if missing:
                 errors.append(f"{owner}: missing required {missing}")
-            errors += _check_props(owner, item, node.properties)
+            errors += _check_props(owner, item, {**onto.common_properties, **node.properties})
 
     for rel in seed.rels:
         owner = f"{rel.type} {rel.source} -> {rel.target}"
@@ -104,25 +106,38 @@ def validate(seed: Seed, onto: Ontology) -> list[str]:
             errors.append(f"{owner}: not allowed by ontology")
             continue
         for label, key in (rel.source, rel.target):
-            if key not in keys.get(label, set()):
+            if key not in keys.get(label, set()) and key not in known.get(label, set()):
                 errors.append(f"{owner}: {label}:{key} not in seed")
         errors += _check_props(owner, rel.props, onto.relationships[rel.type].properties)
     return errors
 
 
-def write(seed: Seed, onto: Ontology, run) -> dict[str, int]:
+BATCH = 500
+
+
+def _batches(rows: list, size: int = BATCH):
+    for i in range(0, len(rows), size):
+        yield rows[i:i + size]
+
+
+# item values win over the defaults, so an item can carry its own source or confidence
+def write(seed: Seed, onto: Ontology, run, source: str = "seed",
+          confidence: float = 1.0) -> dict[str, int]:
     counts: dict[str, int] = {}
-    meta = {"source": "seed", "version": onto.version}
+    meta = {"source": source, "confidence": confidence, "version": onto.version}
     for label, items in seed.nodes.items():
         key = onto.node(label).key
-        run(
-            f"UNWIND $rows AS row MERGE (n:{label} {{{key}: row.key}}) "
-            "SET n += row.props, n.source = $source, n.confidence = 1.0, "
-            "n.ontology_version = $version, n.created_at = coalesce(n.created_at, datetime())",
-            rows=[{"key": i[key], "props": {k: v for k, v in i.items() if v is not None}}
-                  for i in items],
-            **meta,
-        )
+        rows = [{"key": i[key], "props": {k: v for k, v in i.items() if v is not None}}
+                for i in items]
+        for batch in _batches(rows):
+            run(
+                f"UNWIND $rows AS row MERGE (n:{label} {{{key}: row.key}}) "
+                "SET n.source = $source, n.confidence = $confidence, "
+                "n.ontology_version = $version, n.created_at = coalesce(n.created_at, datetime()) "
+                "SET n += row.props",
+                rows=batch,
+                **meta,
+            )
         counts[label] = len(items)
 
     groups: dict[tuple, list[dict]] = defaultdict(list)
@@ -131,10 +146,11 @@ def write(seed: Seed, onto: Ontology, run) -> dict[str, int]:
             {"a": rel.source[1], "b": rel.target[1], "props": rel.props})
     for (rel_type, la, lb), rows in groups.items():
         ka, kb = onto.node(la).key, onto.node(lb).key
-        run(
-            f"UNWIND $rows AS row MATCH (a:{la} {{{ka}: row.a}}) MATCH (b:{lb} {{{kb}: row.b}}) "
-            f"MERGE (a)-[r:{rel_type}]->(b) SET r += row.props",
-            rows=rows,
-        )
+        for batch in _batches(rows):
+            run(
+                f"UNWIND $rows AS row MATCH (a:{la} {{{ka}: row.a}}) "
+                f"MATCH (b:{lb} {{{kb}: row.b}}) MERGE (a)-[r:{rel_type}]->(b) SET r += row.props",
+                rows=batch,
+            )
         counts[rel_type] = counts.get(rel_type, 0) + len(rows)
     return counts

@@ -40,9 +40,11 @@ def reader():
 def test_seed_reader_gives_codes_and_known_facts(reader):
     ctx = base_context(reader)
     assert "inventories" in ctx.line_items and "balance_sheet" in ctx.document_types
-    known = reader.known_for_standard("LKAS 2")
-    assert any("LKAS 2:9#R1" in k for k in known["LKAS 2:9"])
-    assert "definition Net realisable value" in known["LKAS 2:6"]
+    snap = reader.snapshot("LKAS 2")
+    assert any("LKAS 2:9#R1" in k for k in snap.known("LKAS 2:9"))
+    assert "definition Net realisable value" in snap.known("LKAS 2:6")
+    assert snap.definitions["net realisable value"] == "DEF:nrv"
+    assert snap.code_labels["balance_sheet"] == "DocumentType"
 
 
 def test_pipeline_extracts_and_validates(reader):

@@ -34,6 +34,21 @@ class ValidatedChunk:
     issues: list[Issue] = field(default_factory=list)
 
 
+_SIDE_SPLIT = re.compile(r"==|<=|>=|<|>")
+_TERM = re.compile(r"([+-]?)\s*\b([a-z_][a-z0-9_]*)\b(?!\s*\()")
+
+
+def expression_items(expression: str) -> list[tuple[str, str, int]]:
+    """(role, line item, sign) for each item, e.g. gross_profit == revenue - cost_of_sales."""
+    sides = _SIDE_SPLIT.split(expression, maxsplit=1)
+    out = []
+    for role, side in zip(("lhs", "rhs"), sides, strict=False):
+        for sign, name in _TERM.findall(side):
+            if name not in _FUNCS:
+                out.append((role, name, -1 if sign == "-" else 1))
+    return out
+
+
 def parse_reference(raw: str, standard_codes: set[str]) -> Reference:
     if "conceptual framework" in raw.lower():
         return Reference(raw, "CF")
