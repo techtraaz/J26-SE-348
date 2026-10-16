@@ -11,6 +11,8 @@ dependencies = [
     "fastapi[standard]>=0.143.0",
     "paddleocr>=3.7.0",
     "paddlepaddle>=3.3.1",
+    "pillow>=12.3.0",
+    "pypdfium2>=5.14.0",
 ]
 
 [project.scripts]

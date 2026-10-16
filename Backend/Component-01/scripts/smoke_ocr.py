@@ -1,4 +1,14 @@
-"""Standalone OCR smoke test / latency probe through the engine + schema."""
+"""Run any supported file (image, TIFF, PDF) through ingestion + an OCR engine.
+
+Run from the backend folder:
+    uv run python scripts/smoke_ocr.py [file] [--dpi N] [--repeat N]
+        [--unwarp] [--no-doc-orientation] [--mkldnn]
+        [--det-model NAME] [--rec-model NAME]
+        [--engine replay [--fixture PATH] [--delay SECONDS]]
+
+Defaults to data/samples/sample_invoice.png with the real PaddleOCR engine.
+Output (JSON + the OCR-space image of every page) goes to data/results/.
+"""
 
 import argparse
 import sys
@@ -12,21 +22,14 @@ import cv2  # noqa: E402  (installed as a PaddleOCR dependency)
 import numpy as np  # noqa: E402
 
 from app.schemas.extraction import ExtractionResult  # noqa: E402
-from app.services.ocr.factory import create_engine  # noqa: E402
+from app.services.ingestion.models import DEFAULT_PDF_DPI, IngestionError  # noqa: E402
+from app.services.ingestion.pipeline import ingest  # noqa: E402
+from app.services.factory import create_engine  # noqa: E402
 from app.services.ocr.paddle import PaddleSettings  # noqa: E402
 
-
-def load_image(path: Path) -> np.ndarray:
-    # np.fromfile + imdecode instead of cv2.imread: imread fails on
-    # non-ASCII Windows paths.
-    data = np.fromfile(str(path), dtype=np.uint8)
-    image = cv2.imdecode(data, cv2.IMREAD_COLOR)
-    if image is None:
-        raise ValueError(f"Could not decode image: {path}")
-    return image
-
-
 def save_png(path: Path, image: np.ndarray) -> None:
+    # imencode + tofile instead of cv2.imwrite: imwrite fails on non-ASCII
+    # Windows paths.
     ok, buf = cv2.imencode(".png", image)
     if not ok:
         raise ValueError(f"Could not encode image for {path}")
@@ -36,12 +39,14 @@ def save_png(path: Path, image: np.ndarray) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "image",
+        "file",
         nargs="?",
         type=Path,
         default=BACKEND_ROOT / "data" / "samples" / "sample_invoice.png",
     )
-    parser.add_argument("--repeat", type=int, default=2)
+    parser.add_argument("--dpi", type=int, default=DEFAULT_PDF_DPI, help="PDF rasterization DPI")
+    parser.add_argument("--repeat", type=int, default=1)
+    parser.add_argument("--max-pages", type=int, default=None, help="only process the first N pages")
     parser.add_argument("--unwarp", action="store_true")
     parser.add_argument("--no-doc-orientation", action="store_true")
     parser.add_argument("--mkldnn", action="store_true")
@@ -56,6 +61,11 @@ def main() -> None:
     parser.add_argument("--delay", type=float, default=0.0)
     args = parser.parse_args()
 
+    try:
+        ingested = ingest(args.file.read_bytes(), pdf_dpi=args.dpi)
+    except IngestionError as err:
+        sys.exit(f"Ingestion failed [{err.code}]: {err.message}")
+
     settings = PaddleSettings(
         use_doc_unwarping=args.unwarp,
         use_doc_orientation_classify=not args.no_doc_orientation,
@@ -69,50 +79,52 @@ def main() -> None:
         fixture=args.fixture,
         simulate_delay_s=args.delay,
     )
-    image = load_image(args.image)
 
-    info_settings = engine.info().settings
-    print(f"\nEngine: {engine.info().name} | settings: { {k: v for k, v in info_settings.items() if k not in ('runtime',)} }")
-    print(f"Input image: {image.shape[1]}x{image.shape[0]}px")
+    info = engine.info()
+    shown = {k: v for k, v in info.settings.items() if k != "runtime"}
+    print(f"\nFile: {args.file.name} | {ingested.kind.value} | {len(ingested.pages)} page(s) "
+          f"| sha256 {ingested.sha256[:12]}")
+    print(f"Engine: {info.name} | settings: {shown}")
 
-    recognition = None
-    for i in range(1, args.repeat + 1):
-        recognition = engine.recognize_page(image, page_number=1)
-        page = recognition.page
-        label = "warm-up" if i == 1 else "steady"
-        print(f"Run {i} ({label}): {page.elapsed_ms:.0f} ms, {len(page.lines)} lines")
-
-    page = recognition.page
-    result = ExtractionResult(engine=engine.info(), pages=[page])
-
-    # Full result + the OCR-space image saved to disk; terminal gets a summary.
-    out_dir = BACKEND_ROOT / "data" / "results"
-    out_dir.mkdir(parents=True, exist_ok=True)
-    tags = [t for t, on in (
+    tags = [
+        t
+        for t, on in (
             ("unwarp", args.unwarp),
             ("no-doc-orient", args.no_doc_orientation),
             ("mkldnn", args.mkldnn),
             (f"det-{args.det_model}", args.det_model is not None),
             (f"rec-{args.rec_model}", args.rec_model is not None),
-        ) if on]
+        )
+        if on
+    ]
     label = "replay" if args.engine == "replay" else ("-".join(tags) or "default")
-    name = f"{args.image.stem}.{label}"
+    name = f"{args.file.stem}.{label}"
+    out_dir = BACKEND_ROOT / "data" / "results"
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    page_results = []
+    for page_image in ingested.pages:
+        h, w = page_image.image.shape[:2]
+        dpi_note = f", {page_image.dpi} DPI" if page_image.dpi else ""
+        for run in range(1, args.repeat + 1):
+            recognition = engine.recognize_page(page_image.image, page_image.page_number)
+            print(
+                f"Page {page_image.page_number} ({w}x{h}px{dpi_note}) run {run}: "
+                f"{recognition.page.elapsed_ms:.0f} ms, {len(recognition.page.lines)} lines"
+            )
+        page_results.append(recognition.page)
+        save_png(out_dir / f"{name}.p{page_image.page_number}.ocr.png", recognition.ocr_image)
+
+    result = ExtractionResult(engine=info, pages=page_results)
     (out_dir / f"{name}.json").write_text(result.model_dump_json(indent=2), encoding="utf-8")
-    save_png(out_dir / f"{name}.ocr.png", recognition.ocr_image)
+    print(f"\nSaved to: {out_dir} ({name}.json + one .ocr.png per page)")
 
-    same_size = recognition.ocr_image.shape[:2] == image.shape[:2]
-    print(
-        f"OCR-space image: {page.width}x{page.height}px "
-        f"({'same size as input' if same_size else 'DIFFERENT from input'})"
-    )
-    print(f"Saved to: {out_dir}\n")
-
-    print("First 3 lines:")
-    for line in page.lines[:3]:
+    first = page_results[0]
+    print("\nFirst page, first 3 lines:")
+    for line in first.lines[:3]:
         print(f"  {line.confidence:.4f}  {line.box}  {line.text!r}")
-
-    print("\n5 lowest-confidence lines:")
-    for line in sorted(page.lines, key=lambda ln: ln.confidence)[:5]:
+    print("\nFirst page, 5 lowest-confidence lines:")
+    for line in sorted(first.lines, key=lambda ln: ln.confidence)[:5]:
         print(f"  {line.confidence:.4f}  {line.text!r}")
 
 
