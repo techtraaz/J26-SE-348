@@ -1,32 +1,26 @@
 """Full LangGraph hybrid parallel-sequential.
 - No join node: edge list waits for both branches.
-- Conditional stop when ALL docs rejected (FR2) or empty case -> not_auditable.
-- DQ-rejected docs excluded from Compliance + Anomaly.
-- Nodes read case from state; graph built once; KG comes via config (injectable).
-- Trace carries per-run completion-order seq numbers (finish order, not start order).
-- run_case uses final_findings directly, no or-fallback. Early stop returns the
-  DQ findings as reasons with status not_auditable (never looks like a clean case).
-- Stream sends JSON-safe model_dump data + final result event, single graph run.
+- Explicit early_stop flag in state (never inferred from trace shape).
+- DQ-rejected docs excluded from Compliance + Anomaly; stop when ALL rejected.
+- Nodes read case from state; KG + per-run seq counter travel via config
+  (LangGraph injects run config ONLY into a parameter named `config`).
+- Trace carries per-run completion-order seq numbers 1..5 (finish order,
+  not start order). Counter is created fresh per run: concurrent runs safe.
+- run_case uses final_findings directly, no or-fallback. Early stop returns
+  the DQ findings as reasons with status not_auditable (never a clean look).
+- Stream sends JSON-safe model_dump data + final result event, single run.
 """
+import itertools
 import operator
-import threading
 from typing import Annotated, TypedDict
-from app import config
+from langchain_core.runnables import RunnableConfig
+from app import config as settings
 from app.schemas.case import AuditCase
 from app.schemas.findings import AuditResult
 from app.services.agents import data_quality, compliance, anomaly, reasoning, evidence_validation
 from app.services.kg_client import KGClient
 
 VERSION_STORE: dict[str, int] = {}
-
-_SEQ_LOCK = threading.Lock()
-_SEQ_VAL = [0]
-
-
-def _next_seq() -> int:
-    with _SEQ_LOCK:
-        _SEQ_VAL[0] += 1
-        return _SEQ_VAL[0]
 
 
 class AuditState(TypedDict):
@@ -38,6 +32,7 @@ class AuditState(TypedDict):
     final_findings: list
     rejected_citations: Annotated[list, operator.add]
     rejected_findings: list
+    early_stop: bool
 
 
 def _case_from(state: AuditState) -> AuditCase:
@@ -50,12 +45,16 @@ def _filtered_case(case: AuditCase, rejected: list[str]) -> AuditCase:
                      docs=[d for d in case.docs if d.doc_id not in bad])
 
 
-def _kg_from(cfg: dict | None) -> KGClient:
-    if cfg and isinstance(cfg.get("configurable"), dict):
-        kg = cfg["configurable"].get("kg")
+def _kg_from(run_config: RunnableConfig | None) -> KGClient:
+    if run_config and isinstance(run_config.get("configurable"), dict):
+        kg = run_config["configurable"].get("kg")
         if isinstance(kg, KGClient):
             return kg
     return KGClient()
+
+
+def _seq_from(run_config: dict | None) -> itertools.count:
+    return run_config["configurable"]["seq"]
 
 
 def build_graph() -> object:
@@ -63,58 +62,48 @@ def build_graph() -> object:
 
     g = StateGraph(AuditState)
 
-    def n_dq(state: AuditState) -> dict:
+    def n_dq(state: AuditState, config: RunnableConfig) -> dict:
         case = _case_from(state)
-        if len(case.docs) == 0:
-            from app.schemas.findings import Finding, TraceEntry
-            f = [Finding(finding_id=f"{case.case_id}-CHK006-empty", rule_id="CHK-006",
-                         category="format", severity="high",
-                         message=f"No documents in case {case.case_id}: nothing could be checked.",
-                         evidence_ids=[])]
-            t = [TraceEntry(agent_name="data_quality", decision_type="gate",
-                            detail="Empty case: nothing to check.", seq=_next_seq())]
-            return {"findings": f, "trace": t, "rejected_records": []}
         f, rejected, t = data_quality.run(case)
-        for x in t:
-            x.seq = _next_seq()
-        return {"findings": f, "trace": t, "rejected_records": rejected}
+        if config is not None:
+            for x in t:
+                x.seq = next(_seq_from(config))
+        return {"findings": f, "trace": t, "rejected_records": rejected,
+                "early_stop": len(case.docs) == 0 or
+                              (len(rejected) >= len(case.docs) > 0)}
 
     def route_after_dq(state: AuditState):
-        case = _case_from(state)
-        if len(case.docs) == 0:
-            return END
-        # stop when EVERY document failed the DQ gate
-        if len(state.get("rejected_records", [])) >= len(case.docs) > 0:
+        if state.get("early_stop"):
             return END
         return ["compliance", "anomaly"]
 
-    def n_comp(state: AuditState, cfg: dict | None = None) -> dict:
+    def n_comp(state: AuditState, config: RunnableConfig) -> dict:
         case = _filtered_case(_case_from(state), state.get("rejected_records", []))
-        f, t = compliance.run(case, _kg_from(cfg))
+        f, t = compliance.run(case, _kg_from(config))
         for x in t:
-            x.seq = _next_seq()
+            x.seq = next(_seq_from(config))
         return {"findings": f, "trace": t}
 
-    def n_anom(state: AuditState, cfg: dict | None = None) -> dict:
+    def n_anom(state: AuditState, config: RunnableConfig) -> dict:
         case = _filtered_case(_case_from(state), state.get("rejected_records", []))
         f, t = anomaly.run(case)
         for x in t:
-            x.seq = _next_seq()
+            x.seq = next(_seq_from(config))
         return {"findings": f, "trace": t}
 
-    def n_reas(state: AuditState) -> dict:
+    def n_reas(state: AuditState, config: RunnableConfig) -> dict:
         case = _case_from(state)
         merged, t = reasoning.run(case, list(state.get("findings", [])))
         for x in t:
-            x.seq = _next_seq()
+            x.seq = next(_seq_from(config))
         return {"reasoned": merged, "trace": t}
 
-    def n_val(state: AuditState) -> dict:
+    def n_val(state: AuditState, config: RunnableConfig) -> dict:
         case = _case_from(state)
         base = list(state["reasoned"])  # direct key, no or-fallback
         kept, rejected, bad_ids, t = evidence_validation.run(case, base)
         for x in t:
-            x.seq = _next_seq()
+            x.seq = next(_seq_from(config))
         return {"final_findings": kept, "rejected_findings": rejected,
                 "rejected_citations": bad_ids, "trace": t}
 
@@ -132,43 +121,34 @@ def build_graph() -> object:
     return g.compile()
 
 
-GRAPH = build_graph()  # built once; case + kg travel via state / config
+GRAPH = build_graph()  # built once; case + kg + seq travel via state / config
 
 
 def _initial(case: AuditCase) -> dict:
     return {"case": case.model_dump(), "findings": [], "trace": [],
             "rejected_records": [], "reasoned": [], "final_findings": [],
-            "rejected_citations": [], "rejected_findings": []}
+            "rejected_citations": [], "rejected_findings": [], "early_stop": False}
 
 
-def _normalize_seq(trace: list, base: int) -> None:
-    for t in trace:
-        t.seq -= base
-
-
-def _is_early_stop(out: dict, case: AuditCase) -> bool:
-    names = [t.agent_name for t in out.get("trace", [])]
-    return names == ["data_quality"]
+def _fresh_cfg(kg: KGClient | None) -> dict:
+    return {"configurable": {"kg": kg or KGClient(), "seq": itertools.count(1)}}
 
 
 def run_case(case: AuditCase, kg: KGClient | None = None) -> AuditResult:
-    base = _SEQ_VAL[0]
-    out = GRAPH.invoke(_initial(case), config={"configurable": {"kg": kg or KGClient()}})
-    trace = list(out.get("trace", []))
-    _normalize_seq(trace, base)
+    out = GRAPH.invoke(_initial(case), config=_fresh_cfg(kg))
     v = VERSION_STORE.get(case.case_id, 0) + 1
     VERSION_STORE[case.case_id] = v
-    if _is_early_stop(out, case):
+    if out.get("early_stop"):
         # not_auditable: DQ reasons included, never looks like a clean case
         return AuditResult(case_id=case.case_id, version=v, status="not_auditable",
                            findings=list(out.get("findings", [])),
-                           trace=trace,
+                           trace=list(out.get("trace", [])),
                            rejected_records=list(out.get("rejected_records", [])),
                            rejected_citations=[], rejected_findings=[])
     return AuditResult(case_id=case.case_id, version=v,
-                       status=config.FINDINGS_STATUS_DEFAULT,
+                       status=settings.FINDINGS_STATUS_DEFAULT,
                        findings=list(out.get("final_findings", [])),
-                       trace=trace,
+                       trace=list(out.get("trace", [])),
                        rejected_records=list(out.get("rejected_records", [])),
                        rejected_citations=list(out.get("rejected_citations", [])),
                        rejected_findings=list(out.get("rejected_findings", [])))
@@ -177,13 +157,10 @@ def run_case(case: AuditCase, kg: KGClient | None = None) -> AuditResult:
 def stream_case(case: AuditCase, kg: KGClient | None = None):
     """Single graph run. Yields JSON-safe per-node updates, then one final result.
     Version bumped exactly once."""
-    base = _SEQ_VAL[0]
     acc: dict = {"trace": [], "rejected_records": [], "rejected_citations": [],
                  "reasoned": [], "final_findings": [], "rejected_findings": [],
-                 "findings": []}
-    for chunk in GRAPH.stream(_initial(case),
-                              config={"configurable": {"kg": kg or KGClient()}},
-                              stream_mode="updates"):
+                 "findings": [], "early_stop": False}
+    for chunk in GRAPH.stream(_initial(case), config=_fresh_cfg(kg), stream_mode="updates"):
         safe: dict = {}
         for node, data in chunk.items():
             node_data: dict = {}
@@ -195,24 +172,25 @@ def stream_case(case: AuditCase, kg: KGClient | None = None):
                     if k in acc and isinstance(val, list):
                         if k in ("reasoned", "final_findings", "rejected_findings"):
                             acc[k] = list(val)
+                        elif k == "early_stop":
+                            pass
                         else:
                             acc[k].extend(val)
+                    elif k == "early_stop":
+                        acc[k] = bool(val)
             safe[node] = node_data
         yield {"event": "update", "data": safe}
-    trace = acc["trace"]
-    _normalize_seq(trace, base)
     v = VERSION_STORE.get(case.case_id, 0) + 1
     VERSION_STORE[case.case_id] = v
-    early = [getattr(t, "agent_name", "") for t in trace] == ["data_quality"]
-    if early:
+    if acc["early_stop"]:
         res = AuditResult(case_id=case.case_id, version=v, status="not_auditable",
-                          findings=acc["findings"], trace=trace,
+                          findings=acc["findings"], trace=acc["trace"],
                           rejected_records=acc["rejected_records"],
                           rejected_citations=[], rejected_findings=[])
     else:
         res = AuditResult(case_id=case.case_id, version=v,
-                          status=config.FINDINGS_STATUS_DEFAULT,
-                          findings=acc["final_findings"], trace=trace,
+                          status=settings.FINDINGS_STATUS_DEFAULT,
+                          findings=acc["final_findings"], trace=acc["trace"],
                           rejected_records=acc["rejected_records"],
                           rejected_citations=acc["rejected_citations"],
                           rejected_findings=acc["rejected_findings"])

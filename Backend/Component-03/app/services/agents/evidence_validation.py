@@ -1,8 +1,10 @@
 """Agent 5: Evidence Validation — existence + value match, in code.
 For every claim {evidence_id, field, claimed_value}: the document must exist
-and its field must equal the claimed value (numbers within tolerance).
-Drops the whole finding but logs it with reason; rejected_citations holds
-ONLY the failing IDs. The dropped copy is marked citation_unverified."""
+(claim IDs count the same as evidence_ids) and its field must equal the
+claimed value (numbers within tolerance).
+A failing finding is KEPT in the main list marked citation_unverified=True
+(so a real issue never vanishes from what the auditor sees) AND logged in
+rejected_findings with the reason. rejected_citations holds ONLY failing IDs."""
 from app import config
 from app.schemas.case import AuditCase
 from app.schemas.findings import Finding, RejectedFinding, TraceEntry
@@ -21,12 +23,13 @@ def run(case: AuditCase, findings: list[Finding]
     rejected: list[RejectedFinding] = []
     bad_ids: list[str] = []
     for f in findings:
-        missing = [e for e in f.evidence_ids if e not in by_id]
+        claim_ids = [c.evidence_id for c in f.claims]
+        missing = [e for e in list(f.evidence_ids) + claim_ids if e not in by_id]
         mismatched: list[str] = []
         for c in f.claims:
             doc = by_id.get(c.evidence_id)
             if doc is None:
-                continue  # already in missing
+                continue  # already counted in missing
             actual = doc.fields.get(c.field, None)
             if actual is None or not _value_matches(actual, c.claimed_value):
                 if c.evidence_id not in mismatched:
@@ -49,9 +52,10 @@ def run(case: AuditCase, findings: list[Finding]
             for b in bad:
                 if b not in bad_ids:
                     bad_ids.append(b)
+            kept.append(f)  # kept but flagged — auditor still sees the issue
             continue
         f.evidence_validation = "passed"
         kept.append(f)
     trace = [TraceEntry(agent_name="evidence_validation", decision_type="validate",
-                        detail=f"Checked {len(findings)} finding(s), kept {len(kept)}, rejected {len(rejected)}.")]
+                        detail=f"Checked {len(findings)} finding(s), passed {len(kept) - len(rejected)}, flagged {len(rejected)}.")]
     return kept, rejected, bad_ids, trace

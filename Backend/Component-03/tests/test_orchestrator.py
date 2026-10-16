@@ -1,7 +1,17 @@
 from app.schemas.case import AuditCase, AuditDocument
-from app.schemas.findings import Finding
+from app.schemas.findings import EvidenceClaim, Finding
 from app.services import orchestrator
 from app.services.kg_client import KGClient
+
+
+class FakeKG(KGClient):
+    """Same doors, different limit — proves injection through config really works."""
+    def get_rules(self, doc_type: str) -> list[dict]:
+        if doc_type == "invoice":
+            return [{"rule_id": "POL-07",
+                     "text": "Purchases above Rs. 1,000 need dual approval (fake KG).",
+                     "limit": 1000}]
+        return []
 
 
 def _tv_case(case_id="CASE-TV"):
@@ -39,13 +49,20 @@ def test_trace_five_in_execution_order_via_seq():
     assert len(res.trace) == 5
     by_name = {t.agent_name: t.seq for t in res.trace}
     assert set(by_name) == {"data_quality", "compliance", "anomaly", "reasoning", "evidence_validation"}
-    # seq stamped at execution (completion) time, never sorted; per-run 1..5
+    # per-run seq 1..5, stamped at execution (completion) time, never sorted
     assert sorted(by_name.values()) == [1, 2, 3, 4, 5]
     assert by_name["data_quality"] < by_name["compliance"]
     assert by_name["data_quality"] < by_name["anomaly"]
     assert by_name["reasoning"] > by_name["compliance"]
     assert by_name["reasoning"] > by_name["anomaly"]
     assert by_name["evidence_validation"] > by_name["reasoning"]
+
+
+def test_seq_resets_per_run():
+    r1 = orchestrator.run_case(_tv_case("CASE-SEQ1"), KGClient())
+    r2 = orchestrator.run_case(_tv_case("CASE-SEQ2"), KGClient())
+    assert sorted(t.seq for t in r1.trace) == [1, 2, 3, 4, 5]
+    assert sorted(t.seq for t in r2.trace) == [1, 2, 3, 4, 5]
 
 
 def test_same_input_same_findings():
@@ -55,8 +72,64 @@ def test_same_input_same_findings():
     assert sorted(f.finding_id for f in r1.findings) == sorted(f.finding_id for f in r2.findings)
 
 
+def test_fake_kg_changes_limit():
+    """Fake KG with limit 1,000: a 50,000 invoice must now trip POL-07."""
+    case = _clean_case("CASE-FAKEKG")
+    real = orchestrator.run_case(case, KGClient())
+    assert [f for f in real.findings if f.rule_id == "POL-07"] == []
+    fake = orchestrator.run_case(case, FakeKG())
+    pol = [f for f in fake.findings if f.rule_id == "POL-07"]
+    assert len(pol) == 1 and "1,000" in pol[0].message
+
+
+def _run_case_with_docs(case_id, docs):
+    return orchestrator.run_case(AuditCase(case_id=case_id, docs=docs), KGClient())
+
+
+def test_chk002_wrong_side_survives_validation():
+    res = _run_case_with_docs("CASE-CHK002", [
+        AuditDocument(doc_id="LED1", case_id="CASE-CHK002", doc_type="ledger",
+                      period_year=2026, fields={"debit_total": 100.0, "credit_total": 90.0}),
+    ])
+    got = [f for f in res.findings if f.rule_id == "CHK-002"]
+    assert len(got) == 1 and not got[0].citation_unverified
+
+
+def test_chk003_mismatch_survives_validation():
+    res = _run_case_with_docs("CASE-CHK003", [
+        AuditDocument(doc_id="CASH", case_id="CASE-CHK003", doc_type="ledger",
+                      period_year=2026, fields={"amount": 10000.0}),
+        AuditDocument(doc_id="TV", case_id="CASE-CHK003", doc_type="invoice",
+                      period_year=2026, parent_doc_id="CASH", fields={"amount": 5000.0}),
+    ])
+    got = [f for f in res.findings if f.rule_id == "CHK-003"]
+    assert len(got) == 1 and not got[0].citation_unverified
+
+
+def test_chk005_cash_fraud_survives_validation():
+    res = _run_case_with_docs("CASE-CHK005", [
+        AuditDocument(doc_id="INV9", case_id="CASE-CHK005", doc_type="invoice",
+                      period_year=2026,
+                      fields={"amount": 10000.0, "cash_out": 10000.0,
+                              "purchase_basis": "credit", "asset_in": 0.0}),
+    ])
+    got = [f for f in res.findings if f.rule_id == "CHK-005"]
+    assert len(got) == 1 and not got[0].citation_unverified
+
+
+def test_chk004_year_jump_survives_validation():
+    res = _run_case_with_docs("CASE-CHK004", [
+        AuditDocument(doc_id="BS24", case_id="CASE-CHK004", doc_type="balance_sheet",
+                      period_year=2024, fields={"assets": 50000.0, "liabilities": 30000.0, "capital": 20000.0}),
+        AuditDocument(doc_id="BS26", case_id="CASE-CHK004", doc_type="balance_sheet",
+                      period_year=2026, fields={"assets": 90000.0, "liabilities": 30000.0, "capital": 60000.0}),
+    ])
+    got = [f for f in res.findings if f.rule_id == "CHK-004"]
+    assert len(got) == 1 and not got[0].citation_unverified
+
+
 def test_ghost_id_through_full_graph():
-    """Inject ghost via Compliance through the whole graph; assert structured fields."""
+    """Inject ghost via Compliance; kept flagged AND logged with reason."""
     from app.services.agents import compliance
     orig = compliance.run
     ghost = Finding(finding_id="X-GHOST", rule_id="CHK-003", category="arithmetic",
@@ -71,15 +144,15 @@ def test_ghost_id_through_full_graph():
     finally:
         compliance.run = orig
     assert res.rejected_citations == ["DOC-999-GHOST"]
-    assert all(f.finding_id != "X-GHOST" for f in res.findings)
+    kept = [f for f in res.findings if f.finding_id == "X-GHOST"]
+    assert len(kept) == 1 and kept[0].citation_unverified is True
     assert any(r.finding.finding_id == "X-GHOST" for r in res.rejected_findings)
     assert all(r.reason for r in res.rejected_findings)
 
 
-def test_claim_value_mismatch_rejected():
-    """Ghost with a real doc ID but a wrong claimed value is caught by value check."""
+def test_claim_value_mismatch_flagged_not_dropped():
+    """Real doc ID but wrong claimed value: kept flagged + logged with actual value."""
     from app.services.agents import compliance
-    from app.schemas.findings import EvidenceClaim
     orig = compliance.run
     liar = Finding(finding_id="X-LIAR", rule_id="POL-07", category="compliance",
                    severity="high", message="claims 999999 but doc holds 250000",
@@ -94,7 +167,8 @@ def test_claim_value_mismatch_rejected():
     finally:
         compliance.run = orig
     assert "INV1" in res.rejected_citations
-    assert all(f.finding_id != "X-LIAR" for f in res.findings)
+    kept = [f for f in res.findings if f.finding_id == "X-LIAR"]
+    assert len(kept) == 1 and kept[0].citation_unverified is True
     assert any("claimed 999999" in r.reason for r in res.rejected_findings)
 
 
