@@ -55,3 +55,10 @@ def test_docs_schema_section_is_up_to_date():
     doc = Path(__file__).parents[1] / "docs" / "ontology.md"
     text = doc.read_text(encoding="utf-8")
     assert render(text) == text, "run: python -m scripts.export_ontology"
+
+
+def test_kg_docs_pipeline_diagram_is_up_to_date():
+    from scripts.export_ontology import render_kg
+    doc = Path(__file__).parents[1] / "docs" / "kg_construction.md"
+    text = doc.read_text(encoding="utf-8")
+    assert render_kg(text) == text, "run: python -m scripts.export_ontology"
