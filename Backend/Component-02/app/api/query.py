@@ -1,7 +1,9 @@
-from fastapi import APIRouter, HTTPException
+from typing import Annotated, Literal
+
+from fastapi import APIRouter, HTTPException, Query
 from neo4j.exceptions import DriverError, Neo4jError
 
-from app.query import contract, lookup
+from app.query import contract, lookup, search
 
 router = APIRouter(prefix="/query", tags=["kg query"])
 
@@ -86,3 +88,12 @@ def equations(statement: str | None = None, kind: str | None = None) -> list[dic
 @router.get("/definitions/{term}")
 def definition(term: str) -> list[dict]:
     return _found(_call(lookup.get_definition, term), f"Definition {term}")
+
+
+@router.get("/search")
+def search_standards(q: Annotated[str, Query(min_length=2, max_length=500)],
+                     mode: Literal["keyword", "semantic", "hybrid"] = "hybrid",
+                     limit: Annotated[int, Query(ge=1, le=50)] = 10,
+                     standard: str | None = None) -> dict:
+    """Search the standards. A paragraph reference such as 'LKAS 2:9' goes straight to it."""
+    return _call(search.search, q, mode, limit, standard)
