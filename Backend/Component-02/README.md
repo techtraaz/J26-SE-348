@@ -23,6 +23,7 @@ app/
   construction/   LangGraph KG construction / update agent
   query/          fixed Cypher queries for audit agents
   ledger/         Garage storage + ledger entries
+clients/          HTTP client for Component 03
   schemas/        pydantic models
 data/standards/   local standards corpus (git-ignored)
 docs/             design notes
@@ -41,6 +42,7 @@ python -m scripts.check_neo4j
 python -m scripts.migrate   # constraints + indexes, safe to re-run
 python -m scripts.seed      # load seed data (--check to validate only)
 python -m scripts.ingest_all  # ingest all standards PDFs, resumable
+python -m scripts.smoke_query # check the query API end to end
 uvicorn app.main:app --reload --port 8002
 pytest
 ```
@@ -68,4 +70,6 @@ pytest
 - `POST /query/cypher`: read-only Cypher for debugging and demos (`QUERY_CYPHER_ENABLED`)
 
 See [docs/ontology.md](docs/ontology.md) for the ontology and
-[docs/kg_construction.md](docs/kg_construction.md) for KG construction.
+[docs/kg_construction.md](docs/kg_construction.md) for KG construction, and
+[docs/query_api.md](docs/query_api.md) for the API used by Component 03
+(client: [clients/kg_client_http.py](clients/kg_client_http.py)).
