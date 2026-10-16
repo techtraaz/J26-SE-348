@@ -29,3 +29,5 @@ class AuditResult(BaseModel):
     status: str = "pending_auditor_review"
     findings: list[Finding] = []
     trace: list[TraceEntry] = []
+    rejected_records: list[str] = []  # doc_ids DQ rejected, logged not discarded
+    rejected_citations: list[str] = []  # fake evidence IDs validation threw out

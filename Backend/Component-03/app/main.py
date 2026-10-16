@@ -30,6 +30,18 @@ def audit_run(case: AuditCase):
     return orchestrator.run_case(case, KGClient()).model_dump()
 
 
+@app.post("/audit/run/stream")
+def audit_run_stream(case: AuditCase):
+    """Real per-agent pills: streams one update per finished node."""
+    import json
+    from fastapi.responses import StreamingResponse
+
+    def gen():
+        for chunk in orchestrator.stream_case(case, KGClient()):
+            yield json.dumps(chunk, default=str) + "\n"
+    return StreamingResponse(gen(), media_type="application/x-ndjson")
+
+
 @app.post("/copilot/query")
 def copilot_query(q: CopilotQuery):
     return copilot.answer(q).model_dump()
