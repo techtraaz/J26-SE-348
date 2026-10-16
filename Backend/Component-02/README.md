@@ -61,6 +61,9 @@ pytest
 - `GET /query/rules/{doc_type}`, `/query/check-rules/{doc_type}`: rules for Component 03
 - `GET /query/evidence-chain/{doc_id}`, `/query/postings/{case_id}`, `/query/period-totals/{case_id}?year=`
 - `GET /query/fields`: document field name -> line item code
+- `GET /query/rules/{rule_id}/explain`: rule -> equation -> paragraph -> standard, with a sentence
+- `GET /query/standards/{code}`, `/query/sections/{id}`, `/query/line-items/{code}`,
+  `/query/equations?statement=&kind=`, `/query/definitions/{term}`
 
 See [docs/ontology.md](docs/ontology.md) for the ontology and
 [docs/kg_construction.md](docs/kg_construction.md) for KG construction.

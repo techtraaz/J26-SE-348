@@ -23,11 +23,22 @@ def close_driver() -> None:
         _driver = None
 
 
+# neo4j Date / DateTime values become ISO strings so results can go straight to JSON
+def _plain(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {k: _plain(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_plain(v) for v in value]
+    if hasattr(value, "iso_format"):
+        return value.iso_format()
+    return value
+
+
 def run_read(query: str, **params: Any) -> list[dict]:
     records, _, _ = get_driver().execute_query(
         query, params, database_=get_settings().neo4j_database, routing_="r"
     )
-    return [r.data() for r in records]
+    return [_plain(r.data()) for r in records]
 
 
 def run_write(query: str, **params: Any) -> list[dict]:
