@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     replay_delay_s: float = 0.0
 
     storage_root: Path = BACKEND_ROOT / "data" / "store"
+    
+    # Put real password in .env.
+    database_url: str = "postgresql+psycopg://postgres@localhost:5432/nomos"
 
     pdf_dpi: int = DEFAULT_PDF_DPI
     max_file_bytes: int = 25 * 1024 * 1024
