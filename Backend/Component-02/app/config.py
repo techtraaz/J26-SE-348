@@ -18,6 +18,8 @@ class Settings(BaseSettings):
     llm_provider: str = "ollama"
     llm_model: str = "phi4-mini"
     ollama_base_url: str = "http://localhost:11434"
+    embedding_model: str = "nomic-embed-text"
+    embedding_dim: int = 768
 
 
 @lru_cache

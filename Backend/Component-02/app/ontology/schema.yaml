@@ -26,12 +26,13 @@ nodes:
   Framework:
     layer: regulatory
     key: code
-    description: Set of standards (SLFRS, SLFRS for SMEs, SLAuS, Statutory)
+    description: Set of standards (SLFRS, SLFRS for SMEs, SLAuS)
     properties: {code: string, name: string}
     required: [name]
 
   # family: CF, LKAS, SLFRS, SoRP, SoAT, IFRIC, SIC, SLAuS (LKAS 1.7)
-  # authority: 1 specific standard, 2 similar standard, 3 Conceptual Framework (LKAS 8.11)
+  # authority: 1 SLFRS/LKAS, 2 Conceptual Framework (standards prevail, LKAS 8.11)
+  # status: active, superseded
   Standard:
     layer: regulatory
     key: code
@@ -44,6 +45,7 @@ nodes:
       effective_from: date
       status: string
       version: string
+      file: string
     required: [title, family]
 
   Amendment:
@@ -61,7 +63,7 @@ nodes:
     layer: regulatory
     key: code
     description: Act or regulation, e.g. Companies Act No. 7 of 2007
-    properties: {code: string, title: string, year: int, status: string}
+    properties: {code: string, title: string, year: int, status: string, file: string}
     required: [title]
 
   Section:
@@ -94,7 +96,7 @@ nodes:
   FinancialStatement:
     layer: reporting
     key: code
-    description: SFP, SPL, SCF, SCE or Notes
+    description: SFP, SPLOCI, SCE, SCF or Notes
     properties: {code: string, name: string}
     required: [name]
 
@@ -102,7 +104,8 @@ nodes:
     layer: reporting
     key: code
     description: Line shown on a financial statement, e.g. Property, plant and equipment
-    properties: {code: string, name: string}
+    # aliases: other field names for the same amount, e.g. capital for total_equity (Component 03)
+    properties: {code: string, name: string, aliases: list}
     required: [name]
 
   AccountClass:
@@ -229,7 +232,7 @@ nodes:
     layer: provenance
     key: id
     description: Text chunk of an ingested compliance document
-    properties: {id: string, file: string, page: int, text: string}
+    properties: {id: string, file: string, page: int, text: string, embedding: vector}
     required: [file, text]
 
   OntologyVersion:
@@ -297,7 +300,7 @@ relationships:
     from: [Equation, Ratio]
     to: [FinancialStatement]
   DERIVED_FROM:
-    from: [Equation, CheckRule, Requirement, AuditAssertion, AuditProcedure, MeasurementBasis, QualitativeCharacteristic]
+    from: [Equation, CheckRule, Requirement, AuditAssertion, AuditProcedure, Risk, MeasurementBasis, QualitativeCharacteristic]
     to: [Standard, Section]
   IMPLEMENTS:
     from: [CheckRule]

@@ -1,0 +1,220 @@
+# Audit layer: SLAuS references, assertions, procedures, risks, document types and check rules.
+# CHK-001 to CHK-006 and POL-07 match Component 03 (rule_engine.py, mock_data.json).
+nodes:
+  Standard:
+    - {code: SLAuS 240, title: "The Auditor's Responsibilities Relating to Fraud in an Audit of Financial Statements", family: SLAuS, authority: 1, status: active}
+    - {code: SLAuS 315, title: "Identifying and Assessing the Risks of Material Misstatement", family: SLAuS, authority: 1, status: active}
+    - {code: SLAuS 320, title: "Materiality in Planning and Performing an Audit", family: SLAuS, authority: 1, status: active}
+    - {code: SLAuS 500, title: "Audit Evidence", family: SLAuS, authority: 1, status: active}
+    - {code: SLAuS 505, title: "External Confirmations", family: SLAuS, authority: 1, status: active}
+    - {code: SLAuS 520, title: "Analytical Procedures", family: SLAuS, authority: 1, status: active}
+    - {code: SLAuS 560, title: "Subsequent Events", family: SLAuS, authority: 1, status: active}
+    - {code: SLAuS 570, title: "Going Concern", family: SLAuS, authority: 1, status: active}
+
+  AuditAssertion:
+    - {code: OCCURRENCE, name: Occurrence, category: transactions}
+    - {code: COMPLETENESS, name: Completeness, category: all}
+    - {code: ACCURACY, name: Accuracy, category: transactions}
+    - {code: CUTOFF, name: Cut-off, category: transactions}
+    - {code: CLASSIFICATION, name: Classification, category: all}
+    - {code: PRESENTATION, name: Presentation, category: all}
+    - {code: EXISTENCE, name: Existence, category: balances}
+    - {code: RIGHTS_OBLIGATIONS, name: Rights and obligations, category: balances}
+    - {code: VALUATION, name: "Accuracy, valuation and allocation", category: balances}
+
+  AuditProcedure:
+    - {code: INSPECTION, name: Inspection of records or documents, type: test_of_details}
+    - {code: OBSERVATION, name: Observation, type: test_of_details}
+    - {code: EXTERNAL_CONFIRMATION, name: External confirmation, type: test_of_details}
+    - {code: RECALCULATION, name: Recalculation, type: test_of_details}
+    - {code: REPERFORMANCE, name: Reperformance, type: test_of_controls}
+    - {code: ANALYTICAL, name: Analytical procedures, type: analytical}
+    - {code: INQUIRY, name: Inquiry, type: test_of_details}
+
+  Risk:
+    - {code: ERROR_MISSTATEMENT, name: Material misstatement due to error, type: error}
+    - {code: FRAUD_MISSTATEMENT, name: Material misstatement due to fraud, type: fraud}
+    - {code: REVENUE_FRAUD, name: Fraud in revenue recognition, type: fraud}
+    - {code: MANAGEMENT_OVERRIDE, name: Management override of controls, type: fraud}
+    - {code: GOING_CONCERN, name: Going concern uncertainty, type: going_concern}
+    - {code: SUBSEQUENT_EVENTS, name: Unrecorded events after the reporting period, type: error}
+
+  DocumentType:
+    - {code: balance_sheet, name: Statement of financial position}
+    - {code: income_statement, name: Statement of profit or loss}
+    - {code: cash_flow_statement, name: Statement of cash flows}
+    - {code: equity_statement, name: Statement of changes in equity}
+    - {code: trial_balance, name: Trial balance}
+    - {code: general_ledger, name: General ledger}
+    - {code: invoice, name: Sales or purchase invoice}
+    - {code: receipt, name: Receipt}
+    - {code: payment_voucher, name: Payment voucher}
+    - {code: bank_statement, name: Bank statement}
+    - {code: purchase_order, name: Purchase order}
+    - {code: goods_received_note, name: Goods received note}
+    - {code: fixed_asset_register, name: Fixed asset register}
+    - {code: payroll, name: Payroll records}
+
+  CheckRule:
+    - {rule_id: CHK-001, name: Accounting equation, expression: "assets == liabilities + capital", severity: high}
+    - {rule_id: CHK-002, name: Debit equals credit, expression: "debit_total == credit_total", severity: high}
+    - {rule_id: CHK-003, name: Child amount matches parent, expression: "child.amount == parent.amount", severity: high}
+    - {rule_id: CHK-004, name: Year on year change within limit, expression: "abs(assets - prior.assets) / abs(prior.assets) <= 0.30", severity: medium}
+    - {rule_id: CHK-005, name: Cash out without asset in, expression: "not (cash_out > 0 and purchase_basis == 'credit' and asset_in == 0)", severity: high}
+    - {rule_id: CHK-006, name: Required fields present, expression: "required fields present and confidence >= 0.5", severity: medium}
+    - {rule_id: CHK-007, name: Total assets equals current plus non-current, expression: "total_assets == total_current_assets + total_non_current_assets", severity: medium}
+    - {rule_id: CHK-008, name: Gross profit, expression: "gross_profit == revenue - cost_of_sales", severity: medium}
+    - {rule_id: CHK-009, name: Cash flow closing cash ties to SFP, expression: "closing_cash == cash_and_cash_equivalents", severity: high}
+    - {rule_id: CHK-010, name: Closing equity ties to SFP, expression: "closing_equity == total_equity", severity: high}
+    - {rule_id: CHK-011, name: Inventory not above NRV, expression: "inventories <= inventory_nrv", severity: medium}
+
+  PolicyRule:
+    - {rule_id: POL-07, text: "Purchases above Rs. 100,000 need dual approval.", limit: 100000.0}
+
+relationships:
+  ISSUED_BY:
+    - ["Standard:SLAuS 240", RegulatoryBody:CASL]
+    - ["Standard:SLAuS 315", RegulatoryBody:CASL]
+    - ["Standard:SLAuS 320", RegulatoryBody:CASL]
+    - ["Standard:SLAuS 500", RegulatoryBody:CASL]
+    - ["Standard:SLAuS 505", RegulatoryBody:CASL]
+    - ["Standard:SLAuS 520", RegulatoryBody:CASL]
+    - ["Standard:SLAuS 560", RegulatoryBody:CASL]
+    - ["Standard:SLAuS 570", RegulatoryBody:CASL]
+  BELONGS_TO:
+    - ["Standard:SLAuS 240", Framework:SLAUS]
+    - ["Standard:SLAuS 315", Framework:SLAUS]
+    - ["Standard:SLAuS 320", Framework:SLAUS]
+    - ["Standard:SLAuS 500", Framework:SLAUS]
+    - ["Standard:SLAuS 505", Framework:SLAUS]
+    - ["Standard:SLAuS 520", Framework:SLAUS]
+    - ["Standard:SLAuS 560", Framework:SLAUS]
+    - ["Standard:SLAuS 570", Framework:SLAUS]
+
+  DERIVED_FROM:
+    - [AuditAssertion:OCCURRENCE, "Standard:SLAuS 315"]
+    - [AuditAssertion:COMPLETENESS, "Standard:SLAuS 315"]
+    - [AuditAssertion:ACCURACY, "Standard:SLAuS 315"]
+    - [AuditAssertion:CUTOFF, "Standard:SLAuS 315"]
+    - [AuditAssertion:CLASSIFICATION, "Standard:SLAuS 315"]
+    - [AuditAssertion:PRESENTATION, "Standard:SLAuS 315"]
+    - [AuditAssertion:EXISTENCE, "Standard:SLAuS 315"]
+    - [AuditAssertion:RIGHTS_OBLIGATIONS, "Standard:SLAuS 315"]
+    - [AuditAssertion:VALUATION, "Standard:SLAuS 315"]
+    - [AuditProcedure:INSPECTION, "Standard:SLAuS 500"]
+    - [AuditProcedure:OBSERVATION, "Standard:SLAuS 500"]
+    - [AuditProcedure:EXTERNAL_CONFIRMATION, "Standard:SLAuS 505"]
+    - [AuditProcedure:RECALCULATION, "Standard:SLAuS 500"]
+    - [AuditProcedure:REPERFORMANCE, "Standard:SLAuS 500"]
+    - [AuditProcedure:ANALYTICAL, "Standard:SLAuS 520"]
+    - [AuditProcedure:INQUIRY, "Standard:SLAuS 500"]
+    - [Risk:ERROR_MISSTATEMENT, "Standard:SLAuS 315"]
+    - [Risk:FRAUD_MISSTATEMENT, "Standard:SLAuS 240"]
+    - [Risk:REVENUE_FRAUD, "Standard:SLAuS 240"]
+    - [Risk:MANAGEMENT_OVERRIDE, "Standard:SLAuS 240"]
+    - [Risk:GOING_CONCERN, "Standard:SLAuS 570"]
+    - [Risk:GOING_CONCERN, "Section:LKAS 1:25"]
+    - [Risk:SUBSEQUENT_EVENTS, "Standard:SLAuS 560"]
+    - [Risk:SUBSEQUENT_EVENTS, "Section:LKAS 10:8"]
+    - [CheckRule:CHK-001, "Section:CF:4.4"]
+    - [CheckRule:CHK-004, "Standard:SLAuS 520"]
+    - [CheckRule:CHK-005, "Standard:SLAuS 240"]
+    - [CheckRule:CHK-006, "Standard:SLAuS 500"]
+    - [CheckRule:CHK-007, "Section:LKAS 1:60"]
+    - [CheckRule:CHK-008, "Section:LKAS 1:103"]
+    - [CheckRule:CHK-009, "Section:LKAS 7:45"]
+    - [CheckRule:CHK-010, "Section:LKAS 1:106"]
+    - [CheckRule:CHK-011, "Section:LKAS 2:9"]
+
+  TESTS:
+    - [AuditProcedure:INSPECTION, AuditAssertion:EXISTENCE]
+    - [AuditProcedure:INSPECTION, AuditAssertion:OCCURRENCE]
+    - [AuditProcedure:INSPECTION, AuditAssertion:RIGHTS_OBLIGATIONS]
+    - [AuditProcedure:OBSERVATION, AuditAssertion:EXISTENCE]
+    - [AuditProcedure:EXTERNAL_CONFIRMATION, AuditAssertion:EXISTENCE]
+    - [AuditProcedure:EXTERNAL_CONFIRMATION, AuditAssertion:RIGHTS_OBLIGATIONS]
+    - [AuditProcedure:RECALCULATION, AuditAssertion:ACCURACY]
+    - [AuditProcedure:RECALCULATION, AuditAssertion:VALUATION]
+    - [AuditProcedure:REPERFORMANCE, AuditAssertion:ACCURACY]
+    - [AuditProcedure:ANALYTICAL, AuditAssertion:COMPLETENESS]
+    - [AuditProcedure:ANALYTICAL, AuditAssertion:VALUATION]
+    - [AuditProcedure:INQUIRY, AuditAssertion:COMPLETENESS]
+    - [CheckRule:CHK-001, AuditAssertion:ACCURACY]
+    - [CheckRule:CHK-001, AuditAssertion:COMPLETENESS]
+    - [CheckRule:CHK-002, AuditAssertion:ACCURACY]
+    - [CheckRule:CHK-002, AuditAssertion:CLASSIFICATION]
+    - [CheckRule:CHK-003, AuditAssertion:ACCURACY]
+    - [CheckRule:CHK-003, AuditAssertion:OCCURRENCE]
+    - [CheckRule:CHK-004, AuditAssertion:VALUATION]
+    - [CheckRule:CHK-005, AuditAssertion:OCCURRENCE]
+    - [CheckRule:CHK-005, AuditAssertion:EXISTENCE]
+    - [CheckRule:CHK-006, AuditAssertion:COMPLETENESS]
+    - [CheckRule:CHK-007, AuditAssertion:CLASSIFICATION]
+    - [CheckRule:CHK-008, AuditAssertion:ACCURACY]
+    - [CheckRule:CHK-009, AuditAssertion:EXISTENCE]
+    - [CheckRule:CHK-009, AuditAssertion:PRESENTATION]
+    - [CheckRule:CHK-010, AuditAssertion:PRESENTATION]
+    - [CheckRule:CHK-011, AuditAssertion:VALUATION]
+
+  ADDRESSES:
+    - [AuditProcedure:ANALYTICAL, Risk:ERROR_MISSTATEMENT]
+    - [AuditProcedure:EXTERNAL_CONFIRMATION, Risk:FRAUD_MISSTATEMENT]
+    - [AuditProcedure:INSPECTION, Risk:REVENUE_FRAUD]
+    - [AuditProcedure:INQUIRY, Risk:SUBSEQUENT_EVENTS]
+    - [CheckRule:CHK-001, Risk:ERROR_MISSTATEMENT]
+    - [CheckRule:CHK-002, Risk:ERROR_MISSTATEMENT]
+    - [CheckRule:CHK-003, Risk:ERROR_MISSTATEMENT]
+    - [CheckRule:CHK-003, Risk:FRAUD_MISSTATEMENT]
+    - [CheckRule:CHK-004, Risk:ERROR_MISSTATEMENT]
+    - [CheckRule:CHK-004, Risk:GOING_CONCERN]
+    - [CheckRule:CHK-005, Risk:FRAUD_MISSTATEMENT]
+    - [CheckRule:CHK-005, Risk:MANAGEMENT_OVERRIDE]
+    - [CheckRule:CHK-009, Risk:ERROR_MISSTATEMENT]
+    - [CheckRule:CHK-010, Risk:ERROR_MISSTATEMENT]
+    - [CheckRule:CHK-011, Risk:ERROR_MISSTATEMENT]
+
+  IMPLEMENTS:
+    - [CheckRule:CHK-001, Equation:EQ-001]
+    - [CheckRule:CHK-002, Equation:EQ-019]
+    - [CheckRule:CHK-007, Equation:EQ-002]
+    - [CheckRule:CHK-008, Equation:EQ-005]
+    - [CheckRule:CHK-009, Equation:EQ-014]
+    - [CheckRule:CHK-010, Equation:EQ-015]
+    - [CheckRule:CHK-011, Equation:EQ-017]
+    - [CheckRule:CHK-011, "Requirement:LKAS 2:9#R1"]
+
+  USES:
+    - [CheckRule:CHK-001, LineItem:total_assets, {role: lhs, sign: 1}]
+    - [CheckRule:CHK-001, LineItem:total_liabilities, {role: rhs, sign: 1}]
+    - [CheckRule:CHK-001, LineItem:total_equity, {role: rhs, sign: 1}]
+    - [CheckRule:CHK-002, LineItem:total_debits, {role: lhs, sign: 1}]
+    - [CheckRule:CHK-002, LineItem:total_credits, {role: rhs, sign: 1}]
+    - [CheckRule:CHK-004, LineItem:total_assets, {role: lhs, sign: 1}]
+
+  CHECKS_DOC_TYPE:
+    - [CheckRule:CHK-001, DocumentType:balance_sheet]
+    - [CheckRule:CHK-002, DocumentType:trial_balance]
+    - [CheckRule:CHK-002, DocumentType:general_ledger]
+    - [CheckRule:CHK-003, DocumentType:invoice]
+    - [CheckRule:CHK-004, DocumentType:balance_sheet]
+    - [CheckRule:CHK-005, DocumentType:invoice]
+    - [CheckRule:CHK-005, DocumentType:payment_voucher]
+    - [CheckRule:CHK-006, DocumentType:balance_sheet]
+    - [CheckRule:CHK-006, DocumentType:invoice]
+    - [CheckRule:CHK-007, DocumentType:balance_sheet]
+    - [CheckRule:CHK-008, DocumentType:income_statement]
+    - [CheckRule:CHK-009, DocumentType:cash_flow_statement]
+    - [CheckRule:CHK-009, DocumentType:balance_sheet]
+    - [CheckRule:CHK-010, DocumentType:equity_statement]
+    - [CheckRule:CHK-010, DocumentType:balance_sheet]
+    - [CheckRule:CHK-011, DocumentType:balance_sheet]
+    - [PolicyRule:POL-07, DocumentType:invoice]
+
+  GOVERNS:
+    - ["Standard:LKAS 1", DocumentType:balance_sheet]
+    - ["Standard:LKAS 1", DocumentType:income_statement]
+    - ["Standard:LKAS 1", DocumentType:equity_statement]
+    - ["Standard:LKAS 7", DocumentType:cash_flow_statement]
+    - ["Standard:LKAS 16", DocumentType:fixed_asset_register]
+    - ["Standard:LKAS 19", DocumentType:payroll]
+    - ["Standard:SLFRS 15", DocumentType:invoice]

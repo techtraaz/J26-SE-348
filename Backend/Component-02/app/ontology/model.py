@@ -5,7 +5,7 @@ import yaml
 from pydantic import BaseModel, Field, model_validator
 
 SCHEMA_PATH = Path(__file__).with_name("schema.yaml")
-PROPERTY_TYPES = {"string", "int", "float", "bool", "date", "datetime"}
+PROPERTY_TYPES = {"string", "int", "float", "bool", "date", "datetime", "list", "vector"}
 
 
 class NodeType(BaseModel):

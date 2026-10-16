@@ -38,6 +38,8 @@ python -m venv .venv
 python -m pip install -e ".[dev]"
 copy .env.example .env      # fill in AuraDB credentials
 python -m scripts.check_neo4j
+python -m scripts.migrate   # constraints + indexes, safe to re-run
+python -m scripts.seed      # load seed data (--check to validate only)
 uvicorn app.main:app --reload --port 8002
 pytest
 ```
@@ -45,3 +47,9 @@ pytest
 ## Doors (FastAPI)
 
 - `GET /health`: alive check + Neo4j connectivity
+- `GET /ontology`: full ontology schema (layers, node and relationship types)
+- `GET /ontology/nodes/{label}`: one node type with its relationships
+- `GET /ontology/diagram?layer=`: Mermaid diagram
+- `GET /ontology/stats`: live node and relationship counts
+
+See [docs/ontology.md](docs/ontology.md) for the ontology design and diagrams.
