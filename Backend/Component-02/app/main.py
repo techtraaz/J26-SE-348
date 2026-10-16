@@ -2,7 +2,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from app.api import health, kg, ontology
+from app.api import health, kg, ontology, query
 from app.config import get_settings
 from app.graph.neo4j_client import close_driver
 
@@ -17,3 +17,4 @@ app = FastAPI(title=get_settings().app_name, lifespan=lifespan)
 app.include_router(health.router)
 app.include_router(ontology.router)
 app.include_router(kg.router)
+app.include_router(query.router)

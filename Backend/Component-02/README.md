@@ -58,5 +58,9 @@ pytest
 - `GET /kg/jobs/{id}`: job status and summary
 - `GET /kg/pipeline`: KG construction pipeline diagram
 
+- `GET /query/rules/{doc_type}`, `/query/check-rules/{doc_type}`: rules for Component 03
+- `GET /query/evidence-chain/{doc_id}`, `/query/postings/{case_id}`, `/query/period-totals/{case_id}?year=`
+- `GET /query/fields`: document field name -> line item code
+
 See [docs/ontology.md](docs/ontology.md) for the ontology and
 [docs/kg_construction.md](docs/kg_construction.md) for KG construction.
