@@ -29,6 +29,11 @@ class Settings(BaseSettings):
     embedding_model: str = "nomic-embed-text"
     embedding_dim: int = 768
 
+    # read-only Cypher endpoint for people (debugging, demo); agents use the fixed queries
+    query_cypher_enabled: bool = True
+    query_cypher_timeout: float = 10.0
+    query_cypher_max_rows: int = 500
+
 
 @lru_cache
 def get_settings() -> Settings:
