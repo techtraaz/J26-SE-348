@@ -1,11 +1,12 @@
 """FastAPI doors — waiter outside, agents are kitchen inside."""
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+
 from app import config
 from app.schemas.case import AuditCase
 from app.schemas.copilot import CopilotQuery
-from app.services import orchestrator, copilot
-from app.services.kg_client import KGClient
+from app.services import copilot, orchestrator
+from app.services.kg_client import default_kg
 
 app = FastAPI(title="NOMOS Component 03 — Audit Reasoning")
 
@@ -22,22 +23,24 @@ app.add_middleware(
 @app.get("/health")
 def health():
     return {"ok": True, "model": config.MODEL_NAME,
-            "allow_free_cypher": config.ALLOW_FREE_CYPHER}
+            "allow_free_cypher": config.ALLOW_FREE_CYPHER,
+            "kg_mode": config.KG_MODE}
 
 
 @app.post("/audit/run")
 def audit_run(case: AuditCase):
-    return orchestrator.run_case(case, KGClient()).model_dump()
+    return orchestrator.run_case(case, default_kg()).model_dump()
 
 
 @app.post("/audit/run/stream")
 def audit_run_stream(case: AuditCase):
     """Real per-agent pills: streams one update per finished node."""
     import json
+
     from fastapi.responses import StreamingResponse
 
     def gen():
-        for chunk in orchestrator.stream_case(case, KGClient()):
+        for chunk in orchestrator.stream_case(case, default_kg()):
             yield json.dumps(chunk, default=str) + "\n"
     return StreamingResponse(gen(), media_type="application/x-ndjson")
 
@@ -49,5 +52,10 @@ def copilot_query(q: CopilotQuery):
 
 @app.get("/kg/rules/{doc_type}")
 def kg_rules(doc_type: str):
-    return {"doc_type": doc_type, "rules": KGClient().get_rules(doc_type),
-            "check_rules": KGClient().get_check_rules(doc_type)}
+    kg = default_kg()
+    try:
+        rules = kg.get_rules(doc_type)
+        check_rules = kg.get_check_rules(doc_type)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"doc_type": doc_type, "rules": rules, "check_rules": check_rules}

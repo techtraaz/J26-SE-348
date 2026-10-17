@@ -1,7 +1,14 @@
+import pytest
+
 from app.schemas.case import AuditCase, AuditDocument
 from app.schemas.findings import EvidenceClaim, Finding
 from app.services import orchestrator
 from app.services.kg_client import KGClient
+
+
+def _agent_trace(res):
+    """The five pipeline trace entries, excluding the kg-source notice line."""
+    return [t for t in res.trace if t.agent_name != "kg"]
 
 
 class FakeKG(KGClient):
@@ -39,15 +46,16 @@ def test_full_case_pending_review():
     res = orchestrator.run_case(case, KGClient())
     assert res.status == "pending_auditor_review"
     assert len(res.findings) >= 2  # equation + policy limit
-    assert len(res.trace) == 5
+    assert len(_agent_trace(res)) == 5
     res2 = orchestrator.run_case(case, KGClient())
     assert res2.version == res.version + 1
 
 
 def test_trace_five_in_execution_order_via_seq():
     res = orchestrator.run_case(_tv_case("CASE-ORD"), KGClient())
-    assert len(res.trace) == 5
-    by_name = {t.agent_name: t.seq for t in res.trace}
+    agent_trace = _agent_trace(res)
+    assert len(agent_trace) == 5
+    by_name = {t.agent_name: t.seq for t in agent_trace}
     assert set(by_name) == {"data_quality", "compliance", "anomaly", "reasoning", "evidence_validation"}
     # per-run seq 1..5, stamped at execution (completion) time, never sorted
     assert sorted(by_name.values()) == [1, 2, 3, 4, 5]
@@ -61,8 +69,8 @@ def test_trace_five_in_execution_order_via_seq():
 def test_seq_resets_per_run():
     r1 = orchestrator.run_case(_tv_case("CASE-SEQ1"), KGClient())
     r2 = orchestrator.run_case(_tv_case("CASE-SEQ2"), KGClient())
-    assert sorted(t.seq for t in r1.trace) == [1, 2, 3, 4, 5]
-    assert sorted(t.seq for t in r2.trace) == [1, 2, 3, 4, 5]
+    assert sorted(t.seq for t in _agent_trace(r1)) == [1, 2, 3, 4, 5]
+    assert sorted(t.seq for t in _agent_trace(r2)) == [1, 2, 3, 4, 5]
 
 
 def test_same_input_same_findings():
@@ -128,7 +136,7 @@ def test_chk004_year_jump_survives_validation():
     assert len(got) == 1 and not got[0].citation_unverified
 
 
-def test_ghost_id_through_full_graph():
+def test_ghost_id_through_full_graph(monkeypatch):
     """Inject ghost via Compliance; kept flagged AND logged with reason."""
     from app.services.agents import compliance
     orig = compliance.run
@@ -138,11 +146,8 @@ def test_ghost_id_through_full_graph():
     def fake_run(case, kg):
         f, t = orig(case, kg)
         return f + [ghost], t
-    compliance.run = fake_run
-    try:
-        res = orchestrator.run_case(_tv_case("CASE-GHOST"), KGClient())
-    finally:
-        compliance.run = orig
+    monkeypatch.setattr(compliance, "run", fake_run)
+    res = orchestrator.run_case(_tv_case("CASE-GHOST"), KGClient())
     assert res.rejected_citations == ["DOC-999-GHOST"]
     kept = [f for f in res.findings if f.finding_id == "X-GHOST"]
     assert len(kept) == 1 and kept[0].citation_unverified is True
@@ -150,7 +155,7 @@ def test_ghost_id_through_full_graph():
     assert all(r.reason for r in res.rejected_findings)
 
 
-def test_claim_value_mismatch_flagged_not_dropped():
+def test_claim_value_mismatch_flagged_not_dropped(monkeypatch):
     """Real doc ID but wrong claimed value: kept flagged + logged with actual value."""
     from app.services.agents import compliance
     orig = compliance.run
@@ -161,11 +166,8 @@ def test_claim_value_mismatch_flagged_not_dropped():
     def fake_run(case, kg):
         f, t = orig(case, kg)
         return f + [liar], t
-    compliance.run = fake_run
-    try:
-        res = orchestrator.run_case(_tv_case("CASE-LIAR"), KGClient())
-    finally:
-        compliance.run = orig
+    monkeypatch.setattr(compliance, "run", fake_run)
+    res = orchestrator.run_case(_tv_case("CASE-LIAR"), KGClient())
     assert "INV1" in res.rejected_citations
     kept = [f for f in res.findings if f.finding_id == "X-LIAR"]
     assert len(kept) == 1 and kept[0].citation_unverified is True
@@ -183,7 +185,7 @@ def test_reasoning_chain_filled():
 def test_early_stop_empty_case_not_auditable():
     res = orchestrator.run_case(AuditCase(case_id="CASE-EMPTY", docs=[]), KGClient())
     assert res.status == "not_auditable"
-    assert len(res.trace) == 1
+    assert len(_agent_trace(res)) == 1
     assert res.trace[0].agent_name == "data_quality"
     assert res.findings, "DQ reasons must be included, never a bare empty result"
 
@@ -196,7 +198,7 @@ def test_early_stop_all_docs_rejected_not_auditable():
     res = orchestrator.run_case(case, KGClient())
     assert res.status == "not_auditable"
     assert set(res.rejected_records) == {"BS1"}
-    assert len(res.trace) == 1  # stopped after DQ, no comp/anom/reas/val
+    assert len(_agent_trace(res)) == 1  # stopped after DQ, no comp/anom/reas/val
     assert res.findings, "DQ reasons must be included, must not look like a clean case"
     assert any("Missing required field" in f.message for f in res.findings)
 
@@ -219,7 +221,7 @@ def test_clean_case_zero_findings():
     assert res.status == "pending_auditor_review"
     assert res.findings == []
     assert res.rejected_citations == []
-    assert len(res.trace) == 5
+    assert len(_agent_trace(res)) == 5
 
 
 def test_stream_runs_graph_once():
@@ -234,3 +236,28 @@ def test_stream_runs_graph_once():
     assert len(results[0]["data"]["findings"]) >= 2
     assert len(updates) == 5  # one per node: dq, comp, anom, reas, val
     assert all(isinstance(e["data"], dict) for e in events)  # JSON-safe, no repr strings
+
+
+def test_stream_not_auditable_carries_reasons():
+    from app.services.orchestrator import stream_case
+    events = list(stream_case(AuditCase(case_id="CASE-EMPTY-STR", docs=[]),
+                              KGClient()))
+    results = [e for e in events if e["event"] == "result"]
+    assert len(results) == 1
+    data = results[0]["data"]
+    assert data["status"] == "not_auditable"
+    assert data["findings"]  # DQ reasons present, never a clean-looking result
+    assert any(t["agent_name"] == "kg" for t in data["trace"])
+
+
+def test_latency_ms_is_measured():
+    res = orchestrator.run_case(_tv_case("CASE-LAT"), KGClient())
+    assert isinstance(res.latency_ms, float)
+    assert res.latency_ms >= 0.0
+
+
+def test_seq_from_missing_config_raises_clear_error():
+    from app.services.orchestrator import OrchestratorConfigError, _seq_from
+    for bad in (None, {}, {"configurable": {}}):
+        with pytest.raises(OrchestratorConfigError):
+            _seq_from(bad)

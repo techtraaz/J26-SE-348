@@ -12,15 +12,28 @@
 """
 import itertools
 import operator
+import time
 from typing import Annotated, TypedDict
+
 from langchain_core.runnables import RunnableConfig
+
 from app import config as settings
 from app.schemas.case import AuditCase
-from app.schemas.findings import AuditResult
-from app.services.agents import data_quality, compliance, anomaly, reasoning, evidence_validation
-from app.services.kg_client import KGClient
+from app.schemas.findings import AuditResult, TraceEntry
+from app.services.agents import (
+    anomaly,
+    compliance,
+    data_quality,
+    evidence_validation,
+    reasoning,
+)
+from app.services.kg_client import KGClient, default_kg
 
 VERSION_STORE: dict[str, int] = {}
+
+
+class OrchestratorConfigError(RuntimeError):
+    """A graph node ran without the per-run config it needs (kg + seq)."""
 
 
 class AuditState(TypedDict):
@@ -50,15 +63,30 @@ def _kg_from(run_config: RunnableConfig | None) -> KGClient:
         kg = run_config["configurable"].get("kg")
         if isinstance(kg, KGClient):
             return kg
-    return KGClient()
+    return default_kg()
+
+
+def _kg_notice(kg: KGClient) -> TraceEntry:
+    """One trace line telling the auditor where the KG data came from."""
+    return TraceEntry(agent_name="kg", decision_type="source",
+                      detail=f"Knowledge graph source: {kg.source}.", seq=0)
 
 
 def _seq_from(run_config: dict | None) -> itertools.count:
-    return run_config["configurable"]["seq"]
+    """Per-run counter. Missing config is a clear error, not a bare KeyError."""
+    if not isinstance(run_config, dict):
+        raise OrchestratorConfigError(
+            "Graph node ran without a run config; 'seq' is required.")
+    configurable = run_config.get("configurable")
+    if not isinstance(configurable, dict) or "seq" not in configurable:
+        raise OrchestratorConfigError(
+            "Run config is missing 'configurable.seq'; nodes must run through "
+            "the graph.")
+    return configurable["seq"]
 
 
 def build_graph() -> object:
-    from langgraph.graph import StateGraph, START, END
+    from langgraph.graph import END, START, StateGraph
 
     g = StateGraph(AuditState)
 
@@ -131,32 +159,40 @@ def _initial(case: AuditCase) -> dict:
 
 
 def _fresh_cfg(kg: KGClient | None) -> dict:
-    return {"configurable": {"kg": kg or KGClient(), "seq": itertools.count(1)}}
+    return {"configurable": {"kg": kg or default_kg(), "seq": itertools.count(1)}}
 
 
 def run_case(case: AuditCase, kg: KGClient | None = None) -> AuditResult:
+    kg = kg or default_kg()
+    start = time.perf_counter()
     out = GRAPH.invoke(_initial(case), config=_fresh_cfg(kg))
+    latency_ms = round((time.perf_counter() - start) * 1000, 3)
     v = VERSION_STORE.get(case.case_id, 0) + 1
     VERSION_STORE[case.case_id] = v
+    trace = list(out.get("trace", [])) + [_kg_notice(kg)]
     if out.get("early_stop"):
         # not_auditable: DQ reasons included, never looks like a clean case
         return AuditResult(case_id=case.case_id, version=v, status="not_auditable",
                            findings=list(out.get("findings", [])),
-                           trace=list(out.get("trace", [])),
+                           trace=trace,
                            rejected_records=list(out.get("rejected_records", [])),
-                           rejected_citations=[], rejected_findings=[])
+                           rejected_citations=[], rejected_findings=[],
+                           kg_source=kg.source, latency_ms=latency_ms)
     return AuditResult(case_id=case.case_id, version=v,
                        status=settings.FINDINGS_STATUS_DEFAULT,
                        findings=list(out.get("final_findings", [])),
-                       trace=list(out.get("trace", [])),
+                       trace=trace,
                        rejected_records=list(out.get("rejected_records", [])),
                        rejected_citations=list(out.get("rejected_citations", [])),
-                       rejected_findings=list(out.get("rejected_findings", [])))
+                       rejected_findings=list(out.get("rejected_findings", [])),
+                       kg_source=kg.source, latency_ms=latency_ms)
 
 
 def stream_case(case: AuditCase, kg: KGClient | None = None):
     """Single graph run. Yields JSON-safe per-node updates, then one final result.
     Version bumped exactly once."""
+    kg = kg or default_kg()
+    start = time.perf_counter()
     acc: dict = {"trace": [], "rejected_records": [], "rejected_citations": [],
                  "reasoned": [], "final_findings": [], "rejected_findings": [],
                  "findings": [], "early_stop": False}
@@ -180,18 +216,22 @@ def stream_case(case: AuditCase, kg: KGClient | None = None):
                         acc[k] = bool(val)
             safe[node] = node_data
         yield {"event": "update", "data": safe}
+    latency_ms = round((time.perf_counter() - start) * 1000, 3)
     v = VERSION_STORE.get(case.case_id, 0) + 1
     VERSION_STORE[case.case_id] = v
+    trace = list(acc["trace"]) + [_kg_notice(kg)]
     if acc["early_stop"]:
         res = AuditResult(case_id=case.case_id, version=v, status="not_auditable",
-                          findings=acc["findings"], trace=acc["trace"],
+                          findings=acc["findings"], trace=trace,
                           rejected_records=acc["rejected_records"],
-                          rejected_citations=[], rejected_findings=[])
+                          rejected_citations=[], rejected_findings=[],
+                          kg_source=kg.source, latency_ms=latency_ms)
     else:
         res = AuditResult(case_id=case.case_id, version=v,
                           status=settings.FINDINGS_STATUS_DEFAULT,
-                          findings=acc["final_findings"], trace=acc["trace"],
+                          findings=acc["final_findings"], trace=trace,
                           rejected_records=acc["rejected_records"],
                           rejected_citations=acc["rejected_citations"],
-                          rejected_findings=acc["rejected_findings"])
+                          rejected_findings=acc["rejected_findings"],
+                          kg_source=kg.source, latency_ms=latency_ms)
     yield {"event": "result", "data": res.model_dump()}

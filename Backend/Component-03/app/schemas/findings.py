@@ -1,6 +1,7 @@
 """Finding shapes. Verdict word replaced with finding pending auditor review."""
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Literal
+
 from pydantic import BaseModel, Field
 
 Category = Literal["arithmetic", "ledger", "format", "compliance", "possible_fraud"]
@@ -8,7 +9,7 @@ Severity = Literal["low", "medium", "high"]
 
 
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 class EvidenceClaim(BaseModel):
@@ -53,6 +54,11 @@ class RejectedFinding(BaseModel):
 class AuditResult(BaseModel):
     case_id: str
     version: int = 1
+    # Where the knowledge-graph data came from: live, mock, or mock_fallback.
+    # A mock result must never look live.
+    kg_source: str = "mock"
+    # Wall-clock time for the whole case, measured with perf_counter.
+    latency_ms: float = 0.0
     # pending_auditor_review = checked, needs human. not_auditable = nothing
     # could be checked (empty or all-rejected case); findings carry the DQ reasons.
     status: str = "pending_auditor_review"
