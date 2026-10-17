@@ -2,37 +2,77 @@ import { NavLink, Outlet } from "react-router-dom";
 import { useUI } from "@/store/ui";
 import { routes } from "@/config/routes";
 
-const links = [
-  { to: routes.dashboard, label: "Dashboard" },
-  { to: routes.cases, label: "Cases" },
-  { to: routes.documents, label: "Documents" },
-  { to: routes.findings, label: "Findings" },
-  { to: routes.policies, label: "Policies" },
-  { to: routes.reports, label: "Reports" },
-  { to: routes.settings, label: "Settings" },
+const tabs = [
+  { to: routes.documents, label: "Library" },
+  { to: routes.dashboard, label: "Chat" },
 ];
 
 export function AppShell() {
-  const { theme, toggleTheme, selectedCase } = useUI();
+  const { theme } = useUI();
   return (
-    <div data-theme={theme} className="flex min-h-screen bg-[var(--bg)] text-[var(--text)]">
-      <aside className="w-60 shrink-0 bg-[var(--nav)] p-4 text-white">
-        <div className="mb-4 font-extrabold tracking-widest">NOMOS</div>
-        <nav className="flex flex-col gap-1">
-          {links.map((l) => (
-            <NavLink key={l.to} to={l.to} className={({ isActive }) => `rounded-lg px-3 py-2 text-sm ${isActive ? "bg-[var(--primary)]" : "hover:bg-white/10"}`}>
-              {l.label}
+    <div data-theme={theme} style={{ background: "var(--bg)", color: "var(--text)", minHeight: "100vh", display: "flex", flexDirection: "column" }}>
+      {/* ── Top Navigation Bar ── */}
+      <header style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "14px 24px",
+        position: "relative",
+        borderBottom: "1px solid var(--border-light)",
+      }}>
+        {/* Center Tabs */}
+        <nav style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+          {tabs.map((t) => (
+            <NavLink
+              key={t.to}
+              to={t.to}
+              className={({ isActive }) => "nav-tab" + (isActive ? " nav-tab-active" : "")}
+              style={({ isActive }) => ({
+                padding: "7px 20px",
+                borderRadius: "999px",
+                fontSize: "14px",
+                fontWeight: 500,
+                textDecoration: "none",
+                transition: "all 0.2s ease",
+                color: isActive ? "var(--text-h)" : "var(--text-muted)",
+                background: isActive ? "var(--tab-active-bg)" : "transparent",
+                border: isActive ? "1px solid var(--tab-active-border)" : "1px solid transparent",
+              })}
+            >
+              {t.label}
             </NavLink>
           ))}
         </nav>
-      </aside>
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex items-center justify-between border-b border-[var(--border)] bg-[var(--surface)] px-5 py-3">
-          <div><strong>Case: {selectedCase}</strong><span className="ml-2 rounded-full border px-2 py-0.5 text-xs">pending_review</span></div>
-          <button onClick={toggleTheme} className="rounded-lg border px-3 py-1 text-sm">Theme: {theme}</button>
-        </header>
-        <main className="mx-auto w-full max-w-6xl p-5"><Outlet /></main>
-      </div>
+
+        {/* User Avatar */}
+        <div style={{
+          position: "absolute",
+          right: "24px",
+          top: "50%",
+          transform: "translateY(-50%)",
+        }}>
+          <div style={{
+            width: "32px",
+            height: "32px",
+            borderRadius: "50%",
+            border: "1.5px solid var(--border)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            cursor: "pointer",
+          }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+              <circle cx="12" cy="7" r="4" />
+            </svg>
+          </div>
+        </div>
+      </header>
+
+      {/* ── Main Content ── */}
+      <main style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+        <Outlet />
+      </main>
     </div>
   );
 }
