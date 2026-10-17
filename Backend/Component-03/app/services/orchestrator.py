@@ -27,9 +27,17 @@ from app.services.agents import (
     evidence_validation,
     reasoning,
 )
+from app.services.events import EventPublisher, default_publisher
 from app.services.kg_client import KGClient, default_kg
 
 VERSION_STORE: dict[str, int] = {}
+
+
+def _next_version(case_id: str) -> int:
+    """Bump and return the version for a case. One bump per run, never zero."""
+    v = VERSION_STORE.get(case_id, 0) + 1
+    VERSION_STORE[case_id] = v
+    return v
 
 
 class OrchestratorConfigError(RuntimeError):
@@ -85,6 +93,23 @@ def _seq_from(run_config: dict | None) -> itertools.count:
     return configurable["seq"]
 
 
+def _pub_from(run_config: RunnableConfig | None) -> EventPublisher:
+    if isinstance(run_config, dict):
+        cfg = run_config.get("configurable")
+        if isinstance(cfg, dict) and isinstance(cfg.get("publisher"), EventPublisher):
+            return cfg["publisher"]
+    return default_publisher()
+
+
+def _emit_agent(config: RunnableConfig | None, case_id: str, agent: str,
+                findings: list, trace: list) -> None:
+    """One C4 agent_end event per agent; best-effort, never raised."""
+    entry = trace[0] if trace else None
+    _pub_from(config).agent_end(
+        case_id, agent, len(findings),
+        entry.model_dump() if entry is not None else {})
+
+
 def build_graph() -> object:
     from langgraph.graph import END, START, StateGraph
 
@@ -96,6 +121,7 @@ def build_graph() -> object:
         if config is not None:
             for x in t:
                 x.seq = next(_seq_from(config))
+        _emit_agent(config, case.case_id, "data_quality", f, t)
         return {"findings": f, "trace": t, "rejected_records": rejected,
                 "early_stop": len(case.docs) == 0 or
                               (len(rejected) >= len(case.docs) > 0)}
@@ -110,6 +136,7 @@ def build_graph() -> object:
         f, t = compliance.run(case, _kg_from(config))
         for x in t:
             x.seq = next(_seq_from(config))
+        _emit_agent(config, case.case_id, "compliance", f, t)
         return {"findings": f, "trace": t}
 
     def n_anom(state: AuditState, config: RunnableConfig) -> dict:
@@ -117,6 +144,7 @@ def build_graph() -> object:
         f, t = anomaly.run(case)
         for x in t:
             x.seq = next(_seq_from(config))
+        _emit_agent(config, case.case_id, "anomaly", f, t)
         return {"findings": f, "trace": t}
 
     def n_reas(state: AuditState, config: RunnableConfig) -> dict:
@@ -125,6 +153,7 @@ def build_graph() -> object:
                                   _kg_from(config))
         for x in t:
             x.seq = next(_seq_from(config))
+        _emit_agent(config, case.case_id, "reasoning", merged, t)
         return {"reasoned": merged, "trace": t}
 
     def n_val(state: AuditState, config: RunnableConfig) -> dict:
@@ -133,6 +162,7 @@ def build_graph() -> object:
         kept, rejected, bad_ids, t = evidence_validation.run(case, base)
         for x in t:
             x.seq = next(_seq_from(config))
+        _emit_agent(config, case.case_id, "evidence_validation", kept, t)
         return {"final_findings": kept, "rejected_findings": rejected,
                 "rejected_citations": bad_ids, "trace": t}
 
@@ -159,45 +189,56 @@ def _initial(case: AuditCase) -> dict:
             "rejected_citations": [], "rejected_findings": [], "early_stop": False}
 
 
-def _fresh_cfg(kg: KGClient | None) -> dict:
-    return {"configurable": {"kg": kg or default_kg(), "seq": itertools.count(1)}}
+def _fresh_cfg(kg: KGClient | None,
+               publisher: EventPublisher | None = None) -> dict:
+    return {"configurable": {"kg": kg or default_kg(), "seq": itertools.count(1),
+                             "publisher": publisher or default_publisher()}}
 
 
-def run_case(case: AuditCase, kg: KGClient | None = None) -> AuditResult:
+def run_case(case: AuditCase, kg: KGClient | None = None,
+             publisher: EventPublisher | None = None) -> AuditResult:
     kg = kg or default_kg()
+    pub = publisher or default_publisher()
+    pub.pipeline_start(case.case_id, len(case.docs))
     start = time.perf_counter()
-    out = GRAPH.invoke(_initial(case), config=_fresh_cfg(kg))
+    out = GRAPH.invoke(_initial(case), config=_fresh_cfg(kg, pub))
     latency_ms = round((time.perf_counter() - start) * 1000, 3)
-    v = VERSION_STORE.get(case.case_id, 0) + 1
-    VERSION_STORE[case.case_id] = v
+    v = _next_version(case.case_id)
     trace = list(out.get("trace", [])) + [_kg_notice(kg)]
     if out.get("early_stop"):
         # not_auditable: DQ reasons included, never looks like a clean case
-        return AuditResult(case_id=case.case_id, version=v, status="not_auditable",
-                           findings=list(out.get("findings", [])),
-                           trace=trace,
-                           rejected_records=list(out.get("rejected_records", [])),
-                           rejected_citations=[], rejected_findings=[],
-                           kg_source=kg.source, latency_ms=latency_ms)
-    return AuditResult(case_id=case.case_id, version=v,
-                       status=settings.FINDINGS_STATUS_DEFAULT,
-                       findings=list(out.get("final_findings", [])),
-                       trace=trace,
-                       rejected_records=list(out.get("rejected_records", [])),
-                       rejected_citations=list(out.get("rejected_citations", [])),
-                       rejected_findings=list(out.get("rejected_findings", [])),
-                       kg_source=kg.source, latency_ms=latency_ms)
+        res = AuditResult(case_id=case.case_id, version=v, status="not_auditable",
+                          findings=list(out.get("findings", [])),
+                          trace=trace,
+                          rejected_records=list(out.get("rejected_records", [])),
+                          rejected_citations=[], rejected_findings=[],
+                          kg_source=kg.source, latency_ms=latency_ms)
+    else:
+        res = AuditResult(case_id=case.case_id, version=v,
+                          status=settings.FINDINGS_STATUS_DEFAULT,
+                          findings=list(out.get("final_findings", [])),
+                          trace=trace,
+                          rejected_records=list(out.get("rejected_records", [])),
+                          rejected_citations=list(out.get("rejected_citations", [])),
+                          rejected_findings=list(out.get("rejected_findings", [])),
+                          kg_source=kg.source, latency_ms=latency_ms)
+    pub.pipeline_end(case.case_id, len(res.findings))
+    return res
 
 
-def stream_case(case: AuditCase, kg: KGClient | None = None):
+def stream_case(case: AuditCase, kg: KGClient | None = None,
+                publisher: EventPublisher | None = None):
     """Single graph run. Yields JSON-safe per-node updates, then one final result.
     Version bumped exactly once."""
     kg = kg or default_kg()
+    pub = publisher or default_publisher()
+    pub.pipeline_start(case.case_id, len(case.docs))
     start = time.perf_counter()
     acc: dict = {"trace": [], "rejected_records": [], "rejected_citations": [],
                  "reasoned": [], "final_findings": [], "rejected_findings": [],
                  "findings": [], "early_stop": False}
-    for chunk in GRAPH.stream(_initial(case), config=_fresh_cfg(kg), stream_mode="updates"):
+    for chunk in GRAPH.stream(_initial(case), config=_fresh_cfg(kg, pub),
+                              stream_mode="updates"):
         safe: dict = {}
         for node, data in chunk.items():
             node_data: dict = {}
@@ -218,8 +259,7 @@ def stream_case(case: AuditCase, kg: KGClient | None = None):
             safe[node] = node_data
         yield {"event": "update", "data": safe}
     latency_ms = round((time.perf_counter() - start) * 1000, 3)
-    v = VERSION_STORE.get(case.case_id, 0) + 1
-    VERSION_STORE[case.case_id] = v
+    v = _next_version(case.case_id)
     trace = list(acc["trace"]) + [_kg_notice(kg)]
     if acc["early_stop"]:
         res = AuditResult(case_id=case.case_id, version=v, status="not_auditable",
@@ -235,4 +275,5 @@ def stream_case(case: AuditCase, kg: KGClient | None = None):
                           rejected_citations=acc["rejected_citations"],
                           rejected_findings=acc["rejected_findings"],
                           kg_source=kg.source, latency_ms=latency_ms)
+    pub.pipeline_end(case.case_id, len(res.findings))
     yield {"event": "result", "data": res.model_dump()}

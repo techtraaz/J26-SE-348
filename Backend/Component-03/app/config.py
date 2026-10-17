@@ -46,5 +46,12 @@ AMOUNT_TOLERANCE: float = 0.01
 # Finding confidence below this needs more evidence, not a silent pass.
 REVIEW_CONFIDENCE_LIMIT: float = 0.5
 
+# Trace events for Component-04 (Redis pub/sub). Defaults match C4's config.
+# Publishing is best-effort: audit runs even when Redis or the package is absent.
+EVENTS_ENABLED: bool = os.getenv("C03_EVENTS_ENABLED", "true").lower() in {
+    "1", "true", "yes", "on"}
+REDIS_URL: str = os.getenv("C03_REDIS_URL", "redis://localhost:6379/0")
+TRACE_CHANNEL: str = os.getenv("C03_TRACE_CHANNEL", "nomos:trace_events")
+
 # API version tag for findings. Old versions are kept, never overwritten.
 FINDINGS_STATUS_DEFAULT: str = "pending_auditor_review"

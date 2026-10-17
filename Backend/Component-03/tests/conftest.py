@@ -11,3 +11,10 @@ def _mock_llm(monkeypatch):
         return fallback
 
     monkeypatch.setattr(llm_mod, "explain_with_llm", fast)
+
+
+@pytest.fixture(autouse=True)
+def _no_real_events(monkeypatch):
+    # Keep the default publisher silent; tests that check events inject a client.
+    from app import config
+    monkeypatch.setattr(config, "EVENTS_ENABLED", False)
