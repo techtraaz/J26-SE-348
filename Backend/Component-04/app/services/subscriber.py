@@ -32,6 +32,7 @@ from app.schemas.trace_events import (
     parse_trace_event,
 )
 from app.services import database as db
+from app.services import insight_generator
 from app.services import sse_manager
 
 logger = logging.getLogger("c04.subscriber")
@@ -161,6 +162,9 @@ async def _handle_pipeline_end(evt: PipelineEndEvent) -> None:
         "received_at": received,
     })
     logger.info("■ Pipeline ended  case=%s  total_findings=%s", evt.case_id, evt.total_findings)
+
+    # Fire-and-forget: let the Insight Generator decide if an AI summary is needed
+    asyncio.create_task(insight_generator.maybe_generate_insight(evt.case_id, evt.total_findings))
 
 
 # ── Dispatcher ─────────────────────────────────────────────────────────
