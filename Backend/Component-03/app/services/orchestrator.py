@@ -121,7 +121,8 @@ def build_graph() -> object:
 
     def n_reas(state: AuditState, config: RunnableConfig) -> dict:
         case = _case_from(state)
-        merged, t = reasoning.run(case, list(state.get("findings", [])))
+        merged, t = reasoning.run(case, list(state.get("findings", [])),
+                                  _kg_from(config))
         for x in t:
             x.seq = next(_seq_from(config))
         return {"reasoned": merged, "trace": t}
