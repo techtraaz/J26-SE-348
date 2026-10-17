@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app import config
 from app.schemas.case import AuditCase
 from app.schemas.copilot import CopilotQuery
-from app.services import copilot, orchestrator
+from app.services import copilot, intake, orchestrator
 from app.services.kg_client import default_kg
 
 app = FastAPI(title="NOMOS Component 03 — Audit Reasoning")
@@ -25,6 +25,30 @@ def health():
     return {"ok": True, "model": config.MODEL_NAME,
             "allow_free_cypher": config.ALLOW_FREE_CYPHER,
             "kg_mode": config.KG_MODE}
+
+
+@app.post("/audit/intake")
+def audit_intake(payload: dict):
+    """Canonicalize + validate a case before it reaches the agents."""
+    try:
+        case = intake.normalize_case(payload)
+    except intake.IntakeError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {"contract_version": intake.INTAKE_VERSION,
+            "case": case.model_dump(), "issues": intake.validate_case(case)}
+
+
+@app.post("/audit/intake/extraction")
+def audit_intake_extraction(payload: dict):
+    """Bridge C1 extraction output onto canonical case documents."""
+    try:
+        case = intake.from_extraction(
+            payload.get("extraction", {}), payload.get("case_id", ""),
+            payload.get("page_documents", []))
+    except intake.IntakeError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {"contract_version": intake.INTAKE_VERSION,
+            "case": case.model_dump(), "issues": intake.validate_case(case)}
 
 
 @app.post("/audit/run")
