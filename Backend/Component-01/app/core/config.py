@@ -21,11 +21,18 @@ class Settings(BaseSettings):
     replay_delay_s: float = 0.0
 
     storage_root: Path = BACKEND_ROOT / "data" / "store"
+    
+    # Put real password in .env.
+    database_url: str = "postgresql+psycopg://postgres@localhost:5432/nomos"
 
     pdf_dpi: int = DEFAULT_PDF_DPI
     max_file_bytes: int = 25 * 1024 * 1024
     max_pages: int = 20
     max_pixels_per_page: int = 40_000_000
+
+    # The background worker runs inside the API process.
+    run_worker: bool = True
+    worker_poll_interval_s: float = 1.0
 
     cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
 

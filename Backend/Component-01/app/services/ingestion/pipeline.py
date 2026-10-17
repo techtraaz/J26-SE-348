@@ -1,6 +1,8 @@
 """Single entry point: uploaded bytes -> ordered list of BGR page images.
+
 Everything downstream (OCR, VLM, evaluation) consumes PageImage objects and
-never sees the original file format."""
+never sees the original file format.
+"""
 
 import hashlib
 
@@ -15,6 +17,16 @@ from app.services.ingestion.models import (
 )
 from app.services.ingestion.rasterize_pdf import rasterize_pdf
 
+def validate_upload(data: bytes, limits: IngestionLimits) -> FileKind:
+    """The cheap checks (size, content type) that can reject an upload
+    immediately, before any page is decoded or rasterized."""
+    if len(data) > limits.max_file_bytes:
+        raise IngestionError(
+            "too_large",
+            f"The file is {len(data) / 1_048_576:.1f} MB; "
+            f"the limit is {limits.max_file_bytes // 1_048_576} MB.",
+        )
+    return detect_kind(data)
 
 def ingest(
     data: bytes,
@@ -26,14 +38,7 @@ def ingest(
         raise ValueError(f"pdf_dpi must be between 50 and 600, got {pdf_dpi}")
     limits = limits or IngestionLimits()
 
-    if len(data) > limits.max_file_bytes:
-        raise IngestionError(
-            "too_large",
-            f"The file is {len(data) / 1_048_576:.1f} MB; "
-            f"the limit is {limits.max_file_bytes // 1_048_576} MB.",
-        )
-
-    kind = detect_kind(data)
+    kind = validate_upload(data, limits)
     if kind is FileKind.PDF:
         pages = rasterize_pdf(data, pdf_dpi, limits)
     else:
