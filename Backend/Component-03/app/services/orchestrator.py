@@ -204,25 +204,30 @@ def run_case(case: AuditCase, kg: KGClient | None = None,
     out = GRAPH.invoke(_initial(case), config=_fresh_cfg(kg, pub))
     latency_ms = round((time.perf_counter() - start) * 1000, 3)
     v = _next_version(case.case_id)
-    trace = list(out.get("trace", [])) + [_kg_notice(kg)]
     if out.get("early_stop"):
         # not_auditable: DQ reasons included, never looks like a clean case
-        res = AuditResult(case_id=case.case_id, version=v, status="not_auditable",
-                          findings=list(out.get("findings", [])),
-                          trace=trace,
-                          rejected_records=list(out.get("rejected_records", [])),
-                          rejected_citations=[], rejected_findings=[],
-                          kg_source=kg.source, latency_ms=latency_ms)
+        status = "not_auditable"
+        findings = list(out.get("findings", []))
+        rejected_citations: list[str] = []
+        rejected_findings: list = []
     else:
-        res = AuditResult(case_id=case.case_id, version=v,
-                          status=settings.FINDINGS_STATUS_DEFAULT,
-                          findings=list(out.get("final_findings", [])),
-                          trace=trace,
-                          rejected_records=list(out.get("rejected_records", [])),
-                          rejected_citations=list(out.get("rejected_citations", [])),
-                          rejected_findings=list(out.get("rejected_findings", [])),
-                          kg_source=kg.source, latency_ms=latency_ms)
-    pub.pipeline_end(case.case_id, len(res.findings))
+        status = settings.FINDINGS_STATUS_DEFAULT
+        findings = list(out.get("final_findings", []))
+        rejected_citations = list(out.get("rejected_citations", []))
+        rejected_findings = list(out.get("rejected_findings", []))
+    pub.pipeline_end(case.case_id, len(findings))
+    trace = list(out.get("trace", [])) + [_kg_notice(kg)]
+    note = pub.note()
+    if note:
+        trace.append(TraceEntry(agent_name="events", decision_type="events",
+                                detail=note, seq=0))
+    res = AuditResult(case_id=case.case_id, version=v, status=status,
+                      findings=findings, trace=trace,
+                      rejected_records=list(out.get("rejected_records", [])),
+                      rejected_citations=rejected_citations,
+                      rejected_findings=rejected_findings,
+                      kg_source=kg.source, latency_ms=latency_ms,
+                      events_published=pub.published)
     return res
 
 
@@ -260,20 +265,27 @@ def stream_case(case: AuditCase, kg: KGClient | None = None,
         yield {"event": "update", "data": safe}
     latency_ms = round((time.perf_counter() - start) * 1000, 3)
     v = _next_version(case.case_id)
-    trace = list(acc["trace"]) + [_kg_notice(kg)]
     if acc["early_stop"]:
-        res = AuditResult(case_id=case.case_id, version=v, status="not_auditable",
-                          findings=acc["findings"], trace=trace,
-                          rejected_records=acc["rejected_records"],
-                          rejected_citations=[], rejected_findings=[],
-                          kg_source=kg.source, latency_ms=latency_ms)
+        status = "not_auditable"
+        findings = acc["findings"]
+        rejected_citations: list = []
+        rejected_findings: list = []
     else:
-        res = AuditResult(case_id=case.case_id, version=v,
-                          status=settings.FINDINGS_STATUS_DEFAULT,
-                          findings=acc["final_findings"], trace=trace,
-                          rejected_records=acc["rejected_records"],
-                          rejected_citations=acc["rejected_citations"],
-                          rejected_findings=acc["rejected_findings"],
-                          kg_source=kg.source, latency_ms=latency_ms)
-    pub.pipeline_end(case.case_id, len(res.findings))
+        status = settings.FINDINGS_STATUS_DEFAULT
+        findings = acc["final_findings"]
+        rejected_citations = acc["rejected_citations"]
+        rejected_findings = acc["rejected_findings"]
+    pub.pipeline_end(case.case_id, len(findings))
+    trace = list(acc["trace"]) + [_kg_notice(kg)]
+    note = pub.note()
+    if note:
+        trace.append(TraceEntry(agent_name="events", decision_type="events",
+                                detail=note, seq=0))
+    res = AuditResult(case_id=case.case_id, version=v, status=status,
+                      findings=findings, trace=trace,
+                      rejected_records=acc["rejected_records"],
+                      rejected_citations=rejected_citations,
+                      rejected_findings=rejected_findings,
+                      kg_source=kg.source, latency_ms=latency_ms,
+                      events_published=pub.published)
     yield {"event": "result", "data": res.model_dump()}

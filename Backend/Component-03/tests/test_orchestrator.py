@@ -7,8 +7,8 @@ from app.services.kg_client import KGClient
 
 
 def _agent_trace(res):
-    """The five pipeline trace entries, excluding the kg-source notice line."""
-    return [t for t in res.trace if t.agent_name != "kg"]
+    """The five pipeline trace entries, excluding kg-source and events notes."""
+    return [t for t in res.trace if t.agent_name not in ("kg", "events")]
 
 
 class FakeKG(KGClient):
@@ -214,6 +214,30 @@ def test_rejected_docs_excluded_downstream():
     assert "BAD" in res.rejected_records
     pol = [f for f in res.findings if f.rule_id == "POL-07"]
     assert len(pol) == 1 and pol[0].evidence_ids == ["GOOD"]
+
+
+def test_unknown_doc_type_is_review_item_never_clean():
+    case = AuditCase(case_id="CASE-UNKNOWN", docs=[
+        AuditDocument(doc_id="DOCX", case_id="CASE-UNKNOWN", doc_type="unknown",
+                      period_year=2026, fields={"amount": 100.0})])
+    res = orchestrator.run_case(case, KGClient())
+    rev = [f for f in res.findings if f.rule_id == "REV-002"]
+    assert len(rev) == 1
+    assert rev[0].review_status == "needs_more_evidence"
+    assert rev[0].evidence_ids == ["DOCX"]
+    assert any(t.agent_name == "data_quality" and t.decision_type == "review"
+               for t in res.trace)
+
+
+def test_unreadable_number_is_review_item_and_value_kept():
+    case = AuditCase(case_id="CASE-UNREADABLE", docs=[
+        AuditDocument(doc_id="INVX", case_id="CASE-UNREADABLE",
+                      doc_type="invoice", period_year=2026,
+                      fields={"amount": "1O,OOO"})])
+    res = orchestrator.run_case(case, KGClient())
+    rev = [f for f in res.findings if f.rule_id == "REV-003"]
+    assert len(rev) == 1 and "1O,OOO" in rev[0].message
+    assert rev[0].review_status == "needs_more_evidence"
 
 
 def test_clean_case_zero_findings():

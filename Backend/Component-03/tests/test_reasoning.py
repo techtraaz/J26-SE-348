@@ -54,3 +54,13 @@ def test_reasoning_survives_kg_error():
     out, _ = reasoning.run(_invoice_case("CASE-KGERR", "INV-CASH"), [finding], _BrokenKG())
     assert out[0].review_status == "pending_review"  # finding kept, not dropped
     assert [f for f in out if f.rule_id == "CHK-008"] == []
+
+
+def test_reasoning_kg_failure_is_visible_in_trace():
+    finding = Finding(finding_id="F1", rule_id="POL-07", category="compliance",
+                      severity="high", message="x", evidence_ids=["INV-CASH"])
+    out, trace = reasoning.run(_invoice_case("CASE-KGERR2", "INV-CASH"),
+                               [finding], _BrokenKG())
+    assert out[0].review_status == "pending_review"
+    assert any(t.decision_type == "kg" and "failed" in t.detail.lower()
+               for t in trace)

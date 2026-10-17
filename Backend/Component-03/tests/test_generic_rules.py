@@ -39,6 +39,13 @@ def test_evaluator_rejects_unknown_input_and_bool_literal():
         evaluate("assets == True", {"assets": 1})
 
 
+@pytest.mark.parametrize("expr", ["assets / liabilities == 1",
+                                  "assets % liabilities == 1"])
+def test_evaluator_reports_arithmetic_errors(expr):
+    with pytest.raises(ExpressionError, match="arithmetic error"):
+        evaluate(expr, {"assets": 10, "liabilities": 0})
+
+
 # ── Rule runner ────────────────────────────────────────────────────────
 
 def _bs(**fields):
@@ -89,6 +96,32 @@ class _RuleKG(KGClient):
         return [{"rule_id": "CHK-900", "name": "assets cover liabilities",
                  "expression": "assets >= liabilities", "inputs": ["assets", "liabilities"],
                  "tolerance": 0.01, "severity": "high", "category": "ledger"}]
+
+
+def test_run_check_rules_division_by_zero_is_visible():
+    rules = [{"rule_id": "CHK-904", "expression": "assets / liabilities == 1",
+              "inputs": ["assets", "liabilities"], "category": "ledger"}]
+    out = rule_engine.run_check_rules(_bs(assets=10, liabilities=0), rules)
+    assert len(out) == 1 and out[0].finding_id.endswith("-expr")
+    assert "could not be evaluated" in out[0].message
+
+
+def test_compliance_records_skipped_generic_rules():
+    from app.services.agents import compliance
+
+    class _MissingInputKG(KGClient):
+        def get_rules(self, doc_type: str) -> list:
+            return []
+
+        def get_check_rules(self, doc_type: str) -> list:
+            return [{"rule_id": "CHK-905", "expression": "assets == capital",
+                     "inputs": ["assets", "capital"], "category": "ledger"}]
+
+    case = AuditCase(case_id="C1", docs=[_bs(assets=10)])
+    findings, trace = compliance.run(case, _MissingInputKG())
+    assert findings == []
+    assert any(t.decision_type == "skip" and "CHK-905" in t.detail
+               for t in trace)
 
 
 def test_compliance_runs_generic_rules():

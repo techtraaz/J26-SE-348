@@ -20,6 +20,7 @@ def _field(rule, key: str, default=None):
 def run(case: AuditCase, kg: KGClient) -> tuple[list[Finding], list[TraceEntry]]:
     findings: list[Finding] = []
     unsupported: list[str] = []
+    skipped: list[str] = []
     for d in case.docs:
         findings += rule_engine.check_accounting_equation(d)
         findings += rule_engine.check_debit_credit(d)
@@ -54,7 +55,7 @@ def run(case: AuditCase, kg: KGClient) -> tuple[list[Finding], list[TraceEntry]]
         # for this doc (ids differ: hardcoded "BS1-CHK001" vs rule "CHK-001").
         have = {(f.evidence_ids[0] if f.evidence_ids else "", f.rule_id)
                 for f in findings}
-        for gf in rule_engine.run_check_rules(d, check_rules):
+        for gf in rule_engine.run_check_rules(d, check_rules, skipped):
             key = (d.doc_id, gf.rule_id)
             if key not in have:
                 have.add(key)
@@ -66,4 +67,9 @@ def run(case: AuditCase, kg: KGClient) -> tuple[list[Finding], list[TraceEntry]]
             agent_name="compliance", decision_type="skip",
             detail=(f"Skipped KG policy checks: unsupported doc type for "
                     f"{', '.join(unsupported)}.")))
+    if skipped:
+        trace.append(TraceEntry(
+            agent_name="compliance", decision_type="skip",
+            detail=(f"Skipped KG check rules with missing inputs: "
+                    f"{', '.join(sorted(set(skipped)))}.")))
     return findings, trace

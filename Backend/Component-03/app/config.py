@@ -37,6 +37,13 @@ ALLOWED_DOC_TYPES: frozenset[str] = frozenset({
     "voucher", "ledger", "unknown",
 })
 
+# Fields the engine does maths on. A doc value for one of these that is not a
+# number (after intake parsing) is surfaced for human review, never guessed.
+NUMERIC_FIELDS: frozenset[str] = frozenset({
+    "amount", "assets", "liabilities", "capital",
+    "debit_total", "credit_total", "cash_out", "asset_in",
+})
+
 # Year-to-year jump limit (30%). If change is bigger, flag it.
 YEAR_CHANGE_LIMIT: float = 0.30
 

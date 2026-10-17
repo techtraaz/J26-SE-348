@@ -3,7 +3,6 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from app import config
-from app.schemas.case import AuditCase
 from app.schemas.copilot import CopilotQuery
 from app.services import copilot, intake, orchestrator
 from app.services.kg_client import default_kg
@@ -52,16 +51,26 @@ def audit_intake_extraction(payload: dict):
 
 
 @app.post("/audit/run")
-def audit_run(case: AuditCase):
+def audit_run(payload: dict):
+    """Canonicalize at the door, then run the full audit."""
+    try:
+        case = intake.normalize_case(payload)
+    except intake.IntakeError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     return orchestrator.run_case(case, default_kg()).model_dump()
 
 
 @app.post("/audit/run/stream")
-def audit_run_stream(case: AuditCase):
+def audit_run_stream(payload: dict):
     """Real per-agent pills: streams one update per finished node."""
     import json
 
     from fastapi.responses import StreamingResponse
+
+    try:
+        case = intake.normalize_case(payload)
+    except intake.IntakeError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     def gen():
         for chunk in orchestrator.stream_case(case, default_kg()):

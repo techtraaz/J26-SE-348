@@ -56,11 +56,41 @@ def test_bad_year_rejected():
         intake.normalize_case(payload)
 
 
-def test_confidence_out_of_range_is_clamped():
+def test_confidence_out_of_range_is_kept_and_flagged():
     payload = _valid_payload()
     payload["docs"][0]["confidences"] = {"assets": 1.8, "capital": -0.3}
     case = intake.normalize_case(payload)
-    assert case.docs[0].confidences == {"assets": 1.0, "capital": 0.0}
+    assert case.docs[0].confidences == {"assets": 1.8, "capital": -0.3}
+    issues = intake.validate_case(case)
+    assert any("outside 0..1" in i for i in issues)
+
+
+def test_missing_period_year_rejected():
+    payload = _valid_payload()
+    del payload["docs"][0]["period_year"]
+    with pytest.raises(intake.IntakeError, match="period_year"):
+        intake.normalize_case(payload)
+
+
+@pytest.mark.parametrize("raw,expected", [
+    ("Rs. 10,000.00", 10000.0),
+    ("250,000", 250000.0),
+    ("LKR 1,250", 1250.0),
+])
+def test_numeric_strings_are_parsed_to_numbers(raw, expected):
+    payload = _valid_payload()
+    payload["docs"][1]["fields"] = {"amount": raw}
+    case = intake.normalize_case(payload)
+    assert case.docs[1].fields["amount"] == expected
+
+
+def test_unparsable_numeric_value_kept_and_flagged():
+    payload = _valid_payload()
+    payload["docs"][1]["fields"] = {"amount": "ten thousand"}
+    case = intake.normalize_case(payload)
+    assert case.docs[1].fields["amount"] == "ten thousand"
+    assert any("could not be read as a number" in i
+               for i in intake.validate_case(case))
 
 
 def test_validate_case_flags_parent_and_unsupported_type():
@@ -83,7 +113,8 @@ def test_from_extraction_bridges_pages_to_documents():
 def test_from_extraction_unknown_page_rejected():
     with pytest.raises(intake.IntakeError, match="not in extraction"):
         intake.from_extraction(_extraction(), "CASE-EX", [
-            {"page_number": 99, "doc_id": "INV1", "doc_type": "invoice"}])
+            {"page_number": 99, "doc_id": "INV1", "doc_type": "invoice",
+             "period_year": 2026}])
 
 
 def test_intake_endpoint_ok_and_rejected():
@@ -97,3 +128,19 @@ def test_intake_endpoint_ok_and_rejected():
     assert ok.json()["contract_version"] == intake.INTAKE_VERSION
     bad = client.post("/audit/intake", json={"case_id": "x;y", "docs": []})
     assert bad.status_code == 422
+
+
+def test_audit_run_goes_through_intake():
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    client = TestClient(app)
+    ok = client.post("/audit/run", json=_valid_payload())
+    assert ok.status_code == 200
+    assert ok.json()["case_id"] == "CASE-INT"
+    bad = client.post("/audit/run", json={"case_id": "x;y", "docs": []})
+    assert bad.status_code == 422
+    no_year = _valid_payload()
+    del no_year["docs"][0]["period_year"]
+    assert client.post("/audit/run", json=no_year).status_code == 422

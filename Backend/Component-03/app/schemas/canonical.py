@@ -58,7 +58,8 @@ class PageDocument(BaseModel):
     page_number: int
     doc_id: str
     doc_type: str = "unknown"
-    period_year: int = 2026
+    # Required: intake never guesses the period. The caller must state it.
+    period_year: int
     parent_doc_id: str | None = None
     fields: dict[str, Any] = Field(default_factory=dict)
     confidences: dict[str, float] = Field(default_factory=dict)

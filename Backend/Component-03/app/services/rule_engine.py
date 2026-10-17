@@ -59,6 +59,34 @@ def check_required_fields(doc: AuditDocument) -> list[Finding]:
     return out
 
 
+def check_doc_type(doc: AuditDocument) -> list[Finding]:
+    """REV-002: a document the pipeline cannot recognise is a review item.
+    'unknown' is a valid intake value but still needs a human, never a pass."""
+    if doc.doc_type in config.ALLOWED_DOC_TYPES and doc.doc_type != "unknown":
+        return []
+    return [Finding(
+        finding_id=f"{doc.doc_id}-REV002-doctype", rule_id="REV-002",
+        category="format", severity="low",
+        message=(f"Unrecognised document {doc.doc_id}: doc type "
+                 f"'{doc.doc_type}' is not supported, needs human review."),
+        evidence_ids=[doc.doc_id], review_status="needs_more_evidence")]
+
+
+def check_readable_numbers(doc: AuditDocument) -> list[Finding]:
+    """REV-003: a value for a numeric field that is not a number after intake
+    is surfaced for human review, with the original text kept."""
+    out: list[Finding] = []
+    for fname, value in doc.fields.items():
+        if fname in config.NUMERIC_FIELDS and isinstance(value, str):
+            out.append(Finding(
+                finding_id=f"{doc.doc_id}-REV003-{fname}", rule_id="REV-003",
+                category="format", severity="low",
+                message=(f"Field '{fname}' in {doc.doc_id} holds {value!r}, "
+                         f"which could not be read as a number; needs human review."),
+                evidence_ids=[doc.doc_id], review_status="needs_more_evidence"))
+    return out
+
+
 def check_accounting_equation(doc: AuditDocument) -> list[Finding]:
     """CHK-001: assets == liabilities + capital."""
     a, l, c = _num(doc, "assets"), _num(doc, "liabilities"), _num(doc, "capital")
@@ -164,12 +192,14 @@ def _attr(rule, key: str, default=None):
     return rule.get(key, default) if isinstance(rule, dict) else getattr(rule, key, default)
 
 
-def run_check_rules(doc: AuditDocument, rules: list) -> list[Finding]:
+def run_check_rules(doc: AuditDocument, rules: list,
+                    skips: list[str] | None = None) -> list[Finding]:
     """Evaluate KG-supplied check rules for one document (data, not code).
 
     A rule with any missing/non-numeric input is skipped (Data Quality already
-    flags missing fields). An unevaluable expression becomes a visible finding,
-    never a silent skip."""
+    flags missing fields); the skipped rule_id is appended to `skips` so the
+    caller can record it, never hidden silently. An unevaluable expression
+    becomes a visible finding."""
     out: list[Finding] = []
     for rule in rules:
         rule_id = _attr(rule, "rule_id", "")
@@ -184,6 +214,8 @@ def run_check_rules(doc: AuditDocument, rules: list) -> list[Finding]:
                 break
             values[name] = float(v)
         if not values and inputs:
+            if skips is not None:
+                skips.append(rule_id)
             continue  # cannot compute without every input
         try:
             ok = evaluate(expr, values, tolerance)

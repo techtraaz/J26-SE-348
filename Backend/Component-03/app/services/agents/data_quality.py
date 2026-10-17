@@ -16,8 +16,14 @@ def run(case: AuditCase) -> tuple[list, list[str], list[TraceEntry]]:
                         detail="Empty case: nothing to check.")]
         return f, [], t
     findings = []
+    flagged: list[str] = []
     for d in case.docs:
         findings += rule_engine.check_required_fields(d)
+        doctype = rule_engine.check_doc_type(d)
+        numbers = rule_engine.check_readable_numbers(d)
+        findings += doctype + numbers
+        if doctype or numbers:
+            flagged.append(d.doc_id)
     rejected = rule_engine.rejected_doc_ids(case)
     reviews = [f for f in findings if f.review_status == "needs_more_evidence"]
     violations = len(findings) - len(reviews)
@@ -27,4 +33,9 @@ def run(case: AuditCase) -> tuple[list, list[str], list[TraceEntry]]:
                   f"{len(reviews)} needs review."))
     trace = [TraceEntry(agent_name="data_quality", decision_type="gate",
                         detail=note)]
+    if flagged:
+        trace.append(TraceEntry(
+            agent_name="data_quality", decision_type="review",
+            detail=(f"Unrecognised or unreadable document(s) need review: "
+                    f"{', '.join(flagged)}.")))
     return findings, rejected, trace

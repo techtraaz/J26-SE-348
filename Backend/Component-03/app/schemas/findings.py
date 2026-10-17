@@ -71,3 +71,6 @@ class AuditResult(BaseModel):
     rejected_records: list[str] = []  # doc_ids DQ rejected, logged not discarded
     rejected_citations: list[str] = []  # ONLY the failing IDs, not every ID on the finding
     rejected_findings: list[RejectedFinding] = []  # dropped findings + reason each
+    # True when the C4 trace events were actually published (C4's XAI trace is
+    # complete). False when events were disabled or dropped; a trace line says why.
+    events_published: bool = False

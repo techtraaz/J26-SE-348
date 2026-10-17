@@ -17,6 +17,8 @@ from app.schemas.case import AuditCase, AuditDocument
 
 SAFE_ID_RE = re.compile(r"^[A-Za-z0-9 _\-.]{1,64}$")
 _YEAR_MIN, _YEAR_MAX = 1900, 2999
+# Currency prefixes/symbols OCR often glues onto a number.
+_CURRENCY_RE = re.compile(r"(?i)\b(?:rs|lkr)\.?|[₨₹$€£]")
 
 
 class IntakeError(ValueError):
@@ -24,12 +26,26 @@ class IntakeError(ValueError):
 
 
 def _conf(value: Any, where: str) -> float:
-    """Coerce a confidence to a float in 0..1, or raise a clear error."""
+    """Coerce a confidence to a float, or raise a clear error. A value outside
+    0..1 is kept as-is and flagged by validate_case, never silently clamped."""
     try:
-        v = float(value)
+        return float(value)
     except (TypeError, ValueError):
         raise IntakeError(f"{where}: confidence {value!r} is not a number") from None
-    return 0.0 if v < 0 else 1.0 if v > 1 else v
+
+
+def _parse_number(value: Any) -> Any:
+    """Turn a numeric string like '250,000' or 'Rs. 10,000.00' into a float.
+    Anything that does not read cleanly as a number is returned unchanged."""
+    if isinstance(value, bool) or not isinstance(value, str):
+        return value
+    text = _CURRENCY_RE.sub("", value).strip().replace(",", "").strip()
+    if not any(ch.isdigit() for ch in text):
+        return value
+    try:
+        return float(text)
+    except ValueError:
+        return value
 
 
 def _one_doc(raw: dict, case_id: str, where: str, seen: set[str]) -> AuditDocument:
@@ -41,13 +57,17 @@ def _one_doc(raw: dict, case_id: str, where: str, seen: set[str]) -> AuditDocume
     seen.add(doc_id)
 
     doc_type = str(raw.get("doc_type", "unknown")).strip().lower() or "unknown"
-    year = raw.get("period_year", 2026)
+    # No silent default: the document's year must be stated, never guessed.
+    if "period_year" not in raw:
+        raise IntakeError(f"{where}: period_year is required")
+    year = raw["period_year"]
     if not isinstance(year, int) or isinstance(year, bool) or not (_YEAR_MIN <= year <= _YEAR_MAX):
         raise IntakeError(f"{where}: period_year {year!r} must be {_YEAR_MIN}..{_YEAR_MAX}")
 
     fields = raw.get("fields") or {}
     if not isinstance(fields, dict):
         raise IntakeError(f"{where}: fields must be an object")
+    fields = {k: _parse_number(v) for k, v in fields.items()}
     parent = raw.get("parent_doc_id")
     if parent is not None and not isinstance(parent, str):
         raise IntakeError(f"{where}: parent_doc_id must be a string or null")
@@ -97,6 +117,10 @@ def validate_case(case: AuditCase) -> list[str]:
             issues.append(f"doc {d.doc_id}: parent_doc_id {d.parent_doc_id!r} not in case")
         if d.doc_type not in config.ALLOWED_DOC_TYPES:
             issues.append(f"doc {d.doc_id}: doc_type {d.doc_type!r} not supported by the KG")
+        for fname, value in d.fields.items():
+            if fname in config.NUMERIC_FIELDS and isinstance(value, str):
+                issues.append(f"doc {d.doc_id}: field {fname!r} value {value!r} "
+                              f"could not be read as a number")
         for fname, conf in d.confidences.items():
             if not 0.0 <= conf <= 1.0:
                 issues.append(f"doc {d.doc_id}: confidence for {fname!r} outside 0..1")

@@ -35,7 +35,12 @@ def _number(node, values: dict) -> float:
         op = _OPS.get(type(node.op))
         if op is None:
             raise ExpressionError(f"operator {type(node.op).__name__} not allowed")
-        return op(_number(node.left, values), _number(node.right, values))
+        left = _number(node.left, values)
+        right = _number(node.right, values)
+        try:
+            return op(left, right)
+        except (ZeroDivisionError, OverflowError) as exc:
+            raise ExpressionError(f"arithmetic error in expression: {exc}") from exc
     if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.USub, ast.UAdd)):
         v = _number(node.operand, values)
         return -v if isinstance(node.op, ast.USub) else v

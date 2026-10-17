@@ -24,20 +24,24 @@ def _kg_step(doc_id: str, chain: list[str]) -> str:
 
 
 def _attach_kg_chains(findings: list[Finding], case: AuditCase,
-                      kg: KGClient | None) -> dict[str, list[str]]:
-    """Append the KG chain to each finding citing a case doc. Returns the
-    doc_id -> missing_evidence map for docs whose chain is incomplete."""
+                      kg: KGClient | None
+                      ) -> tuple[dict[str, list[str]], list[str]]:
+    """Append the KG chain to each finding citing a case doc. Returns
+    (doc_id -> missing_evidence, list of failed lookups). An unusable chain
+    never breaks the audit, but it is reported, never hidden."""
     if kg is None:
-        return {}
+        return {}, []
     doc_ids = {d.doc_id for d in case.docs}
     cited = sorted({e for f in findings for e in f.evidence_ids if e in doc_ids})
     chain_text: dict[str, str] = {}
     missing: dict[str, list[str]] = {}
+    failures: list[str] = []
     for doc_id in cited:
         try:
             ec = kg.get_evidence_chain(doc_id)
-        except (ValueError, KGError):
-            continue  # an unusable chain must never break the audit
+        except (ValueError, KGError) as exc:
+            failures.append(f"{doc_id} ({exc})")
+            continue
         if ec.chain:
             chain_text[doc_id] = _kg_step(doc_id, ec.chain)
         if ec.missing_evidence:
@@ -47,7 +51,7 @@ def _attach_kg_chains(findings: list[Finding], case: AuditCase,
             step = chain_text.get(eid)
             if step and step not in f.reasoning_chain:
                 f.reasoning_chain.append(step)
-    return missing
+    return missing, failures
 
 
 def run(case: AuditCase, findings: list[Finding],
@@ -57,7 +61,7 @@ def run(case: AuditCase, findings: list[Finding],
             f.policy_ids = [f.rule_id]
         f.reasoning_chain = _chain_for(f)
 
-    missing = _attach_kg_chains(findings, case, kg)
+    missing, kg_failures = _attach_kg_chains(findings, case, kg)
     for doc_id, miss in missing.items():
         findings.append(Finding(
             finding_id=f"{doc_id}-CHK008-chain", rule_id="CHK-008",
@@ -85,4 +89,10 @@ def run(case: AuditCase, findings: list[Finding],
             agent_name="reasoning", decision_type="review",
             detail=(f"{len(needs_review)} finding(s) need more evidence "
                     f"(low confidence or missing chain).")))
+    if kg_failures:
+        trace.append(TraceEntry(
+            agent_name="reasoning", decision_type="kg",
+            detail=(f"KG evidence-chain lookup failed for "
+                    f"{', '.join(kg_failures)}; chain left unfilled (visible, "
+                    f"not hidden).")))
     return findings, trace

@@ -92,6 +92,48 @@ def test_stream_emits_start_and_end():
     assert evs[-1]["event"] == "pipeline_end"
 
 
+def test_events_published_flag_true_with_client():
+    res = orchestrator.run_case(_tv_case("CASE-EVTPUB"), KGClient(),
+                                EventPublisher(client=FakeRedis()))
+    assert res.events_published is True
+    assert not any(t.agent_name == "events" for t in res.trace)
+
+
+def test_events_disabled_marks_result_and_trace():
+    res = orchestrator.run_case(_tv_case("CASE-EVTOFF"), KGClient())
+    assert res.events_published is False
+    assert any(t.agent_name == "events" for t in res.trace)
+
+
+def test_events_published_flag_false_on_failure():
+    pub = EventPublisher(client=FakeRedis(fail=True))
+    res = orchestrator.run_case(_tv_case("CASE-EVTPUBFAIL"), KGClient(), pub)
+    assert res.events_published is False
+    assert any(t.agent_name == "events" for t in res.trace)
+
+
+def test_published_events_match_c4_contract_models():
+    """Every event C03 sends parses against a copy of C4's models."""
+    from app.schemas.trace_events import (
+        AgentEndEvent,
+        PipelineEndEvent,
+        PipelineStartEvent,
+        parse_trace_event,
+    )
+
+    client = FakeRedis()
+    res = orchestrator.run_case(_tv_case("CASE-CONTRACT"), KGClient(),
+                                EventPublisher(client=client))
+    assert res.events_published is True
+    parsed = [parse_trace_event(e) for e in _events(client)]
+    assert isinstance(parsed[0], PipelineStartEvent)
+    assert isinstance(parsed[-1], PipelineEndEvent)
+    assert any(isinstance(p, AgentEndEvent) for p in parsed)
+    for e in parsed:
+        assert e.case_id == "CASE-CONTRACT"
+        assert e.ts
+
+
 def test_version_bumps_once_per_run():
     orchestrator.VERSION_STORE.pop("CASE-VER", None)
     r1 = orchestrator.run_case(_tv_case("CASE-VER"), KGClient(),
