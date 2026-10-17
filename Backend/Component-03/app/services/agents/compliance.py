@@ -25,6 +25,7 @@ def run(case: AuditCase, kg: KGClient) -> tuple[list[Finding], list[TraceEntry]]
         findings += rule_engine.check_debit_credit(d)
         try:
             rules = kg.get_rules(d.doc_type)
+            check_rules = kg.get_check_rules(d.doc_type)
         except ValueError:
             unsupported.append(d.doc_id)
             findings.append(Finding(
@@ -49,6 +50,15 @@ def run(case: AuditCase, kg: KGClient) -> tuple[list[Finding], list[TraceEntry]]
                     evidence_ids=[d.doc_id], policy_ids=[rule_id],
                     claims=[EvidenceClaim(evidence_id=d.doc_id, field="amount",
                                            claimed_value=float(amt))]))
+        # Data-driven KG rules; skip any a hardcoded rule already produced
+        # for this doc (ids differ: hardcoded "BS1-CHK001" vs rule "CHK-001").
+        have = {(f.evidence_ids[0] if f.evidence_ids else "", f.rule_id)
+                for f in findings}
+        for gf in rule_engine.run_check_rules(d, check_rules):
+            key = (d.doc_id, gf.rule_id)
+            if key not in have:
+                have.add(key)
+                findings.append(gf)
     trace = [TraceEntry(agent_name="compliance", decision_type="check",
                         detail=f"Compliance checked {len(case.docs)} doc(s), {len(findings)} finding(s).")]
     if unsupported:

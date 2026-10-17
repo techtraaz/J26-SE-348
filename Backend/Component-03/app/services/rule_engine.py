@@ -4,6 +4,7 @@ the cited document's field really holds the claimed value (in code)."""
 from app import config
 from app.schemas.case import AuditCase, AuditDocument
 from app.schemas.findings import EvidenceClaim, Finding
+from app.services.expression import ExpressionError, evaluate
 
 
 def _num(doc: AuditDocument, key: str) -> float | None:
@@ -156,6 +157,55 @@ def check_cash_without_asset(case: AuditCase) -> list[Finding]:
                 confidence=_conf(d, "cash_out", "purchase_basis"),
                 claims=[EvidenceClaim(evidence_id=d.doc_id, field="cash_out", claimed_value=cash_out),
                         EvidenceClaim(evidence_id=d.doc_id, field="purchase_basis", claimed_value="credit")]))
+    return out
+
+
+def _attr(rule, key: str, default=None):
+    return rule.get(key, default) if isinstance(rule, dict) else getattr(rule, key, default)
+
+
+def run_check_rules(doc: AuditDocument, rules: list) -> list[Finding]:
+    """Evaluate KG-supplied check rules for one document (data, not code).
+
+    A rule with any missing/non-numeric input is skipped (Data Quality already
+    flags missing fields). An unevaluable expression becomes a visible finding,
+    never a silent skip."""
+    out: list[Finding] = []
+    for rule in rules:
+        rule_id = _attr(rule, "rule_id", "")
+        expr = _attr(rule, "expression", "")
+        inputs = list(_attr(rule, "inputs", []) or [])
+        tolerance = float(_attr(rule, "tolerance", config.AMOUNT_TOLERANCE) or 0.0)
+        values: dict[str, float] = {}
+        for name in inputs:
+            v = doc.fields.get(name)
+            if isinstance(v, bool) or not isinstance(v, (int, float)):
+                values = {}
+                break
+            values[name] = float(v)
+        if not values and inputs:
+            continue  # cannot compute without every input
+        try:
+            ok = evaluate(expr, values, tolerance)
+        except ExpressionError as exc:
+            out.append(Finding(
+                finding_id=f"{doc.doc_id}-{rule_id}-expr", rule_id=rule_id,
+                category=_attr(rule, "category", "format"),
+                severity=_attr(rule, "severity", "medium"),
+                message=f"Rule {rule_id} on {doc.doc_id} could not be evaluated: {exc}",
+                evidence_ids=[doc.doc_id]))
+            continue
+        if not ok:
+            name = _attr(rule, "name", "") or rule_id
+            out.append(Finding(
+                finding_id=f"{doc.doc_id}-{rule_id}", rule_id=rule_id,
+                category=_attr(rule, "category", "format"),
+                severity=_attr(rule, "severity", "medium"),
+                message=f"{name} failed for {doc.doc_id}: {expr} is false.",
+                evidence_ids=[doc.doc_id], policy_ids=[rule_id],
+                confidence=min((_conf(doc, n) for n in inputs), default=1.0),
+                claims=[EvidenceClaim(evidence_id=doc.doc_id, field=n, claimed_value=values[n])
+                        for n in inputs]))
     return out
 
 
