@@ -43,5 +43,8 @@ YEAR_CHANGE_LIMIT: float = 0.30
 # Small number tolerance for float maths (1 cent).
 AMOUNT_TOLERANCE: float = 0.01
 
+# Finding confidence below this needs more evidence, not a silent pass.
+REVIEW_CONFIDENCE_LIMIT: float = 0.5
+
 # API version tag for findings. Old versions are kept, never overwritten.
 FINDINGS_STATUS_DEFAULT: str = "pending_auditor_review"

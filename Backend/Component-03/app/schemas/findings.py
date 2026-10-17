@@ -6,6 +6,8 @@ from pydantic import BaseModel, Field
 
 Category = Literal["arithmetic", "ledger", "format", "compliance", "possible_fraud"]
 Severity = Literal["low", "medium", "high"]
+# Auditor review state for one finding. Agreed with the frontend type.
+ReviewStatus = Literal["pending_review", "confirmed", "dismissed", "needs_more_evidence"]
 
 
 def _now() -> str:
@@ -29,6 +31,8 @@ class Finding(BaseModel):
     evidence_ids: list[str] = []
     policy_ids: list[str] = []
     confidence: float = 1.0
+    # Set by Reasoning from confidence: low confidence -> "needs_more_evidence".
+    review_status: ReviewStatus = "pending_review"
     # Structured claims Validation actually checks (existence + value match).
     claims: list[EvidenceClaim] = Field(default_factory=list)
     # Contract fields for Component-04 (Thennakoon). Filled by Reasoning, not empty.

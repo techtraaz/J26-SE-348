@@ -1,6 +1,13 @@
 """Planted-error tests from Captain's examples."""
 from app.schemas.case import AuditCase, AuditDocument
+from app.schemas.findings import Finding
 from app.services import rule_engine
+
+
+def test_finding_defaults_pending_review():
+    f = Finding(finding_id="F1", rule_id="CHK-001", category="ledger",
+                severity="high", message="x")
+    assert f.review_status == "pending_review"
 
 
 def test_tv_wrong_side_equation_breaks():

@@ -261,3 +261,24 @@ def test_seq_from_missing_config_raises_clear_error():
     for bad in (None, {}, {"configurable": {}}):
         with pytest.raises(OrchestratorConfigError):
             _seq_from(bad)
+
+
+def test_low_confidence_finding_marked_needs_more_evidence():
+    case = AuditCase(case_id="CASE-REVIEW", docs=[
+        AuditDocument(doc_id="BS1", case_id="CASE-REVIEW",
+                      doc_type="balance_sheet", period_year=2026,
+                      fields={"assets": 50000, "liabilities": 30000, "capital": 20000},
+                      confidences={"assets": 0.4})])
+    res = orchestrator.run_case(case, KGClient())
+    low = [f for f in res.findings if f.confidence < 0.5]
+    assert low and all(f.review_status == "needs_more_evidence" for f in low)
+    others = [f for f in res.findings if f.confidence >= 0.5]
+    assert all(f.review_status == "pending_review" for f in others)
+    assert any(t.agent_name == "reasoning" and t.decision_type == "review"
+               for t in res.trace)
+
+
+def test_normal_findings_stay_pending_review():
+    res = orchestrator.run_case(_tv_case("CASE-NORMAL-REVIEW"), KGClient())
+    assert res.findings
+    assert all(f.review_status == "pending_review" for f in res.findings)

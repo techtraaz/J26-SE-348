@@ -17,14 +17,23 @@ def _chain_for(f: Finding) -> list[str]:
 
 
 def run(case: AuditCase, findings: list[Finding]) -> tuple[list[Finding], list[TraceEntry]]:
+    needs_review = 0
     for f in findings:
         if not f.policy_ids and f.rule_id.startswith("CHK"):
             f.policy_ids = [f.rule_id]
         f.reasoning_chain = _chain_for(f)
+        if f.confidence < config.REVIEW_CONFIDENCE_LIMIT:
+            f.review_status = "needs_more_evidence"
+            needs_review += 1
     cited = sorted({e for f in findings for e in f.evidence_ids})
     cite_text = ", ".join(cited) if cited else "no evidence"
     summary = llm.explain_with_llm(
         f"Say only: case {case.case_id} has {len(findings)} finding(s) citing {cite_text}. No other facts.",
         fallback=f"Case {case.case_id}: {len(findings)} finding(s) citing {cite_text}, all {config.FINDINGS_STATUS_DEFAULT}.")
     trace = [TraceEntry(agent_name="reasoning", decision_type="merge", detail=summary)]
+    if needs_review:
+        trace.append(TraceEntry(
+            agent_name="reasoning", decision_type="review",
+            detail=(f"{needs_review} finding(s) below confidence "
+                    f"{config.REVIEW_CONFIDENCE_LIMIT}: needs_more_evidence.")))
     return findings, trace

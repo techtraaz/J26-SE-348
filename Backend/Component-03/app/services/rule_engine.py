@@ -40,7 +40,7 @@ def check_required_fields(doc: AuditDocument) -> list[Finding]:
                 evidence_ids=[doc.doc_id]))
     # low OCR confidence flag
     for fname, conf in doc.confidences.items():
-        if conf < 0.5:
+        if conf < config.REVIEW_CONFIDENCE_LIMIT:
             out.append(Finding(
                 finding_id=f"{doc.doc_id}-CHK006-lowconf-{fname}", rule_id="CHK-006",
                 category="format", severity="low",
