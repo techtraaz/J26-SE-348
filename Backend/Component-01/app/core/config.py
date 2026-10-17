@@ -30,6 +30,10 @@ class Settings(BaseSettings):
     max_pages: int = 20
     max_pixels_per_page: int = 40_000_000
 
+    # The background worker runs inside the API process.
+    run_worker: bool = True
+    worker_poll_interval_s: float = 1.0
+
     cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
 
     @property

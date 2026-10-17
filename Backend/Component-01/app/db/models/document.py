@@ -2,15 +2,15 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, Uuid
+from sqlalchemy import ForeignKey, Integer, String, Text, UniqueConstraint, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
 from app.db.enums import DocumentSource, DocumentStatus
-from app.db.types import utcnow
+from app.db.types import UtcDateTime, utcnow
 
-if TYPE_CHECKING:
-    from app.db.models.extraction import ExtractionRun  # noqa: F401
+if TYPE_CHECKING:  # circular at runtime; SQLAlchemy resolves the name lazily
+    from app.db.models.extraction import ExtractionRun
 
 class Document(Base):
     __tablename__ = "documents"
@@ -33,9 +33,9 @@ class Document(Base):
     error_message: Mapped[str | None] = mapped_column(Text)
     # Nullable until authentication exists (plan O3).
     created_by: Mapped[str | None] = mapped_column(String(100))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime(), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=utcnow, onupdate=utcnow
+        UtcDateTime(), default=utcnow, onupdate=utcnow
     )
 
     pages: Mapped[list["Page"]] = relationship(
@@ -44,13 +44,12 @@ class Document(Base):
         order_by="Page.page_number",
         passive_deletes=True,
     )
-    runs: Mapped[list["ExtractionRun"]] = relationship(  # noqa: F821
+    runs: Mapped[list["ExtractionRun"]] = relationship(
         back_populates="document",
         cascade="all, delete-orphan",
         order_by="ExtractionRun.created_at",
         passive_deletes=True,
     )
-
 
 class Page(Base):
     __tablename__ = "pages"

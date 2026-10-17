@@ -4,22 +4,22 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy import (
     Boolean,
-    DateTime,
     Float,
     ForeignKey,
     Integer,
     String,
     Text,
     Uuid,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
 from app.db.enums import PipelineMode, RunStatus
-from app.db.types import JsonType, utcnow
+from app.db.types import JsonType, UtcDateTime, utcnow
 
-if TYPE_CHECKING:
-    from app.db.models.document import Document  # noqa: F401
+if TYPE_CHECKING:  # circular at runtime; SQLAlchemy resolves the name lazily
+    from app.db.models.document import Document
 
 class ExtractionRun(Base):
     """One execution of a pipeline over a document. Immutable once finished,
@@ -37,20 +37,23 @@ class ExtractionRun(Base):
     engine_info: Mapped[dict | None] = mapped_column(JsonType)
     config: Mapped[dict | None] = mapped_column(JsonType)
     status: Mapped[str] = mapped_column(String(20), default=RunStatus.QUEUED.value, index=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime(), default=utcnow)
+    started_at: Mapped[datetime | None] = mapped_column(UtcDateTime())
+    finished_at: Mapped[datetime | None] = mapped_column(UtcDateTime())
     elapsed_ms: Mapped[float | None] = mapped_column(Float)
+    # Progress for the UI: a 12-page PDF takes minutes on the dev laptop.
+    pages_total: Mapped[int | None] = mapped_column(Integer)
+    pages_done: Mapped[int] = mapped_column(Integer, default=0, server_default=text("0"))
+    # Internal detail for developers; never returned by the API.
     error: Mapped[str | None] = mapped_column(Text)
 
-    document: Mapped["Document"] = relationship(back_populates="runs")  # noqa: F821
+    document: Mapped["Document"] = relationship(back_populates="runs")
     regions: Mapped[list["Region"]] = relationship(
         back_populates="run",
         cascade="all, delete-orphan",
         order_by="Region.sequence",
         passive_deletes=True,
     )
-
 
 class Region(Base):
     """Machine output only: one recognized text region. Never edited; human

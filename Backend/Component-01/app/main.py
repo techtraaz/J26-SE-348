@@ -5,36 +5,35 @@ Run (from the backend folder):
 Docs UI: http://127.0.0.1:8000/docs
 """
 
-import threading
+import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from sqlalchemy import text
 
+from app.api.errors import register_error_handlers
 from app.api.v1.router import api_router
 from app.core.config import Settings
-from app.services.ingestion.models import IngestionError
-from app.services.factory import create_engine
+from app.db.session import create_db_engine, create_session_factory
+from app.jobs.worker import JobWorker
+from app.services.ocr.factory import create_engine
 from app.services.ocr.paddle import PaddleSettings
 from app.services.storage.local import LocalStorage
 
-# Ingestion failure code -> HTTP status. Codes are stable; the frontend can
-# branch on them, and `message` is safe to display.
-_STATUS_BY_CODE = {
-    "empty_file": 400,
-    "unsupported_type": 415,
-    "too_large": 413,
-    "too_many_pages": 422,
-    "image_too_large": 422,
-    "password_protected": 422,
-    "corrupt": 422,
-}
+logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Heavy objects are built once at startup, never per request.
     settings: Settings = app.state.settings
+
+    db_engine = create_db_engine(settings.database_url)
+    with db_engine.connect() as connection:  # fail fast if the database is unreachable
+        connection.execute(text("SELECT 1"))
+    app.state.db_engine = db_engine
+    app.state.session_factory = create_session_factory(db_engine)
+
     app.state.storage = LocalStorage(settings.storage_root)
     app.state.engine = create_engine(
         settings.engine,
@@ -42,11 +41,25 @@ async def lifespan(app: FastAPI):
         fixture=settings.replay_fixture,
         simulate_delay_s=settings.replay_delay_s,
     )
-    app.state.engine_lock = threading.Lock()
+
+    worker = JobWorker(
+        app.state.session_factory, app.state.storage, app.state.engine, settings
+    )
+    app.state.worker = worker
+    if settings.run_worker:
+        recovered = worker.recover_interrupted()
+        if recovered:
+            logger.warning("Re-queued %d interrupted extraction run(s)", recovered)
+        worker.start()
+
     yield
 
+    worker.stop()
+    db_engine.dispose()
+
+
 def create_app(settings: Settings | None = None) -> FastAPI:
-    app = FastAPI(title="Nomos Extraction API", version="0.1.0", lifespan=lifespan)
+    app = FastAPI(title="AuditMind-LK Extraction API", version="0.2.0", lifespan=lifespan)
     app.state.settings = settings or Settings()
 
     app.add_middleware(
@@ -54,15 +67,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_origins=app.state.settings.cors_origins,
         allow_methods=["*"],
         allow_headers=["*"],
+        expose_headers=["Location"],
     )
-
-    @app.exception_handler(IngestionError)
-    async def ingestion_error_handler(request: Request, exc: IngestionError) -> JSONResponse:
-        return JSONResponse(
-            status_code=_STATUS_BY_CODE.get(exc.code, 422),
-            content={"error": {"code": exc.code, "message": exc.message}},
-        )
-
+    register_error_handlers(app)
     app.include_router(api_router, prefix="/api/v1")
     return app
 

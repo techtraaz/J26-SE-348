@@ -2,7 +2,6 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import (
-    DateTime,
     ForeignKey,
     Integer,
     String,
@@ -12,7 +11,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
-from app.db.types import JsonType, utcnow
+from app.db.types import JsonType, UtcDateTime, utcnow
 
 # Audit data is deliberately protected: a document with verified records or
 # corrections cannot be deleted as a side effect (ondelete RESTRICT). Deleting
@@ -34,7 +33,7 @@ class ReviewDraft(Base):
     # Optimistic concurrency: a save must carry the version it was based on.
     version: Mapped[int] = mapped_column(Integer, default=1)
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=utcnow, onupdate=utcnow
+        UtcDateTime(), default=utcnow, onupdate=utcnow
     )
 
 
@@ -54,7 +53,7 @@ class VerifiedRecord(Base):
     )
     data: Mapped[dict] = mapped_column(JsonType)
     confirmed_by: Mapped[str | None] = mapped_column(String(100))
-    confirmed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    confirmed_at: Mapped[datetime] = mapped_column(UtcDateTime(), default=utcnow)
 
 
 class Correction(Base):
@@ -75,5 +74,5 @@ class Correction(Base):
     before: Mapped[dict | None] = mapped_column(JsonType)
     after: Mapped[dict | None] = mapped_column(JsonType)
     source: Mapped[str] = mapped_column(String(20), default="demo")
-    at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    at: Mapped[datetime] = mapped_column(UtcDateTime(), default=utcnow)
     by: Mapped[str | None] = mapped_column(String(100))
