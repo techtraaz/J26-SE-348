@@ -95,10 +95,15 @@ async def dashboard():
 
 @app.get("/health")
 async def health():
+    from app.services import mongodb as mdb
+    mongo_ok = await mdb.ping()
     return {
         "ok": True,
         "service": "component-04-xai-trace-collector",
         "active_sse_cases": sse_manager.active_case_ids(),
+        "mongodb_connected": mongo_ok,
+        "llm_url": config.LLM_API_URL,
+        "llm_model": config.LLM_MODEL,
     }
 
 

@@ -33,6 +33,7 @@ from app.schemas.trace_events import (
 )
 from app.services import database as db
 from app.services import insight_generator
+from app.services import mongodb as mdb
 from app.services import sse_manager
 
 logger = logging.getLogger("c04.subscriber")
@@ -84,6 +85,9 @@ async def _handle_pipeline_start(evt: PipelineStartEvent) -> None:
         "source_timestamp": evt.ts,
         "received_at": received,
     })
+    # Dual-write to MongoDB Atlas (fire-and-forget)
+    await mdb.save_audit_run(case_id=evt.case_id, doc_count=evt.doc_count, started_at=evt.ts, run_id=run_id)
+    await mdb.save_trace(run_id=run_id, case_id=evt.case_id, event_type="pipeline_start", agent_name=None, decision_type=None, detail=f"Pipeline started with {evt.doc_count} document(s).", findings_count=None, step_index=0, source_timestamp=evt.ts, received_at=received, raw_payload=evt.model_dump())
     logger.info("▶ Pipeline started  case=%s  docs=%s  run_id=%s", evt.case_id, evt.doc_count, run_id)
 
 
@@ -123,6 +127,8 @@ async def _handle_agent_end(evt: AgentEndEvent) -> None:
         "received_at": received,
     })
     logger.info("  ├─ Agent done  agent=%s  findings=%s  step=%s", evt.agent, evt.findings_count, step)
+    # Dual-write to MongoDB Atlas (fire-and-forget)
+    await mdb.save_trace(run_id=run_id, case_id=evt.case_id, event_type="agent_end", agent_name=evt.agent, decision_type=evt.trace.get("decision_type"), detail=evt.trace.get("detail"), findings_count=evt.findings_count, step_index=step, source_timestamp=evt.ts, received_at=received, raw_payload=evt.model_dump())
 
 
 async def _handle_pipeline_end(evt: PipelineEndEvent) -> None:
@@ -162,6 +168,9 @@ async def _handle_pipeline_end(evt: PipelineEndEvent) -> None:
         "received_at": received,
     })
     logger.info("■ Pipeline ended  case=%s  total_findings=%s", evt.case_id, evt.total_findings)
+    # Dual-write to MongoDB Atlas (fire-and-forget)
+    await mdb.complete_audit_run(case_id=evt.case_id, total_findings=evt.total_findings)
+    await mdb.save_trace(run_id=run_id, case_id=evt.case_id, event_type="pipeline_end", agent_name=None, decision_type=None, detail=f"Pipeline completed with {evt.total_findings} total finding(s).", findings_count=evt.total_findings, step_index=step, source_timestamp=evt.ts, received_at=received, raw_payload=evt.model_dump())
 
     # Fire-and-forget: let the Insight Generator decide if an AI summary is needed
     asyncio.create_task(insight_generator.maybe_generate_insight(evt.case_id, evt.total_findings))
