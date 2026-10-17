@@ -13,6 +13,13 @@ def _num(doc: AuditDocument, key: str) -> float | None:
     return None
 
 
+def _conf(doc: AuditDocument, *fields: str) -> float:
+    """Lowest OCR confidence among the source fields a finding is built on.
+    1.0 when no confidence is known, so unknown never silently lowers trust."""
+    vals = [float(doc.confidences[f]) for f in fields if f in doc.confidences]
+    return min(vals) if vals else 1.0
+
+
 def required_fields_for(doc_type: str) -> list[str]:
     return {"balance_sheet": ["assets", "liabilities", "capital"],
             "invoice": ["amount"]}.get(doc_type, [])
@@ -38,14 +45,16 @@ def check_required_fields(doc: AuditDocument) -> list[Finding]:
                 category="format", severity="medium",
                 message=f"Missing required field '{f}' in {doc.doc_id}.",
                 evidence_ids=[doc.doc_id]))
-    # low OCR confidence flag
+    # Low OCR confidence is a review item, not an audit violation. Distinct
+    # REV-001 id + review_status so UI and counts can separate the two.
     for fname, conf in doc.confidences.items():
         if conf < config.REVIEW_CONFIDENCE_LIMIT:
             out.append(Finding(
-                finding_id=f"{doc.doc_id}-CHK006-lowconf-{fname}", rule_id="CHK-006",
+                finding_id=f"{doc.doc_id}-REV001-lowconf-{fname}", rule_id="REV-001",
                 category="format", severity="low",
-                message=f"Field '{fname}' has low confidence {conf:.2f}, needs human review.",
-                evidence_ids=[doc.doc_id], confidence=float(conf)))
+                message=f"Field '{fname}' has low confidence {conf:.2f}, needs human review (not an audit violation).",
+                evidence_ids=[doc.doc_id], confidence=float(conf),
+                review_status="needs_more_evidence"))
     return out
 
 
@@ -60,6 +69,7 @@ def check_accounting_equation(doc: AuditDocument) -> list[Finding]:
             category="ledger", severity="high",
             message=f"Equation broken in {doc.doc_id}: assets {a} != liabilities {l} + capital {c}.",
             evidence_ids=[doc.doc_id],
+            confidence=_conf(doc, "assets", "liabilities", "capital"),
             claims=[EvidenceClaim(evidence_id=doc.doc_id, field="assets", claimed_value=a),
                     EvidenceClaim(evidence_id=doc.doc_id, field="liabilities", claimed_value=l),
                     EvidenceClaim(evidence_id=doc.doc_id, field="capital", claimed_value=c)])]
@@ -77,6 +87,7 @@ def check_debit_credit(doc: AuditDocument) -> list[Finding]:
             category="ledger", severity="high",
             message=f"Debit {d} != credit {cr} in {doc.doc_id}. Wrong side or wrong account (e.g. TV as liability).",
             evidence_ids=[doc.doc_id],
+            confidence=_conf(doc, "debit_total", "credit_total"),
             claims=[EvidenceClaim(evidence_id=doc.doc_id, field="debit_total", claimed_value=d),
                     EvidenceClaim(evidence_id=doc.doc_id, field="credit_total", claimed_value=cr)])]
     return []
@@ -97,6 +108,7 @@ def check_parent_amount_match(case: AuditCase) -> list[Finding]:
                 category="arithmetic", severity="high",
                 message=f"Amount mismatch: {d.doc_id} has {da} but parent {p.doc_id} has {pa}.",
                 evidence_ids=[d.doc_id, p.doc_id],
+                confidence=min(_conf(d, "amount"), _conf(p, "amount")),
                 claims=[EvidenceClaim(evidence_id=d.doc_id, field="amount", claimed_value=da),
                         EvidenceClaim(evidence_id=p.doc_id, field="amount", claimed_value=pa)]))
     return out
@@ -118,11 +130,13 @@ def check_year_change(case: AuditCase) -> list[Finding]:
             continue
         change = abs(totals[cur] - totals[prev]) / abs(totals[prev])
         if change > config.YEAR_CHANGE_LIMIT:
+            cited = [d for d in case.docs if d.period_year in (prev, cur)]
             out.append(Finding(
                 finding_id=f"{case.case_id}-CHK004-{cur}", rule_id="CHK-004",
                 category="arithmetic", severity="medium",
                 message=f"Big year jump: assets {totals[prev]:.0f} ({prev}) -> {totals[cur]:.0f} ({cur}), change {change:.0%}.",
-                evidence_ids=[d.doc_id for d in case.docs if d.period_year in (prev, cur)]))
+                evidence_ids=[d.doc_id for d in cited],
+                confidence=min((_conf(d, "assets") for d in cited), default=1.0)))
     return out
 
 
@@ -139,6 +153,7 @@ def check_cash_without_asset(case: AuditCase) -> list[Finding]:
                 category="possible_fraud", severity="high",
                 message=f"Cash {cash_out:.0f} left in {d.doc_id} but purchase booked as credit with no asset in. Needs auditor review.",
                 evidence_ids=[d.doc_id],
+                confidence=_conf(d, "cash_out", "purchase_basis"),
                 claims=[EvidenceClaim(evidence_id=d.doc_id, field="cash_out", claimed_value=cash_out),
                         EvidenceClaim(evidence_id=d.doc_id, field="purchase_basis", claimed_value="credit")]))
     return out

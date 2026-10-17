@@ -282,3 +282,31 @@ def test_normal_findings_stay_pending_review():
     res = orchestrator.run_case(_tv_case("CASE-NORMAL-REVIEW"), KGClient())
     assert res.findings
     assert all(f.review_status == "pending_review" for f in res.findings)
+
+
+def test_violation_on_low_confidence_field_inherits_confidence():
+    """A real CHK-001 violation built on a 0.42 field is 0.42, needs review."""
+    case = AuditCase(case_id="CASE-LOWCONF-VIOLATION", docs=[
+        AuditDocument(doc_id="BS1", case_id="CASE-LOWCONF-VIOLATION",
+                      doc_type="balance_sheet", period_year=2026,
+                      fields={"assets": 40000, "liabilities": 30000, "capital": 20000},
+                      confidences={"assets": 0.42, "liabilities": 0.9, "capital": 0.8})])
+    res = orchestrator.run_case(case, KGClient())
+    viol = [f for f in res.findings if f.rule_id == "CHK-001"]
+    assert len(viol) == 1
+    assert viol[0].confidence == 0.42
+    assert viol[0].review_status == "needs_more_evidence"
+
+
+def test_review_item_separate_from_violations_by_rule_id():
+    case = AuditCase(case_id="CASE-SEP", docs=[
+        AuditDocument(doc_id="BS1", case_id="CASE-SEP",
+                      doc_type="balance_sheet", period_year=2026,
+                      fields={"assets": 40000, "liabilities": 30000, "capital": 20000},
+                      confidences={"assets": 0.42})])
+    res = orchestrator.run_case(case, KGClient())
+    violations = [f for f in res.findings if f.rule_id.startswith("CHK-")]
+    reviews = [f for f in res.findings if f.rule_id == "REV-001"]
+    assert any(f.rule_id == "CHK-001" for f in violations)
+    assert len(reviews) == 1
+    assert all(f.review_status == "needs_more_evidence" for f in reviews)

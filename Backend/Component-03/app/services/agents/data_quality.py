@@ -19,9 +19,12 @@ def run(case: AuditCase) -> tuple[list, list[str], list[TraceEntry]]:
     for d in case.docs:
         findings += rule_engine.check_required_fields(d)
     rejected = rule_engine.rejected_doc_ids(case)
+    reviews = [f for f in findings if f.review_status == "needs_more_evidence"]
+    violations = len(findings) - len(reviews)
     note = llm.explain_with_llm(
         f"Say only: data-quality findings = {len(findings)} for {len(case.docs)} docs. No other facts.",
-        fallback=f"Data-quality check found {len(findings)} issue(s).")
+        fallback=(f"Data-quality check: {violations} violation(s), "
+                  f"{len(reviews)} needs review."))
     trace = [TraceEntry(agent_name="data_quality", decision_type="gate",
                         detail=note)]
     return findings, rejected, trace
