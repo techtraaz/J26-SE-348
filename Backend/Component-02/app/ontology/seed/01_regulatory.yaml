@@ -1,0 +1,24 @@
+nodes:
+  RegulatoryBody:
+    - {code: CASL, name: Institute of Chartered Accountants of Sri Lanka, country: LK}
+    - {code: SLAASMB, name: Sri Lanka Accounting and Auditing Standards Monitoring Board, country: LK}
+    - {code: SEC, name: Securities and Exchange Commission of Sri Lanka, country: LK}
+    - {code: CBSL, name: Central Bank of Sri Lanka, country: LK}
+    - {code: IRD, name: Inland Revenue Department, country: LK}
+    - {code: IASB, name: International Accounting Standards Board, country: INT}
+
+  Framework:
+    - {code: SLFRS, name: Sri Lanka Accounting Standards (SLFRS and LKAS)}
+    - {code: SLFRS_SME, name: SLFRS for Small and Medium-sized Entities}
+    - {code: SLAUS, name: Sri Lanka Auditing Standards}
+
+  Legislation:
+    - {code: ACT-15-1995, title: Sri Lanka Accounting and Auditing Standards Act No. 15 of 1995, year: 1995, status: active}
+    - {code: ACT-07-2007, title: Companies Act No. 7 of 2007, year: 2007, status: active}
+    - {code: ACT-24-2017, title: Inland Revenue Act No. 24 of 2017, year: 2017, status: active}
+
+relationships:
+  ISSUED_BY:
+    - [Framework:SLFRS, RegulatoryBody:CASL]
+    - [Framework:SLFRS_SME, RegulatoryBody:CASL]
+    - [Framework:SLAUS, RegulatoryBody:CASL]
