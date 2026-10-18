@@ -39,11 +39,11 @@ HOST: str = os.getenv("C04_HOST", "0.0.0.0")
 PORT: int = int(os.getenv("C04_PORT", "8004"))
 
 # ---------------------------------------------------------------------------
-# Cloud LLM (Phi-4 on remote GPU via Cloudflare Tunnel)
+# LLM (local Ollama or remote via env override)
 # ---------------------------------------------------------------------------
 LLM_API_URL: str = os.getenv(
     "C04_LLM_API_URL",
-    "https://jacob-fascinating-liabilities-engines.trycloudflare.com/api/chat",
+    "http://localhost:11434/api/chat",
 )
 LLM_MODEL: str = os.getenv("C04_LLM_MODEL", "phi4")
 LLM_TIMEOUT: int = int(os.getenv("C04_LLM_TIMEOUT", "60"))
