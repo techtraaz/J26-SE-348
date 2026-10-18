@@ -1,0 +1,101 @@
+{
+  "name": "trial_balance_verified",
+  "input": {
+    "verified": {
+      "document_id": "c1-tb-2026",
+      "version": 2,
+      "based_on_run_id": "run-tb",
+      "confirmed_by": "auditor.nimal",
+      "confirmed_at": "2026-04-02T09:00:00+00:00",
+      "lines": [
+        {
+          "line_id": "L1",
+          "page": 1,
+          "sequence": 1,
+          "text": "TRIAL BALANCE",
+          "confidence": 0.99,
+          "box": [
+            200,
+            10,
+            380,
+            30
+          ]
+        },
+        {
+          "line_id": "L2",
+          "page": 1,
+          "sequence": 2,
+          "text": "For the year ended 31 March 2026",
+          "confidence": 0.97,
+          "box": [
+            150,
+            35,
+            450,
+            50
+          ]
+        },
+        {
+          "line_id": "L3",
+          "page": 1,
+          "sequence": 3,
+          "text": "Total debits",
+          "confidence": 0.95,
+          "box": [
+            20,
+            300,
+            160,
+            315
+          ]
+        },
+        {
+          "line_id": "L4",
+          "page": 1,
+          "sequence": 4,
+          "text": "1,250,000",
+          "confidence": 0.41,
+          "box": [
+            40,
+            320,
+            140,
+            335
+          ],
+          "human_action": "edited"
+        },
+        {
+          "line_id": "L5",
+          "page": 1,
+          "sequence": 5,
+          "text": "Total credits",
+          "confidence": 0.96,
+          "box": [
+            300,
+            300,
+            440,
+            315
+          ]
+        },
+        {
+          "line_id": "L6",
+          "page": 1,
+          "sequence": 6,
+          "text": "1,240,000",
+          "confidence": 0.93,
+          "box": [
+            320,
+            320,
+            420,
+            335
+          ]
+        }
+      ]
+    }
+  },
+  "expected": {
+    "doc_type": "trial_balance",
+    "period_year": 2026,
+    "fields": {
+      "total_debits": 1250000.0,
+      "total_credits": 1240000.0
+    }
+  }
+}

@@ -1,0 +1,165 @@
+{
+  "name": "invoice_tax",
+  "input": {
+    "extraction": {
+      "document_id": "c1-inv-001",
+      "run": {
+        "id": "run-c1-inv-001",
+        "status": "succeeded"
+      },
+      "regions": [
+        {
+          "sequence": 1,
+          "page_number": 1,
+          "text": "ABC TRADERS (PVT) LTD",
+          "confidence": 0.99,
+          "box": [
+            40,
+            20,
+            300,
+            40
+          ],
+          "provenance": "paddleocr"
+        },
+        {
+          "sequence": 2,
+          "page_number": 1,
+          "text": "No. 45, Galle Road, Colombo 03",
+          "confidence": 0.97,
+          "box": [
+            40,
+            45,
+            320,
+            60
+          ],
+          "provenance": "paddleocr"
+        },
+        {
+          "sequence": 3,
+          "page_number": 1,
+          "text": "TAX INVOICE",
+          "confidence": 0.99,
+          "box": [
+            250,
+            80,
+            400,
+            100
+          ],
+          "provenance": "paddleocr"
+        },
+        {
+          "sequence": 4,
+          "page_number": 1,
+          "text": "Invoice No: INV-00123",
+          "confidence": 0.98,
+          "box": [
+            40,
+            110,
+            260,
+            125
+          ],
+          "provenance": "paddleocr"
+        },
+        {
+          "sequence": 5,
+          "page_number": 1,
+          "text": "Date: 12/03/2026",
+          "confidence": 0.99,
+          "box": [
+            420,
+            110,
+            560,
+            125
+          ],
+          "provenance": "paddleocr"
+        },
+        {
+          "sequence": 6,
+          "page_number": 1,
+          "text": "Item      Qty   Price     Amount",
+          "confidence": 0.95,
+          "box": [
+            40,
+            150,
+            560,
+            165
+          ],
+          "provenance": "paddleocr"
+        },
+        {
+          "sequence": 7,
+          "page_number": 1,
+          "text": "Laptop     1   150,000.00  150,000.00",
+          "confidence": 0.93,
+          "box": [
+            40,
+            170,
+            560,
+            185
+          ],
+          "provenance": "paddleocr"
+        },
+        {
+          "sequence": 8,
+          "page_number": 1,
+          "text": "Sub Total  150,000.00",
+          "confidence": 0.96,
+          "box": [
+            380,
+            210,
+            560,
+            225
+          ],
+          "provenance": "paddleocr"
+        },
+        {
+          "sequence": 9,
+          "page_number": 1,
+          "text": "VAT 18%  27,000.00",
+          "confidence": 0.94,
+          "box": [
+            380,
+            230,
+            560,
+            245
+          ],
+          "provenance": "paddleocr"
+        },
+        {
+          "sequence": 10,
+          "page_number": 1,
+          "text": "Grand Total Rs. 177,000.00",
+          "confidence": 0.62,
+          "box": [
+            380,
+            255,
+            560,
+            270
+          ],
+          "provenance": "paddleocr"
+        },
+        {
+          "sequence": 11,
+          "page_number": 1,
+          "text": "Payment Method: Credit",
+          "confidence": 0.97,
+          "box": [
+            40,
+            300,
+            260,
+            315
+          ],
+          "provenance": "paddleocr"
+        }
+      ]
+    }
+  },
+  "expected": {
+    "doc_type": "invoice",
+    "period_year": 2026,
+    "fields": {
+      "amount": 177000.0,
+      "purchase_basis": "credit"
+    }
+  }
+}
