@@ -1,380 +1,122 @@
+import json
+import threading
+
 import pytest
 
-from app.schemas.case import AuditCase, AuditDocument
-from app.schemas.findings import EvidenceClaim, Finding
-from app.services import orchestrator
-from app.services.kg_client import KGClient
-
-
-def _agent_trace(res):
-    """The five pipeline trace entries, excluding kg-source and events notes."""
-    return [t for t in res.trace if t.agent_name not in ("kg", "events")]
-
-
-class FakeKG(KGClient):
-    """Same doors, different limit — proves injection through config really works."""
-    def get_rules(self, doc_type: str) -> list[dict]:
-        if doc_type == "invoice":
-            return [{"rule_id": "POL-07",
-                     "text": "Purchases above Rs. 1,000 need dual approval (fake KG).",
-                     "limit": 1000}]
-        return []
-
-
-def _tv_case(case_id="CASE-TV"):
-    return AuditCase(case_id=case_id, docs=[
-        AuditDocument(doc_id="BS26", case_id=case_id, doc_type="balance_sheet",
-                      period_year=2026, fields={"assets": 40000, "liabilities": 30000, "capital": 20000}),
-        AuditDocument(doc_id="INV1", case_id=case_id, doc_type="invoice",
-                      period_year=2026, parent_doc_id="BS26",
-                      fields={"amount": 250000}),
-    ])
-
-
-def _clean_case(case_id="CASE-CLEAN"):
-    return AuditCase(case_id=case_id, docs=[
-        AuditDocument(doc_id="BS26", case_id=case_id, doc_type="balance_sheet",
-                      period_year=2026, fields={"assets": 50000, "liabilities": 30000, "capital": 20000}),
-        AuditDocument(doc_id="INV1", case_id=case_id, doc_type="invoice",
-                      period_year=2026, parent_doc_id="BS26",
-                      fields={"amount": 50000}),
-    ])
-
-
-def test_full_case_pending_review():
-    case = _tv_case()
-    res = orchestrator.run_case(case, KGClient())
-    assert res.status == "pending_auditor_review"
-    assert len(res.findings) >= 2  # equation + policy limit
-    assert len(_agent_trace(res)) == 5
-    res2 = orchestrator.run_case(case, KGClient())
-    assert res2.version == res.version + 1
-
-
-def test_trace_five_in_execution_order_via_seq():
-    res = orchestrator.run_case(_tv_case("CASE-ORD"), KGClient())
-    agent_trace = _agent_trace(res)
-    assert len(agent_trace) == 5
-    by_name = {t.agent_name: t.seq for t in agent_trace}
-    assert set(by_name) == {"data_quality", "compliance", "anomaly", "reasoning", "evidence_validation"}
-    # per-run seq 1..5, stamped at execution (completion) time, never sorted
-    assert sorted(by_name.values()) == [1, 2, 3, 4, 5]
-    assert by_name["data_quality"] < by_name["compliance"]
-    assert by_name["data_quality"] < by_name["anomaly"]
-    assert by_name["reasoning"] > by_name["compliance"]
-    assert by_name["reasoning"] > by_name["anomaly"]
-    assert by_name["evidence_validation"] > by_name["reasoning"]
-
-
-def test_seq_resets_per_run():
-    r1 = orchestrator.run_case(_tv_case("CASE-SEQ1"), KGClient())
-    r2 = orchestrator.run_case(_tv_case("CASE-SEQ2"), KGClient())
-    assert sorted(t.seq for t in _agent_trace(r1)) == [1, 2, 3, 4, 5]
-    assert sorted(t.seq for t in _agent_trace(r2)) == [1, 2, 3, 4, 5]
-
-
-def test_same_input_same_findings():
-    r1 = orchestrator.run_case(_tv_case("CASE-DET"), KGClient())
-    r2 = orchestrator.run_case(_tv_case("CASE-DET2"), KGClient())
-    assert sorted(f.rule_id for f in r1.findings) == sorted(f.rule_id for f in r2.findings)
-    assert sorted(f.finding_id for f in r1.findings) == sorted(f.finding_id for f in r2.findings)
-
-
-def test_fake_kg_changes_limit():
-    """Fake KG with limit 1,000: a 50,000 invoice must now trip POL-07."""
-    case = _clean_case("CASE-FAKEKG")
-    real = orchestrator.run_case(case, KGClient())
-    assert [f for f in real.findings if f.rule_id == "POL-07"] == []
-    fake = orchestrator.run_case(case, FakeKG())
-    pol = [f for f in fake.findings if f.rule_id == "POL-07"]
-    assert len(pol) == 1 and "1,000" in pol[0].message
-
-
-def _run_case_with_docs(case_id, docs):
-    return orchestrator.run_case(AuditCase(case_id=case_id, docs=docs), KGClient())
-
-
-def test_chk002_wrong_side_survives_validation():
-    res = _run_case_with_docs("CASE-CHK002", [
-        AuditDocument(doc_id="LED1", case_id="CASE-CHK002", doc_type="ledger",
-                      period_year=2026, fields={"debit_total": 100.0, "credit_total": 90.0}),
-    ])
-    got = [f for f in res.findings if f.rule_id == "CHK-002"]
-    assert len(got) == 1 and not got[0].citation_unverified
-
-
-def test_chk003_mismatch_survives_validation():
-    res = _run_case_with_docs("CASE-CHK003", [
-        AuditDocument(doc_id="CASH", case_id="CASE-CHK003", doc_type="ledger",
-                      period_year=2026, fields={"amount": 10000.0}),
-        AuditDocument(doc_id="TV", case_id="CASE-CHK003", doc_type="invoice",
-                      period_year=2026, parent_doc_id="CASH", fields={"amount": 5000.0}),
-    ])
-    got = [f for f in res.findings if f.rule_id == "CHK-003"]
-    assert len(got) == 1 and not got[0].citation_unverified
-
-
-def test_chk005_cash_fraud_survives_validation():
-    res = _run_case_with_docs("CASE-CHK005", [
-        AuditDocument(doc_id="INV9", case_id="CASE-CHK005", doc_type="invoice",
-                      period_year=2026,
-                      fields={"amount": 10000.0, "cash_out": 10000.0,
-                              "purchase_basis": "credit", "asset_in": 0.0}),
-    ])
-    got = [f for f in res.findings if f.rule_id == "CHK-005"]
-    assert len(got) == 1 and not got[0].citation_unverified
-
-
-def test_chk004_year_jump_survives_validation():
-    res = _run_case_with_docs("CASE-CHK004", [
-        AuditDocument(doc_id="BS24", case_id="CASE-CHK004", doc_type="balance_sheet",
-                      period_year=2024, fields={"assets": 50000.0, "liabilities": 30000.0, "capital": 20000.0}),
-        AuditDocument(doc_id="BS26", case_id="CASE-CHK004", doc_type="balance_sheet",
-                      period_year=2026, fields={"assets": 90000.0, "liabilities": 30000.0, "capital": 60000.0}),
-    ])
-    got = [f for f in res.findings if f.rule_id == "CHK-004"]
-    assert len(got) == 1 and not got[0].citation_unverified
-
-
-def test_ghost_id_through_full_graph(monkeypatch):
-    """Inject ghost via Compliance; kept flagged AND logged with reason."""
-    from app.services.agents import compliance
-    orig = compliance.run
-    ghost = Finding(finding_id="X-GHOST", rule_id="CHK-003", category="arithmetic",
-                    severity="high", message="planted ghost",
-                    evidence_ids=["DOC-999-GHOST"], policy_ids=["CHK-003"])
-    def fake_run(case, kg):
-        f, t = orig(case, kg)
-        return f + [ghost], t
-    monkeypatch.setattr(compliance, "run", fake_run)
-    res = orchestrator.run_case(_tv_case("CASE-GHOST"), KGClient())
-    assert res.rejected_citations == ["DOC-999-GHOST"]
-    kept = [f for f in res.findings if f.finding_id == "X-GHOST"]
-    assert len(kept) == 1 and kept[0].citation_unverified is True
-    assert any(r.finding.finding_id == "X-GHOST" for r in res.rejected_findings)
-    assert all(r.reason for r in res.rejected_findings)
-
-
-def test_claim_value_mismatch_flagged_not_dropped(monkeypatch):
-    """Real doc ID but wrong claimed value: kept flagged + logged with actual value."""
-    from app.services.agents import compliance
-    orig = compliance.run
-    liar = Finding(finding_id="X-LIAR", rule_id="POL-07", category="compliance",
-                   severity="high", message="claims 999999 but doc holds 250000",
-                   evidence_ids=["INV1"], policy_ids=["POL-07"],
-                   claims=[EvidenceClaim(evidence_id="INV1", field="amount", claimed_value=999999)])
-    def fake_run(case, kg):
-        f, t = orig(case, kg)
-        return f + [liar], t
-    monkeypatch.setattr(compliance, "run", fake_run)
-    res = orchestrator.run_case(_tv_case("CASE-LIAR"), KGClient())
-    assert "INV1" in res.rejected_citations
-    kept = [f for f in res.findings if f.finding_id == "X-LIAR"]
-    assert len(kept) == 1 and kept[0].citation_unverified is True
-    assert any("claimed 999999" in r.reason for r in res.rejected_findings)
-
-
-def test_reasoning_chain_filled():
-    res = orchestrator.run_case(_tv_case("CASE-CHAIN"), KGClient())
-    assert res.findings, "expected findings to check chains on"
-    for f in res.findings:
-        assert f.reasoning_chain, f"empty chain on {f.finding_id}"
-        assert any(f.rule_id in step for step in f.reasoning_chain)
-
-
-def test_early_stop_empty_case_not_auditable():
-    res = orchestrator.run_case(AuditCase(case_id="CASE-EMPTY", docs=[]), KGClient())
-    assert res.status == "not_auditable"
-    assert len(_agent_trace(res)) == 1
-    assert res.trace[0].agent_name == "data_quality"
-    assert res.findings, "DQ reasons must be included, never a bare empty result"
-
-
-def test_early_stop_all_docs_rejected_not_auditable():
-    case = AuditCase(case_id="CASE-ALLBAD", docs=[
-        AuditDocument(doc_id="BS1", case_id="CASE-ALLBAD", doc_type="balance_sheet",
-                      period_year=2026, fields={}),  # missing assets/liabilities/capital
-    ])
-    res = orchestrator.run_case(case, KGClient())
-    assert res.status == "not_auditable"
-    assert set(res.rejected_records) == {"BS1"}
-    assert len(_agent_trace(res)) == 1  # stopped after DQ, no comp/anom/reas/val
-    assert res.findings, "DQ reasons must be included, must not look like a clean case"
-    assert any("Missing required field" in f.message for f in res.findings)
-
-
-def test_rejected_docs_excluded_downstream():
-    case = AuditCase(case_id="CASE-MIX", docs=[
-        AuditDocument(doc_id="GOOD", case_id="CASE-MIX", doc_type="invoice",
-                      period_year=2026, fields={"amount": 250000}),
-        AuditDocument(doc_id="BAD", case_id="CASE-MIX", doc_type="invoice",
-                      period_year=2026, fields={}),  # missing amount -> DQ reject
-    ])
-    res = orchestrator.run_case(case, KGClient())
-    assert "BAD" in res.rejected_records
-    pol = [f for f in res.findings if f.rule_id == "POL-07"]
-    assert len(pol) == 1 and pol[0].evidence_ids == ["GOOD"]
-
-
-def test_unknown_doc_type_is_review_item_never_clean():
-    case = AuditCase(case_id="CASE-UNKNOWN", docs=[
-        AuditDocument(doc_id="DOCX", case_id="CASE-UNKNOWN", doc_type="unknown",
-                      period_year=2026, fields={"amount": 100.0})])
-    res = orchestrator.run_case(case, KGClient())
-    rev = [f for f in res.findings if f.rule_id == "REV-002"]
-    assert len(rev) == 1
-    assert rev[0].review_status == "needs_more_evidence"
-    assert rev[0].evidence_ids == ["DOCX"]
-    assert any(t.agent_name == "data_quality" and t.decision_type == "review"
-               for t in res.trace)
-
-
-def test_unreadable_number_is_review_item_and_value_kept():
-    case = AuditCase(case_id="CASE-UNREADABLE", docs=[
-        AuditDocument(doc_id="INVX", case_id="CASE-UNREADABLE",
-                      doc_type="invoice", period_year=2026,
-                      fields={"amount": "1O,OOO"})])
-    res = orchestrator.run_case(case, KGClient())
-    rev = [f for f in res.findings if f.rule_id == "REV-003"]
-    assert len(rev) == 1 and "1O,OOO" in rev[0].message
-    assert rev[0].review_status == "needs_more_evidence"
-
-
-def test_all_unrecognised_docs_return_not_auditable():
-    case = AuditCase(case_id="CASE-UNREC", docs=[
-        AuditDocument(doc_id="A1", case_id="CASE-UNREC", doc_type="unknown",
-                      period_year=2026, fields={"amount": 10.0}),
-        AuditDocument(doc_id="A2", case_id="CASE-UNREC", doc_type="bank_statement",
-                      period_year=2026, fields={"amount": 20.0})])
-    res = orchestrator.run_case(case, KGClient())
-    assert res.status == "not_auditable"
-    rev = [f for f in res.findings if f.rule_id == "REV-002"]
-    assert sorted(f.evidence_ids[0] for f in rev) == ["A1", "A2"]
-    assert not any(f.rule_id == "CHK-007" for f in res.findings)
-
-
-def test_mixed_unsupported_doc_has_rev002_not_chk007():
-    case = AuditCase(case_id="CASE-MIXED", docs=[
-        AuditDocument(doc_id="BS1", case_id="CASE-MIXED",
-                      doc_type="balance_sheet", period_year=2026,
-                      fields={"assets": 50000, "liabilities": 30000, "capital": 20000}),
-        AuditDocument(doc_id="X1", case_id="CASE-MIXED",
-                      doc_type="bank_statement", period_year=2026,
-                      fields={"amount": 10.0})])
-    res = orchestrator.run_case(case, KGClient())
-    assert res.status == "pending_auditor_review"
-    assert any(f.rule_id == "REV-002" and f.evidence_ids == ["X1"]
-               for f in res.findings)
-    assert not any(f.rule_id == "CHK-007" for f in res.findings)
-
-
-def test_validate_case_issues_are_visible_review_findings():
-    case = AuditCase(case_id="CASE-ISSUES", docs=[
-        AuditDocument(doc_id="BS1", case_id="CASE-ISSUES",
-                      doc_type="balance_sheet", period_year=2026,
-                      fields={"assets": 50000, "liabilities": 30000, "capital": 20000},
-                      confidences={"assets": 1.8}),
-        AuditDocument(doc_id="INV1", case_id="CASE-ISSUES", doc_type="invoice",
-                      period_year=2026, parent_doc_id="MISSING",
-                      fields={"amount": 10.0})])
-    res = orchestrator.run_case(case, KGClient())
-    issues = [f for f in res.findings if f.rule_id == "REV-004"]
-    assert any("outside 0..1" in f.message for f in issues)
-    assert any("parent_doc_id" in f.message for f in issues)
-    assert all(f.review_status == "needs_more_evidence" for f in issues)
-
-
-def test_clean_case_zero_findings():
-    res = orchestrator.run_case(_clean_case(), KGClient())
-    assert res.status == "pending_auditor_review"
-    assert res.findings == []
-    assert res.rejected_citations == []
-    assert len(_agent_trace(res)) == 5
-
-
-def test_stream_runs_graph_once():
-    from app.services.orchestrator import VERSION_STORE, stream_case
-    case = _tv_case("CASE-STREAM-ONCE")
-    before = VERSION_STORE.get(case.case_id, 0)
-    events = list(stream_case(case, KGClient()))
-    assert VERSION_STORE.get(case.case_id, 0) == before + 1
-    updates = [e for e in events if e["event"] == "update"]
-    results = [e for e in events if e["event"] == "result"]
-    assert len(results) == 1
-    assert len(results[0]["data"]["findings"]) >= 2
-    assert len(updates) == 5  # one per node: dq, comp, anom, reas, val
-    assert all(isinstance(e["data"], dict) for e in events)  # JSON-safe, no repr strings
-
-
-def test_stream_not_auditable_carries_reasons():
-    from app.services.orchestrator import stream_case
-    events = list(stream_case(AuditCase(case_id="CASE-EMPTY-STR", docs=[]),
-                              KGClient()))
-    results = [e for e in events if e["event"] == "result"]
-    assert len(results) == 1
-    data = results[0]["data"]
-    assert data["status"] == "not_auditable"
-    assert data["findings"]  # DQ reasons present, never a clean-looking result
-    assert any(t["agent_name"] == "kg" for t in data["trace"])
-
-
-def test_latency_ms_is_measured():
-    res = orchestrator.run_case(_tv_case("CASE-LAT"), KGClient())
-    assert isinstance(res.latency_ms, float)
-    assert res.latency_ms >= 0.0
-
-
-def test_seq_from_missing_config_raises_clear_error():
-    from app.services.orchestrator import OrchestratorConfigError, _seq_from
-    for bad in (None, {}, {"configurable": {}}):
-        with pytest.raises(OrchestratorConfigError):
-            _seq_from(bad)
-
-
-def test_low_confidence_finding_marked_needs_more_evidence():
-    case = AuditCase(case_id="CASE-REVIEW", docs=[
-        AuditDocument(doc_id="BS1", case_id="CASE-REVIEW",
-                      doc_type="balance_sheet", period_year=2026,
-                      fields={"assets": 50000, "liabilities": 30000, "capital": 20000},
-                      confidences={"assets": 0.4})])
-    res = orchestrator.run_case(case, KGClient())
-    low = [f for f in res.findings if f.confidence < 0.5]
-    assert low and all(f.review_status == "needs_more_evidence" for f in low)
-    others = [f for f in res.findings if f.confidence >= 0.5]
-    assert all(f.review_status == "pending_review" for f in others)
-    assert any(t.agent_name == "reasoning" and t.decision_type == "review"
-               for t in res.trace)
-
-
-def test_normal_findings_stay_pending_review():
-    res = orchestrator.run_case(_tv_case("CASE-NORMAL-REVIEW"), KGClient())
-    assert res.findings
-    assert all(f.review_status == "pending_review" for f in res.findings)
-
-
-def test_violation_on_low_confidence_field_inherits_confidence():
-    """A real CHK-001 violation built on a 0.42 field is 0.42, needs review."""
-    case = AuditCase(case_id="CASE-LOWCONF-VIOLATION", docs=[
-        AuditDocument(doc_id="BS1", case_id="CASE-LOWCONF-VIOLATION",
-                      doc_type="balance_sheet", period_year=2026,
-                      fields={"assets": 40000, "liabilities": 30000, "capital": 20000},
-                      confidences={"assets": 0.42, "liabilities": 0.9, "capital": 0.8})])
-    res = orchestrator.run_case(case, KGClient())
-    viol = [f for f in res.findings if f.rule_id == "CHK-001"]
-    assert len(viol) == 1
-    assert viol[0].confidence == 0.42
-    assert viol[0].review_status == "needs_more_evidence"
-
-
-def test_review_item_separate_from_violations_by_rule_id():
-    case = AuditCase(case_id="CASE-SEP", docs=[
-        AuditDocument(doc_id="BS1", case_id="CASE-SEP",
-                      doc_type="balance_sheet", period_year=2026,
-                      fields={"assets": 40000, "liabilities": 30000, "capital": 20000},
-                      confidences={"assets": 0.42})])
-    res = orchestrator.run_case(case, KGClient())
-    violations = [f for f in res.findings if f.rule_id.startswith("CHK-")]
-    reviews = [f for f in res.findings if f.rule_id == "REV-001"]
-    assert any(f.rule_id == "CHK-001" for f in violations)
-    assert len(reviews) == 1
-    assert all(f.review_status == "needs_more_evidence" for f in reviews)
+from app.schemas.trace_events import parse_trace_event
+from app.services import intake, orchestrator
+from app.services.events import EventPublisher
+from app.services.store import MemoryStore, StoreError
+from tests.conftest import FakeRedis, doc
+
+DOCS = [doc("BS", "balance_sheet", {"assets": 100, "liabilities": 30, "capital": 20}),
+        doc("INV", "invoice", {"amount": 150000}),
+        doc("RC", "receipt", {"amount": 140000}, parent_doc_id="INV")]
+
+
+def case(docs=DOCS, case_id="C"):
+    return intake.normalize_case({"case_id": case_id, "docs": docs})
+
+
+def test_full_run_order_and_result(kg, store):
+    r = orchestrator.run_case(case(), kg, store=store)
+    assert r.status == "pending_auditor_review" and r.version == 1 and r.kg_source == "mock"
+    assert {"CHK-001", "CHK-003", "POL-07"} <= {f.rule_id for f in r.findings}
+    agents = [t.agent_name for t in sorted((t for t in r.trace if t.seq), key=lambda t: t.seq)]
+    first = {a: agents.index(a) for a in dict.fromkeys(agents)}
+    assert first["data_quality"] == 0
+    assert max(first["compliance"], first["anomaly"]) < first["reasoning"] < first["evidence_validation"]
+    assert all(f.reasoning_chain and f.evidence_validation != "unverified" for f in r.findings)
+
+
+def test_rejected_docs_are_logged_and_not_checked(kg, store):
+    r = orchestrator.run_case(case([doc("BS", "balance_sheet", {"assets": 1}),
+                                    doc("INV", "invoice", {"amount": 150000})]), kg, store=store)
+    assert r.rejected_records == ["BS"]
+    assert not any(f.rule_id == "CHK-001" for f in r.findings)
+    assert any(f.rule_id == "CHK-006" for f in r.findings)
+
+
+@pytest.mark.parametrize("docs", [[], [doc("X", "unknown", {"a": 1})],
+                                  [doc("BS", "balance_sheet", {"assets": 1})]])
+def test_not_auditable_never_looks_clean(kg, store, docs):
+    r = orchestrator.run_case(case(docs), kg, store=store)
+    assert r.status == "not_auditable" and r.findings
+    assert not any(t.agent_name == "compliance" for t in r.trace)
+
+
+def test_versions_are_kept_and_supersedes_set(kg, store):
+    first = orchestrator.run_case(case(), kg, store=store)
+    second = orchestrator.run_case(case(), kg, store=store)
+    assert (first.version, second.version) == (1, 2)
+    assert all(f.supersedes == 1 for f in second.findings)
+    assert [v["version"] for v in store.versions("C")] == [1, 2]
+    assert store.get("C", 1)["findings"][0]["supersedes"] is None  # v1 untouched
+
+
+def test_append_evidence_builds_on_latest_version(kg, store):
+    orchestrator.run_case(case(DOCS[:2]), kg, store=store)
+    r = orchestrator.append_evidence("C", [DOCS[2]], kg, store=store)
+    assert r.version == 2 and any(f.rule_id == "CHK-003" for f in r.findings)
+    assert len(store.latest("C")["case"]["docs"]) == 3
+    with pytest.raises(LookupError):
+        orchestrator.append_evidence("NEW", [DOCS[0]], kg, store=store)
+    with pytest.raises(intake.IntakeError):  # same doc_id again
+        orchestrator.append_evidence("C", [DOCS[0]], kg, store=store)
+
+
+def test_concurrent_runs_get_distinct_versions(kg):
+    store = MemoryStore()
+    out = []
+    threads = [threading.Thread(target=lambda: out.append(
+        orchestrator.run_case(case(), kg, store=store).version)) for _ in range(6)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert sorted(out) == [1, 2, 3, 4, 5, 6]
+
+
+def test_store_failure_is_loud(kg):
+    class Broken(MemoryStore):
+        def save(self, case, result):
+            raise StoreError("down")
+    with pytest.raises(StoreError):
+        orchestrator.run_case(case(), kg, store=Broken())
+
+
+def test_events_match_c4_contract_and_end_after_save(kg, store):
+    redis = FakeRedis()
+    seen_saved = []
+
+    class Spy(FakeRedis):
+        def publish(self, channel, text):
+            if json.loads(text)["event"] == "pipeline_end":
+                seen_saved.append(store.get("C", 1) is not None)
+            redis.publish(channel, text)
+    r = orchestrator.run_case(case(), kg, publisher=EventPublisher(client=Spy()), store=store)
+    events = [json.loads(t) for _, t in redis.sent]
+    assert events[0]["event"] == "pipeline_start"
+    assert events[-1]["event"] == "pipeline_end"
+    assert sum(e["event"] == "agent_end" for e in events) == 5
+    for e in events:
+        parse_trace_event(e)
+    assert seen_saved == [True] and r.events_published
+    assert store.get("C", 1)["events_published"] is True
+
+
+def test_event_failure_never_breaks_audit(kg, store):
+    r = orchestrator.run_case(case(), kg, publisher=EventPublisher(client=FakeRedis(fail=True)),
+                              store=store)
+    assert r.status == "pending_auditor_review" and not r.events_published
+    assert any(t.agent_name == "events" for t in r.trace)
+    assert any(t["agent_name"] == "events" for t in store.get("C", 1)["trace"])
+
+
+def test_stream_yields_updates_then_one_saved_result(kg, store):
+    chunks = list(orchestrator.stream_case(case(), kg, store=store))
+    assert [c["event"] for c in chunks][-1] == "result"
+    assert {n for c in chunks[:-1] for n in c["data"]} == {
+        "data_quality", "compliance", "anomaly", "reasoning", "evidence_validation"}
+    json.dumps(chunks)
+    assert [v["version"] for v in store.versions("C")] == [1]

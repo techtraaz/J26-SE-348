@@ -1,61 +1,65 @@
-"""Agent 5: Evidence Validation — existence + value match, in code.
-For every claim {evidence_id, field, claimed_value}: the document must exist
-(claim IDs count the same as evidence_ids) and its field must equal the
-claimed value (numbers within tolerance).
-A failing finding is KEPT in the main list marked citation_unverified=True
-(so a real issue never vanishes from what the auditor sees) AND logged in
-rejected_findings with the reason. rejected_citations holds ONLY failing IDs."""
+"""Agent 5: Evidence Validation. Every cited ID must exist in the case and every
+claim's value must match the document (numbers within tolerance), in code.
+
+A failing finding is KEPT in the main list with citation_unverified=True (a real
+issue never vanishes) AND logged in rejected_findings with the reason.
+rejected_citations holds only the failing IDs.
+"""
 from app import config
 from app.schemas.case import AuditCase
 from app.schemas.findings import Finding, RejectedFinding, TraceEntry
+from app.services import rules
 
 
-def _value_matches(actual: object, claimed: float | str) -> bool:
-    if isinstance(claimed, (int, float)) and isinstance(actual, (int, float)):
-        return abs(float(actual) - float(claimed)) <= config.AMOUNT_TOLERANCE
-    return actual == claimed
+def _matches(actual: object, claimed: float | str) -> bool:
+    if isinstance(claimed, str):
+        return isinstance(actual, str) and actual.strip().lower() == claimed.strip().lower()
+    if isinstance(actual, bool) or not isinstance(actual, (int, float)):
+        return False
+    return abs(float(actual) - claimed) <= config.AMOUNT_TOLERANCE
 
 
 def run(case: AuditCase, findings: list[Finding]
         ) -> tuple[list[Finding], list[RejectedFinding], list[str], list[TraceEntry]]:
     by_id = {d.doc_id: d for d in case.docs}
-    kept: list[Finding] = []
+    out = [f.model_copy(deep=True) for f in findings]
     rejected: list[RejectedFinding] = []
     bad_ids: list[str] = []
-    for f in findings:
-        claim_ids = [c.evidence_id for c in f.claims]
-        missing = [e for e in list(f.evidence_ids) + claim_ids if e not in by_id]
-        mismatched: list[str] = []
+    for f in out:
+        cited = list(dict.fromkeys(f.evidence_ids + [c.evidence_id for c in f.claims]))
+        problems: list[str] = []
+        bad: list[str] = []
+        missing = [e for e in cited if e not in by_id]
+        if missing:
+            problems.append(f"cited IDs not in case: {', '.join(missing)}")
+            bad += missing
         for c in f.claims:
             doc = by_id.get(c.evidence_id)
             if doc is None:
-                continue  # already counted in missing
-            actual = doc.fields.get(c.field, None)
-            if actual is None or not _value_matches(actual, c.claimed_value):
-                if c.evidence_id not in mismatched:
-                    mismatched.append(c.evidence_id)
-        bad = sorted(set(missing) | set(mismatched))
-        if bad:
+                continue
+            actual = doc.fields.get(c.field)
+            if not _matches(actual, c.claimed_value):
+                problems.append(f"{c.evidence_id}.{c.field} claimed "
+                                f"{rules.fmt(c.claimed_value)} but holds {actual!r}")
+                if c.evidence_id not in bad:
+                    bad.append(c.evidence_id)
+        if problems:
             f.evidence_validation = "failed"
             f.citation_unverified = True
-            problems = []
-            if missing:
-                problems.append(f"cited IDs not in case: {', '.join(sorted(set(missing)))}")
-            value_bad = [c for c in f.claims
-                         if c.evidence_id in by_id
-                         and not _value_matches(by_id[c.evidence_id].fields.get(c.field, None),
-                                                c.claimed_value)]
-            for c in value_bad:
-                actual = by_id[c.evidence_id].fields.get(c.field, None)
-                problems.append(f"{c.evidence_id}.{c.field} claimed {c.claimed_value} but holds {actual}")
-            rejected.append(RejectedFinding(finding=f, reason="; ".join(problems)))
-            for b in bad:
-                if b not in bad_ids:
-                    bad_ids.append(b)
-            kept.append(f)  # kept but flagged — auditor still sees the issue
-            continue
-        f.evidence_validation = "passed"
-        kept.append(f)
+            rejected.append(RejectedFinding(finding=f.model_copy(deep=True),
+                                            reason="; ".join(problems)))
+            bad_ids += [b for b in bad if b not in bad_ids]
+        elif f.claims:
+            f.evidence_validation = "passed"
+        elif cited:
+            f.evidence_validation = "existence_only"
+        else:
+            f.evidence_validation = "unverified"
+    counts = {s: sum(f.evidence_validation == s for f in out)
+              for s in ("passed", "existence_only", "failed", "unverified")}
     trace = [TraceEntry(agent_name="evidence_validation", decision_type="validate",
-                        detail=f"Checked {len(findings)} finding(s), passed {len(kept) - len(rejected)}, flagged {len(rejected)}.")]
-    return kept, rejected, bad_ids, trace
+                        detail=f"Checked {len(out)} finding(s): {counts['passed']} values "
+                               f"verified, {counts['existence_only']} citations exist (no values "
+                               f"to check), {counts['failed']} flagged, "
+                               f"{counts['unverified']} with no evidence.")]
+    return out, rejected, bad_ids, trace

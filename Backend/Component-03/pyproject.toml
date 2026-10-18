@@ -10,6 +10,7 @@ dependencies = [
     "ollama>=0.4",
     "langgraph>=0.6",
     "redis>=8.1.0",
+    "pymongo>=4.10",
 ]
 
 [build-system]
@@ -26,4 +27,5 @@ pythonpath = ["."]
 dev = [
     "pytest>=9.1.1",
     "ruff>=0.17.0",
+    "mongomock>=4.3",
 ]

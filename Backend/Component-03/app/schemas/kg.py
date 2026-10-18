@@ -1,61 +1,51 @@
-"""Pydantic shapes for every knowledge-graph reply.
+"""Shapes of Component-02's KG query API replies (docs/query_api.md in C2).
 
-Live client validates each reply against these. Anything that does not fit is a
-protocol error, never silently accepted. Kept here (not imported from another
-component) so shapes can be shared by copying, per project rules.
+Copied, not imported, per project rules. Every live reply is validated against
+these; anything that does not fit is a protocol error, never silently accepted.
 """
 from pydantic import BaseModel, Field
 
-from app.schemas.findings import Category, Severity
+from app.schemas.findings import Severity
 
 
 class RuleResponse(BaseModel):
-    """A policy rule with a numeric limit (get_rules)."""
-
+    """GET /query/rules/{doc_type}: a policy rule with a numeric limit."""
     rule_id: str
-    text: str
-    limit: float
+    text: str = ""
+    limit: float | None = None
+
+
+class RuleVariable(BaseModel):
+    """What a name in a check-rule expression means and its other names."""
+    name: str
+    line_item: str = ""
+    aliases: list[str] = Field(default_factory=list)
 
 
 class CheckRuleResponse(BaseModel):
-    """A data-driven check rule (get_check_rules)."""
-
+    """GET /query/check-rules/{doc_type}: a machine-checkable rule."""
     rule_id: str
     name: str = ""
     expression: str
-    inputs: list[str] = Field(default_factory=list)
-    tolerance: float = 0.01
     severity: Severity = "medium"
-    category: Category = "format"
+    variables: list[RuleVariable] = Field(default_factory=list)
 
 
-class PostingResponse(BaseModel):
-    """One ledger posting (get_postings)."""
+class Citation(BaseModel):
+    """One source a rule comes from (a standard, maybe a paragraph)."""
+    standard: str | None = None
+    title: str | None = None
+    paragraph: str | None = None
+    section: str | None = None
+    heading: str | None = None
+    text: str | None = None
 
-    posting_id: str
-    doc_id: str
-    account: str
-    account_type: str
-    debit: float = 0.0
-    credit: float = 0.0
-
-
-class PeriodTotalsResponse(BaseModel):
-    """Period totals for the equation check (get_period_totals)."""
-
-    year: int
-    assets: float = 0.0
-    liabilities: float = 0.0
-    capital: float = 0.0
+    @property
+    def ref(self) -> str:
+        return self.section or self.standard or ""
 
 
-class EvidenceChainResponse(BaseModel):
-    """Policy -> control -> transaction -> evidence chain (get_evidence_chain)."""
-
-    doc_id: str
-    chain: list[str] = Field(default_factory=list)
-    policy_ids: list[str] = Field(default_factory=list)
-    control_ids: list[str] = Field(default_factory=list)
-    transaction_ids: list[str] = Field(default_factory=list)
-    evidence_ids: list[str] = Field(default_factory=list)
-    missing_evidence: list[str] = Field(default_factory=list)
+class RuleExplanation(BaseModel):
+    """GET /query/rules/{rule_id}/explain (only the parts C3 uses)."""
+    citations: list[Citation] = Field(default_factory=list)
+    explanation: str = ""

@@ -1,20 +1,42 @@
-"""Fast, offline tests: LLM never called (mocked), so no Ollama wait.
-Agents call llm.explain_with_llm via module reference, so one patch covers all."""
+"""Offline tests: no LLM, no Redis, no MongoDB, no live KG."""
 import pytest
 
-
-@pytest.fixture(autouse=True)
-def _mock_llm(monkeypatch):
-    import app.services.llm as llm_mod
-
-    def fast(prompt: str, fallback: str) -> str:
-        return fallback
-
-    monkeypatch.setattr(llm_mod, "explain_with_llm", fast)
+from app import config
+from app.services import store as store_mod
+from app.services.kg_client import FallbackKGClient, MockKGClient
 
 
 @pytest.fixture(autouse=True)
-def _no_real_events(monkeypatch):
-    # Keep the default publisher silent; tests that check events inject a client.
-    from app import config
+def _offline(monkeypatch):
+    monkeypatch.setattr(config, "LLM_ENABLED", False)
     monkeypatch.setattr(config, "EVENTS_ENABLED", False)
+    monkeypatch.setattr(config, "KG_MODE", "mock")
+    monkeypatch.setattr(config, "KG_URL", "")
+    monkeypatch.setattr(config, "MONGODB_URI", "")
+    monkeypatch.setattr(config, "STORE_MODE", "memory")
+    monkeypatch.setattr(store_mod, "_store", store_mod.MemoryStore())
+
+
+@pytest.fixture
+def kg():
+    return FallbackKGClient(mode="mock", mock=MockKGClient())
+
+
+@pytest.fixture
+def store():
+    return store_mod.default_store()
+
+
+class FakeRedis:
+    def __init__(self, fail: bool = False):
+        self.sent: list[tuple[str, str]] = []
+        self.fail = fail
+
+    def publish(self, channel, text):
+        if self.fail:
+            raise ConnectionError("redis down")
+        self.sent.append((channel, text))
+
+
+def doc(doc_id, doc_type, fields, year=2026, **extra):
+    return {"doc_id": doc_id, "doc_type": doc_type, "period_year": year, "fields": fields, **extra}

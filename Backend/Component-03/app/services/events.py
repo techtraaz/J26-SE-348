@@ -1,127 +1,108 @@
-"""Fire-and-forget trace events for Component-04.
-
-C03 publishes three event types on the Redis channel C4 subscribes to
-(`nomos:trace_events`; see C4 app/schemas/trace_events.py):
+"""Fire-and-forget trace events for Component-04 on Redis pub/sub.
 
     pipeline_start -> agent_end (once per agent) -> pipeline_end
 
-Publishing is best-effort: it never blocks or breaks an audit. If Redis (or the
-`redis` package) is unavailable, events are dropped and logged, never raised.
+Shapes match C4's app/schemas/trace_events.py (copy in app/schemas/trace_events.py).
+Extra keys C4 may use: `version` on start/end, `status` on end, `traces` (every
+trace line of the agent) on agent_end. With `case_id` + `version`, C4 reads the
+saved result from MongoDB (collection c03_audit_results).
 
-The publisher also tracks whether it actually sent anything, so the audit
-result can say `events_published` and a trace line can record when C4 got
-nothing (disabled or failed).
-
-Inject a client for tests via EventPublisher(client=...). Without one, the real
-transport is this component's `app.services.telemetry` module, so both modules
-share a single Redis publisher and events are never sent twice.
+Publishing never blocks or breaks an audit. After a failed Redis connect the
+module stays quiet for a cooldown, so a dead Redis is paid for once.
 """
 import json
 import logging
-from datetime import UTC, datetime
+import threading
+import time
 
 from app import config
-from app.services import telemetry
+from app.schemas.findings import TraceEntry, now_iso
 
 logger = logging.getLogger("c03.events")
 
+CONNECT_TIMEOUT = 0.3
+RETRY_COOLDOWN = 30.0
+_redis = None
+_blocked_until = 0.0
+_lock = threading.Lock()
 
-def _now() -> str:
-    return datetime.now(UTC).isoformat()
+
+def _redis_client():
+    """Shared Redis client, or None while Redis is unreachable."""
+    global _redis, _blocked_until
+    with _lock:
+        if _redis is not None:
+            return _redis
+        if time.monotonic() < _blocked_until:
+            return None
+        try:
+            import redis
+            client = redis.from_url(config.REDIS_URL, decode_responses=True,
+                                    socket_connect_timeout=CONNECT_TIMEOUT,
+                                    socket_timeout=CONNECT_TIMEOUT)
+            client.ping()
+        except Exception:  # noqa: BLE001 - telemetry must never break C03
+            _blocked_until = time.monotonic() + RETRY_COOLDOWN
+            logger.warning("Redis at %s unreachable; trace events dropped for %.0fs.",
+                           config.REDIS_URL, RETRY_COOLDOWN)
+            return None
+        _redis = client
+        return _redis
 
 
 class EventPublisher:
-    """Publishes JSON events. An injected client captures them directly."""
+    """One per run, so concurrent audits never share their sent/failed state.
+    Inject `client` (anything with .publish(channel, text)) in tests."""
 
-    def __init__(self, client=None, channel: str | None = None):
+    def __init__(self, client=None, channel: str | None = None) -> None:
         self._client = client
-        self._injected = client is not None
         self.channel = channel or config.TRACE_CHANNEL
-        self.reset()
-
-    def reset(self) -> None:
-        """Clear per-run state. Called at the start of every pipeline.
-
-        run_case/stream_case build a fresh publisher per run, so two concurrent
-        audits never share these flags; this is defensive for reuse too.
-        """
         self._sent = 0
-        self._disabled = False
         self._failed = False
-        self._warned = False
+        self._disabled = False
 
     @property
     def published(self) -> bool:
-        """True only when every event of this run was sent (no drop, no disable)."""
+        """True only when every event of this run was sent."""
         return self._sent > 0 and not self._failed and not self._disabled
 
-    def _record(self, ok: bool) -> None:
-        if ok:
-            self._sent += 1
-        else:
+    def _send(self, payload: dict) -> None:
+        if self._client is None and not config.EVENTS_ENABLED:
+            self._disabled = True
+            return
+        client = self._client or _redis_client()
+        if client is None:
             self._failed = True
-
-    def publish(self, payload: dict) -> None:
-        """Send raw JSON to the injected client. A no-op without one."""
-        if not self._injected:
             return
         try:
-            self._client.publish(self.channel, json.dumps(payload, default=str))
-            self._record(True)
+            client.publish(self.channel, json.dumps(payload, default=str))
+            self._sent += 1
         except Exception:  # noqa: BLE001 - best-effort publish must never raise
-            self._record(False)
-            if not self._warned:
-                logger.warning("Trace event publish failed; continuing audit.")
-                self._warned = True
+            if not self._failed:
+                logger.warning("Trace event publish failed; audit continues.")
+            self._failed = True
 
     def note(self) -> str | None:
-        """Why C4 got no (or incomplete) events, or None when all is well."""
-        if self._failed:
-            return ("Trace event publish failed; C4's trace is incomplete "
-                    "(the audit itself is unaffected).")
+        """Why C4's trace is incomplete, or None when every event was sent."""
         if self._disabled:
-            return ("Trace events are disabled (C03_EVENTS_ENABLED is off); "
-                    "C4 receives nothing.")
+            return "Trace events are disabled (C03_EVENTS_ENABLED is off); C4 receives nothing."
+        if self._failed:
+            return "Trace event publish failed; C4's trace is incomplete (the audit is unaffected)."
         if not self.published:
             return "No trace events were sent to C4."
         return None
 
-    def pipeline_start(self, case_id: str, doc_count: int) -> None:
-        self.reset()
-        if self._injected:
-            self.publish({"event": "pipeline_start", "ts": _now(),
-                          "case_id": case_id, "doc_count": doc_count})
-            return
-        if not config.EVENTS_ENABLED:
-            self._disabled = True
-            return
-        self._record(telemetry.emit_pipeline_start(case_id, doc_count))
+    def pipeline_start(self, case_id: str, doc_count: int, version: int) -> None:
+        self._send({"event": "pipeline_start", "ts": now_iso(), "case_id": case_id,
+                    "doc_count": doc_count, "version": version})
 
     def agent_end(self, case_id: str, agent: str, findings_count: int,
-                  trace: dict) -> None:
-        if self._injected:
-            self.publish({"event": "agent_end", "ts": _now(),
-                          "case_id": case_id, "agent": agent,
-                          "findings_count": findings_count, "trace": trace})
-            return
-        if not config.EVENTS_ENABLED:
-            self._disabled = True
-            return
-        self._record(telemetry.emit_agent_end(case_id, agent, findings_count, trace))
+                  trace: list[TraceEntry]) -> None:
+        entries = [t.model_dump() for t in trace]
+        self._send({"event": "agent_end", "ts": now_iso(), "case_id": case_id,
+                    "agent": agent, "findings_count": findings_count,
+                    "trace": entries[0] if entries else {}, "traces": entries})
 
-    def pipeline_end(self, case_id: str, total_findings: int) -> None:
-        if self._injected:
-            self.publish({"event": "pipeline_end", "ts": _now(),
-                          "case_id": case_id, "total_findings": total_findings})
-            return
-        if not config.EVENTS_ENABLED:
-            self._disabled = True
-            return
-        self._record(telemetry.emit_pipeline_end(case_id, total_findings))
-
-
-_publisher = EventPublisher()
-
-
-def default_publisher() -> EventPublisher:
-    return _publisher
+    def pipeline_end(self, case_id: str, total_findings: int, version: int, status: str) -> None:
+        self._send({"event": "pipeline_end", "ts": now_iso(), "case_id": case_id,
+                    "total_findings": total_findings, "version": version, "status": status})

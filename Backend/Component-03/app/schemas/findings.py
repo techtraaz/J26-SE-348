@@ -1,4 +1,4 @@
-"""Finding shapes. Verdict word replaced with finding pending auditor review."""
+"""Finding and result shapes. A finding is pending auditor review, never a verdict."""
 from datetime import UTC, datetime
 from typing import Literal
 
@@ -6,17 +6,19 @@ from pydantic import BaseModel, Field
 
 Category = Literal["arithmetic", "ledger", "format", "compliance", "possible_fraud"]
 Severity = Literal["low", "medium", "high"]
-# Auditor review state for one finding. Agreed with the frontend type.
 ReviewStatus = Literal["pending_review", "confirmed", "dismissed", "needs_more_evidence"]
+# passed: every claim matched the document. existence_only: no value claims, cited
+# documents exist. failed: a cited ID or value is wrong. unverified: nothing to check.
+EvidenceValidation = Literal["unverified", "passed", "existence_only", "failed"]
+Status = Literal["pending_auditor_review", "not_auditable"]
 
 
-def _now() -> str:
+def now_iso() -> str:
     return datetime.now(UTC).isoformat()
 
 
 class EvidenceClaim(BaseModel):
-    """One checkable claim: doc's field really holds this value.
-    Validation verifies it in code (numbers within tolerance)."""
+    """One checkable claim: this document's field holds this value."""
     evidence_id: str
     field: str
     claimed_value: float | str
@@ -24,30 +26,27 @@ class EvidenceClaim(BaseModel):
 
 class Finding(BaseModel):
     finding_id: str
-    rule_id: str  # e.g. CHK-001, POL-07 — always cite, so trace stays
+    rule_id: str  # KG rule (CHK-*, POL-*) or C3 review item (REV-*)
     category: Category
     severity: Severity
     message: str
-    evidence_ids: list[str] = []
-    policy_ids: list[str] = []
+    evidence_ids: list[str] = Field(default_factory=list)
+    policy_ids: list[str] = Field(default_factory=list)
     confidence: float = 1.0
-    # Set by Reasoning from confidence: low confidence -> "needs_more_evidence".
     review_status: ReviewStatus = "pending_review"
-    # Structured claims Validation actually checks (existence + value match).
     claims: list[EvidenceClaim] = Field(default_factory=list)
-    # Contract fields for Component-04 (Thennakoon). Filled by Reasoning, not empty.
     reasoning_chain: list[str] = Field(default_factory=list)
-    evidence_validation: str = "unverified"
+    evidence_validation: EvidenceValidation = "unverified"
     citation_unverified: bool = False
-    supersedes: int | None = None  # previous version number this finding replaces
-    created_at: str = Field(default_factory=_now)
+    supersedes: int | None = None  # version whose same finding_id this one replaces
+    created_at: str = Field(default_factory=now_iso)
 
 
 class TraceEntry(BaseModel):
     agent_name: str
     decision_type: str
     detail: str
-    seq: int = 0  # completion-order stamp, set inside node at run time (not start order)
+    seq: int = 0  # completion order inside the graph; 0 for run-level notes
 
 
 class RejectedFinding(BaseModel):
@@ -58,19 +57,14 @@ class RejectedFinding(BaseModel):
 class AuditResult(BaseModel):
     case_id: str
     version: int = 1
-    # Where the knowledge-graph data came from: live, mock, or mock_fallback.
-    # A mock result must never look live.
-    kg_source: str = "mock"
-    # Wall-clock time for the whole case, measured with perf_counter.
+    kg_source: str = "mock"  # live, mock or mock_fallback; a mock never looks live
     latency_ms: float = 0.0
-    # pending_auditor_review = checked, needs human. not_auditable = nothing
-    # could be checked (empty or all-rejected case); findings carry the DQ reasons.
-    status: str = "pending_auditor_review"
-    findings: list[Finding] = []
-    trace: list[TraceEntry] = []
-    rejected_records: list[str] = []  # doc_ids DQ rejected, logged not discarded
-    rejected_citations: list[str] = []  # ONLY the failing IDs, not every ID on the finding
-    rejected_findings: list[RejectedFinding] = []  # dropped findings + reason each
-    # True when the C4 trace events were actually published (C4's XAI trace is
-    # complete). False when events were disabled or dropped; a trace line says why.
-    events_published: bool = False
+    # not_auditable = nothing could be checked; findings then carry the DQ reasons.
+    status: Status = "pending_auditor_review"
+    findings: list[Finding] = Field(default_factory=list)
+    trace: list[TraceEntry] = Field(default_factory=list)
+    rejected_records: list[str] = Field(default_factory=list)  # doc_ids DQ rejected
+    rejected_citations: list[str] = Field(default_factory=list)  # only the failing IDs
+    rejected_findings: list[RejectedFinding] = Field(default_factory=list)
+    events_published: bool = False  # True when C4 received every trace event
+    created_at: str = Field(default_factory=now_iso)

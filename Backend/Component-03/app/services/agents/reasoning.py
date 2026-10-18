@@ -1,98 +1,80 @@
-"""Agent 4: Reasoning — merge findings, fill reasoning_chain for every finding.
-Chain steps per finding: which rule, which values, which evidence.
-SO3: the KG policy -> control -> transaction -> evidence chain is appended per
-cited document, and a missing-evidence gap becomes a visible CHK-008 review
-finding (never hidden). LLM writes the 1-line summary only; Validation checks
-the structured claims in code (not the LLM sentence)."""
+"""Agent 4: Reasoning. Merges the findings and fills each reasoning_chain:
+rule -> KG basis (standard / paragraph) -> values checked -> evidence -> KG links.
+
+SO3: for every cited document the KG evidence chain (linked documents) is read;
+a linked document that is not in the case becomes a visible REV-005 review
+item. KG lookups that fail are reported in the trace, never hidden. The LLM
+writes the one-line summary only.
+"""
 from app import config
 from app.schemas.case import AuditCase
 from app.schemas.findings import Finding, TraceEntry
-from app.services import llm
+from app.schemas.kg import RuleExplanation
+from app.services import llm, rules
 from app.services.kg_client import KGClient, KGError
 
 
-def _chain_for(f: Finding) -> list[str]:
-    steps = [f"rule {f.rule_id} ({f.category}, {f.severity})"]
-    for c in f.claims:
-        steps.append(f"check {c.evidence_id}.{c.field} == {c.claimed_value}")
-    steps.append(f"evidence: {', '.join(f.evidence_ids) if f.evidence_ids else 'none'}")
-    return steps
-
-
-def _kg_step(doc_id: str, chain: list[str]) -> str:
-    return f"kg chain {doc_id}: {' -> '.join(chain)}"
-
-
-def _attach_kg_chains(findings: list[Finding], case: AuditCase,
-                      kg: KGClient | None
-                      ) -> tuple[dict[str, list[str]], list[str]]:
-    """Append the KG chain to each finding citing a case doc. Returns
-    (doc_id -> missing_evidence, list of failed lookups). An unusable chain
-    never breaks the audit, but it is reported, never hidden."""
-    if kg is None:
-        return {}, []
-    doc_ids = {d.doc_id for d in case.docs}
-    cited = sorted({e for f in findings for e in f.evidence_ids if e in doc_ids})
-    chain_text: dict[str, str] = {}
-    missing: dict[str, list[str]] = {}
-    failures: list[str] = []
-    for doc_id in cited:
-        try:
-            ec = kg.get_evidence_chain(doc_id)
-        except (ValueError, KGError) as exc:
-            failures.append(f"{doc_id} ({exc})")
-            continue
-        if ec.chain:
-            chain_text[doc_id] = _kg_step(doc_id, ec.chain)
-        if ec.missing_evidence:
-            missing[doc_id] = list(ec.missing_evidence)
-    for f in findings:
-        for eid in f.evidence_ids:
-            step = chain_text.get(eid)
-            if step and step not in f.reasoning_chain:
-                f.reasoning_chain.append(step)
-    return missing, failures
+def _is_kg_rule(rule_id: str) -> bool:
+    return rule_id.startswith(("CHK-", "POL-"))
 
 
 def run(case: AuditCase, findings: list[Finding],
-        kg: KGClient | None = None) -> tuple[list[Finding], list[TraceEntry]]:
-    for f in findings:
-        if not f.policy_ids and f.rule_id.startswith("CHK"):
-            f.policy_ids = [f.rule_id]
-        f.reasoning_chain = _chain_for(f)
+        kg: KGClient) -> tuple[list[Finding], list[TraceEntry]]:
+    out = [f.model_copy(deep=True) for f in findings]
+    case_ids = {d.doc_id for d in case.docs}
+    failures: list[str] = []
 
-    missing, kg_failures = _attach_kg_chains(findings, case, kg)
-    for doc_id, miss in missing.items():
-        findings.append(Finding(
-            finding_id=f"{doc_id}-CHK008-chain", rule_id="CHK-008",
-            category="format", severity="medium",
-            message=(f"Evidence chain incomplete for {doc_id}: missing "
-                     f"{', '.join(miss)}. More evidence needed."),
-            evidence_ids=[doc_id],
-            reasoning_chain=["rule CHK-008 (format, medium)",
-                             f"evidence: {doc_id}"],
-            review_status="needs_more_evidence"))
+    explanations: dict[str, RuleExplanation | None] = {}
+    for rule_id in sorted({f.rule_id for f in out if _is_kg_rule(f.rule_id)}):
+        try:
+            explanations[rule_id] = kg.explain_rule(rule_id)
+        except (ValueError, KGError) as exc:
+            failures.append(f"explain {rule_id} ({exc})")
 
-    for f in findings:
+    links: dict[str, list[str]] = {}
+    for doc_id in sorted({e for f in out for e in f.evidence_ids if e in case_ids}):
+        try:
+            links[doc_id] = [x for x in kg.get_evidence_chain(doc_id) if x != doc_id]
+        except (ValueError, KGError) as exc:
+            failures.append(f"evidence chain {doc_id} ({exc})")
+
+    for doc_id, linked in links.items():
+        absent = [x for x in linked if x not in case_ids]
+        if absent:
+            out.append(rules.review(
+                f"{doc_id}-REV005", "REV-005",
+                f"The knowledge graph links {doc_id} to {', '.join(absent)}, which "
+                f"{'is' if len(absent) == 1 else 'are'} not in this case. Supply "
+                f"{'it' if len(absent) == 1 else 'them'} to complete the evidence chain.",
+                [doc_id], severity="medium"))
+
+    for f in out:
+        chain = [f"rule {f.rule_id} ({f.category}, {f.severity})"]
+        exp = explanations.get(f.rule_id)
+        if exp is not None:
+            if exp.explanation:
+                chain.append(f"basis: {exp.explanation}")
+            for ref in (c.ref for c in exp.citations):
+                if ref and ref not in f.policy_ids:
+                    f.policy_ids.append(ref)
+        chain += [f"check {c.evidence_id}.{c.field} = {rules.fmt(c.claimed_value)}"
+                  for c in f.claims]
+        chain.append(f"evidence: {', '.join(f.evidence_ids) or 'none'}")
+        for e in f.evidence_ids:
+            if links.get(e):
+                chain.append(f"kg links {e} -> {', '.join(links[e])}")
+        f.reasoning_chain = chain
         if f.confidence < config.REVIEW_CONFIDENCE_LIMIT:
             f.review_status = "needs_more_evidence"
-    needs_review = [f for f in findings if f.review_status == "needs_more_evidence"]
 
-    cited = sorted({e for f in findings for e in f.evidence_ids})
-    cite_text = ", ".join(cited) if cited else "no evidence"
-    summary = llm.explain_with_llm(
-        f"Say only: case {case.case_id} has {len(findings)} finding(s) citing {cite_text}. No other facts.",
-        fallback=f"Case {case.case_id}: {len(findings)} finding(s) citing {cite_text}, all {config.FINDINGS_STATUS_DEFAULT}.")
+    reviews = sum(f.review_status == "needs_more_evidence" for f in out)
+    summary = llm.narrate(
+        f"Say only: case {case.case_id} has {len(out)} finding(s), {reviews} need review.",
+        fallback=f"Case {case.case_id}: {len(out)} finding(s), {reviews} need review, "
+                 f"all pending auditor review.")
     trace = [TraceEntry(agent_name="reasoning", decision_type="merge", detail=summary)]
-    if needs_review:
-        trace.append(TraceEntry(
-            agent_name="reasoning", decision_type="review",
-            detail=(f"{len(needs_review)} finding(s) need more evidence "
-                    f"(low confidence or missing chain).")))
-    if kg_failures:
-        trace.append(TraceEntry(
-            agent_name="reasoning", decision_type="kg",
-            detail=(f"KG evidence-chain lookup failed for "
-                    f"{', '.join(kg_failures)}; chain left unfilled (visible, "
-                    f"not hidden).")))
-    return findings, trace
+    if failures:
+        trace.append(TraceEntry(agent_name="reasoning", decision_type="kg",
+                                detail="KG lookup failed, chain left partial: "
+                                       + "; ".join(failures) + "."))
+    return out, trace
