@@ -1,7 +1,7 @@
 """In-memory SSE broadcast manager, partitioned by case_id.
 
 Each connected frontend client opens an SSE stream for a specific case.
-The subscriber calls ``broadcast()`` after every DB write, which fans
+The trace reader calls ``broadcast()`` after every DB write, which fans
 the enriched trace out to every queue registered for that case_id.
 
 Design:

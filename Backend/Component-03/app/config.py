@@ -122,10 +122,9 @@ COUNTERS_COLLECTION: str = "c03_version_counters"
 # mongo -> MongoDB (fails loudly when unreachable); memory -> process only (tests/dev)
 STORE_MODE: str = os.getenv("C03_STORE_MODE", "mongo" if MONGODB_URI else "memory")
 
-# --- Trace events for Component-04 (Redis pub/sub, best-effort) ------------
-EVENTS_ENABLED: bool = _flag("C03_EVENTS_ENABLED", True)
-REDIS_URL: str = os.getenv("C03_REDIS_URL", "redis://localhost:6379/0")
-TRACE_CHANNEL: str = os.getenv("C03_TRACE_CHANNEL", "nomos:trace_events")
+# --- XAI callback traces (MongoDB, fire-and-forget for Component-04) --------
+CALLBACK_TRACES_COLLECTION: str = "c03_callback_traces"
+CALLBACK_TRACES_TTL_DAYS: int = int(os.getenv("C03_CALLBACK_TTL_DAYS", "7"))
 
 # --- API ---------------------------------------------------------------------
 CORS_ORIGINS: list[str] = [o.strip() for o in os.getenv(

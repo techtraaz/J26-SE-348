@@ -13,7 +13,6 @@ from app.services import intake, orchestrator
 from app.services.copilot import whatif
 from app.services.copilot.entities import Entities
 from app.services.copilot.registry import REGISTRY, intent
-from app.services.events import EventPublisher
 from app.services.kg_client import KGClient
 from app.services.rules import fmt
 from app.services.store import MemoryStore, ResultStore
@@ -116,8 +115,7 @@ def whatif_check(turn: Turn) -> Reply:
         return Reply("I could not match the amounts to document fields. Say what each amount "
                      "is, e.g. 'invoice amount Rs 150,000, paid in cash'.", {"read": read})
     case = intake.normalize_case({"case_id": "WHATIF", "docs": [doc]})
-    result = orchestrator.run_case(case, turn.kg, store=MemoryStore(),
-                                   publisher=EventPublisher(silent_reason="what-if check"), narrate=False)
+    result = orchestrator.run_case(case, turn.kg, store=MemoryStore(), narrate=False)
     findings = [f.model_dump() for f in result.findings]
     rule_findings = [f for f in findings if not f["rule_id"].startswith("REV-")]
     shown = ", ".join(f"{k}={fmt(v) if isinstance(v, float) else v}" for k, v in read["fields"].items())

@@ -24,16 +24,15 @@ class StoreError(RuntimeError):
 class ResultStore:
     def next_version(self, case_id: str) -> int: raise NotImplementedError
     def save(self, case: AuditCase, result: AuditResult) -> None: raise NotImplementedError
-    def set_events(self, case_id: str, version: int, published: bool,
-                   note: str | None) -> None:
-        """Record the C4 event outcome, known only after pipeline_end was sent."""
-        raise NotImplementedError
     def get(self, case_id: str, version: int) -> dict | None: raise NotImplementedError
     def latest(self, case_id: str) -> dict | None: raise NotImplementedError
     def versions(self, case_id: str) -> list[dict]: raise NotImplementedError
     def latest_all(self, limit: int = 200) -> list[dict]:
         """Newest version of every case, newest first."""
         raise NotImplementedError
+    def traces_collection(self):
+        """Return the MongoDB collection for XAI callback traces, or None."""
+        return None
 
 
 def _record(case: AuditCase, result: AuditResult) -> dict:
@@ -41,8 +40,7 @@ def _record(case: AuditCase, result: AuditResult) -> dict:
             "case": case.model_dump()}
 
 
-def _events_entry(note: str) -> dict:
-    return TraceEntry(agent_name="events", decision_type="events", detail=note).model_dump()
+
 
 
 def _summary(rec: dict) -> dict:
@@ -71,12 +69,7 @@ class MemoryStore(ResultStore):
                 raise StoreError(f"version {result.version} of {result.case_id} already saved")
             runs[result.version] = _record(case, result)
 
-    def set_events(self, case_id, version, published, note):
-        with self._lock:
-            rec = self._records[case_id][version]
-            rec["events_published"] = published
-            if note:
-                rec["trace"] = [*rec["trace"], _events_entry(note)]
+
 
     def get(self, case_id, version):
         rec = self._records.get(case_id, {}).get(version)
@@ -119,6 +112,11 @@ class MongoStore(ResultStore):
                 try:
                     db[config.RESULTS_COLLECTION].create_index(
                         [("case_id", 1), ("version", -1)], unique=True)
+                    # TTL index: auto-expire callback traces after N days
+                    db[config.CALLBACK_TRACES_COLLECTION].create_index(
+                        "ts", expireAfterSeconds=config.CALLBACK_TRACES_TTL_DAYS * 86400)
+                    db[config.CALLBACK_TRACES_COLLECTION].create_index(
+                        [("case_id", 1), ("version", 1), ("seq", 1)])
                 except PyMongoError as exc:
                     raise StoreError(f"MongoDB is not reachable: {exc}") from exc
                 self._ready = True
@@ -141,12 +139,12 @@ class MongoStore(ResultStore):
     def save(self, case, result):
         self._run(lambda db: db[config.RESULTS_COLLECTION].insert_one(_record(case, result)))
 
-    def set_events(self, case_id, version, published, note):
-        change: dict = {"$set": {"events_published": published}}
-        if note:
-            change["$push"] = {"trace": _events_entry(note)}
-        self._run(lambda db: db[config.RESULTS_COLLECTION].update_one(
-            {"_id": f"{case_id}:v{version}"}, change))
+    def traces_collection(self):
+        """Return the callback traces collection for XAITracerCallback."""
+        try:
+            return self._db()[config.CALLBACK_TRACES_COLLECTION]
+        except Exception:  # noqa: BLE001 — never block the audit
+            return None
 
     def get(self, case_id, version):
         return self._run(lambda db: db[config.RESULTS_COLLECTION].find_one(
