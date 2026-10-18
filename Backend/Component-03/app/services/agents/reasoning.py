@@ -18,8 +18,8 @@ def _is_kg_rule(rule_id: str) -> bool:
     return rule_id.startswith(("CHK-", "POL-"))
 
 
-def run(case: AuditCase, findings: list[Finding],
-        kg: KGClient) -> tuple[list[Finding], list[TraceEntry]]:
+def run(case: AuditCase, findings: list[Finding], kg: KGClient,
+        narrate: bool = True) -> tuple[list[Finding], list[TraceEntry]]:
     out = [f.model_copy(deep=True) for f in findings]
     case_ids = {d.doc_id for d in case.docs}
     failures: list[str] = []
@@ -68,10 +68,11 @@ def run(case: AuditCase, findings: list[Finding],
             f.review_status = "needs_more_evidence"
 
     reviews = sum(f.review_status == "needs_more_evidence" for f in out)
+    fallback = (f"Case {case.case_id}: {len(out)} finding(s), {reviews} need review, "
+                f"all pending auditor review.")
     summary = llm.narrate(
         f"Say only: case {case.case_id} has {len(out)} finding(s), {reviews} need review.",
-        fallback=f"Case {case.case_id}: {len(out)} finding(s), {reviews} need review, "
-                 f"all pending auditor review.")
+        fallback=fallback) if narrate else fallback
     trace = [TraceEntry(agent_name="reasoning", decision_type="merge", detail=summary)]
     if failures:
         trace.append(TraceEntry(agent_name="reasoning", decision_type="kg",

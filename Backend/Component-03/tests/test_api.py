@@ -1,9 +1,6 @@
-import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.schemas.copilot import CopilotQuery
-from app.services import copilot, llm
 from app.services.store import StoreError
 from tests.conftest import doc
 
@@ -51,39 +48,3 @@ def test_c1_intake_endpoint_can_run():
 def test_stream_endpoint():
     lines = client.post("/audit/run/stream", json=CASE).text.strip().splitlines()
     assert '"result"' in lines[-1]
-
-
-@pytest.mark.parametrize("text,has_docs,intent", [
-    ("What is the dual approval limit for invoices?", False, "rule_query"),
-    ("explain CHK-004", False, "rule_query"),
-    ("what does LKAS 2 say about inventories", False, "rule_query"),
-    ("add this new receipt to the case", True, "evidence_append"),
-    ("attach the bank statement", True, "evidence_append"),
-    ("run a fresh audit on these", True, "fresh_audit"),
-    ("please check these documents", True, "fresh_audit"),
-    ("what is materiality", False, "rule_query"),
-    ("my address changed", True, "fresh_audit"),  # 'add' only as a whole word
-])
-def test_classify(text, has_docs, intent):
-    assert copilot.classify(text, has_docs) == intent
-
-
-def test_copilot_rule_query_reads_kg():
-    r = client.post("/copilot/query", json={"text": "rules for invoice and explain CHK-001"}).json()
-    assert r["intent"] == "rule_query" and "POL-07" in r["reply"] and "CHK-001" in r["reply"]
-
-
-def test_copilot_fresh_then_append(kg, store):
-    fresh = copilot.answer(CopilotQuery(text="fresh audit", case_id="CP", docs=CASE["docs"]), kg, store)
-    assert fresh.intent == "fresh_audit" and fresh.data["version"] == 1
-    added = copilot.answer(CopilotQuery(text="add this invoice", case_id="CP",
-                                        docs=[doc("INV", "invoice", {"amount": 5})]), kg, store)
-    assert added.intent == "evidence_append" and added.data["version"] == 2
-    missing = copilot.answer(CopilotQuery(text="add this", case_id="CP"), kg, store)
-    assert missing.data is None and "docs" in missing.reply
-
-
-def test_llm_line_must_only_repeat_given_numbers():
-    assert llm.is_safe("3 findings for 2 docs", "case has 3 findings for 2 docs")
-    assert not llm.is_safe("3 findings, Rs. 9,000 lost", "case has 3 findings")
-    assert not llm.is_safe("breaks GDPR", "x")

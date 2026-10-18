@@ -54,9 +54,11 @@ class EventPublisher:
     """One per run, so concurrent audits never share their sent/failed state.
     Inject `client` (anything with .publish(channel, text)) in tests."""
 
-    def __init__(self, client=None, channel: str | None = None) -> None:
+    def __init__(self, client=None, channel: str | None = None,
+                 silent_reason: str | None = None) -> None:
         self._client = client
         self.channel = channel or config.TRACE_CHANNEL
+        self._silent_reason = silent_reason  # e.g. what-if runs are never sent to C4
         self._sent = 0
         self._failed = False
         self._disabled = False
@@ -67,7 +69,7 @@ class EventPublisher:
         return self._sent > 0 and not self._failed and not self._disabled
 
     def _send(self, payload: dict) -> None:
-        if self._client is None and not config.EVENTS_ENABLED:
+        if self._silent_reason or (self._client is None and not config.EVENTS_ENABLED):
             self._disabled = True
             return
         client = self._client or _redis_client()
@@ -84,6 +86,8 @@ class EventPublisher:
 
     def note(self) -> str | None:
         """Why C4's trace is incomplete, or None when every event was sent."""
+        if self._silent_reason:
+            return f"Trace events not sent to C4: {self._silent_reason}."
         if self._disabled:
             return "Trace events are disabled (C03_EVENTS_ENABLED is off); C4 receives nothing."
         if self._failed:

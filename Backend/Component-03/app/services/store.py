@@ -31,6 +31,9 @@ class ResultStore:
     def get(self, case_id: str, version: int) -> dict | None: raise NotImplementedError
     def latest(self, case_id: str) -> dict | None: raise NotImplementedError
     def versions(self, case_id: str) -> list[dict]: raise NotImplementedError
+    def latest_all(self, limit: int = 200) -> list[dict]:
+        """Newest version of every case, newest first."""
+        raise NotImplementedError
 
 
 def _record(case: AuditCase, result: AuditResult) -> dict:
@@ -85,6 +88,11 @@ class MemoryStore(ResultStore):
 
     def versions(self, case_id):
         return [_summary(r) for _, r in sorted(self._records.get(case_id, {}).items())]
+
+    def latest_all(self, limit=200):
+        with self._lock:
+            newest = [dict(runs[max(runs)]) for runs in self._records.values() if runs]
+        return sorted(newest, key=lambda r: r["created_at"], reverse=True)[:limit]
 
 
 class MongoStore(ResultStore):
@@ -154,6 +162,14 @@ class MongoStore(ResultStore):
             {"version": 1, "status": 1, "created_at": 1, "findings.finding_id": 1,
              "case.docs.doc_id": 1}).sort("version", 1)))
         return [_summary(r) for r in rows]
+
+    def latest_all(self, limit=200):
+        return self._run(lambda db: list(db[config.RESULTS_COLLECTION].aggregate([
+            {"$sort": {"case_id": 1, "version": -1}},
+            {"$group": {"_id": "$case_id", "rec": {"$first": "$$ROOT"}}},
+            {"$replaceRoot": {"newRoot": "$rec"}},
+            {"$sort": {"created_at": -1}},
+            {"$limit": limit}])))
 
 
 _store: ResultStore | None = None

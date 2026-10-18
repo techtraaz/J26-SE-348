@@ -1,0 +1,119 @@
+[
+  {
+    "mode": "rules",
+    "n": 63,
+    "accuracy": 0.984,
+    "group_accuracy": 1.0,
+    "mean_latency_s": 0.0,
+    "decided_by": {
+      "rules": 63
+    },
+    "model": null,
+    "misses": [
+      {
+        "text": "what triggered the fraud flag on INV-9?",
+        "expected": "explain_finding",
+        "got": "list_findings",
+        "method": "rules",
+        "llm_error": null
+      }
+    ]
+  },
+  {
+    "mode": "llm",
+    "n": 63,
+    "accuracy": 0.873,
+    "group_accuracy": 0.968,
+    "mean_latency_s": 2.834,
+    "decided_by": {
+      "llm": 63
+    },
+    "model": "ollama:phi4-mini",
+    "misses": [
+      {
+        "text": "according to SLAuS 240 what is the auditor responsible for",
+        "expected": "standard_search",
+        "got": "rule_lookup",
+        "method": "llm",
+        "llm_error": null
+      },
+      {
+        "text": "is case B-77 auditable?",
+        "expected": "case_status",
+        "got": "search_cases",
+        "method": "llm",
+        "llm_error": null
+      },
+      {
+        "text": "list the possible fraud issues in this case",
+        "expected": "list_findings",
+        "got": "search_cases",
+        "method": "llm",
+        "llm_error": null
+      },
+      {
+        "text": "any problems with the invoices in case ACME-2026?",
+        "expected": "list_findings",
+        "got": "fresh_audit",
+        "method": "llm",
+        "llm_error": null
+      },
+      {
+        "text": "which cases failed CHK-002",
+        "expected": "search_cases",
+        "got": "list_findings",
+        "method": "llm",
+        "llm_error": null
+      },
+      {
+        "text": "here is another invoice for case ACME-2026, include it",
+        "expected": "evidence_append",
+        "got": "fresh_audit",
+        "method": "llm",
+        "llm_error": null
+      },
+      {
+        "text": "run this case once more",
+        "expected": "rerun_audit",
+        "got": "fresh_audit",
+        "method": "llm",
+        "llm_error": null
+      },
+      {
+        "text": "assets of 500,000, liabilities 300,000 and capital 150,000 - does that balance?",
+        "expected": "whatif_check",
+        "got": "fresh_audit",
+        "method": "llm",
+        "llm_error": null
+      }
+    ]
+  },
+  {
+    "mode": "auto",
+    "n": 63,
+    "accuracy": 0.968,
+    "group_accuracy": 1.0,
+    "mean_latency_s": 0.988,
+    "decided_by": {
+      "llm": 22,
+      "rules": 41
+    },
+    "model": "ollama:phi4-mini",
+    "misses": [
+      {
+        "text": "which documents got rejected in this case",
+        "expected": "evidence_gaps",
+        "got": "list_findings",
+        "method": "llm",
+        "llm_error": null
+      },
+      {
+        "text": "audit case ACME-2026 again, the rules were updated",
+        "expected": "rerun_audit",
+        "got": "fresh_audit",
+        "method": "llm",
+        "llm_error": null
+      }
+    ]
+  }
+]

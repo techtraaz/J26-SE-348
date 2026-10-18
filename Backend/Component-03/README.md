@@ -36,7 +36,7 @@ result is never returned unless it was saved.
 | GET | `/audit/{case_id}/versions` | every saved version (summary) |
 | GET | `/audit/{case_id}/versions/{v}` | one saved version, with its input case |
 | GET | `/audit/{case_id}/latest` | newest saved version |
-| POST | `/copilot/query` | `{text, case_id?, docs?}` → rule query / evidence append / fresh audit |
+| POST | `/copilot/query` | `{text, case_id?, docs?}` → natural-language request (see Copilot) |
 | GET | `/kg/rules/{doc_type}` | the KG rules C3 would apply |
 
 ## Inputs
@@ -79,6 +79,48 @@ violations:
 `evidence_validation`: `passed` (every claimed value matched), `existence_only`
 (cited docs exist, no values to check), `failed` (kept, flagged, and logged in
 `rejected_findings`), `unverified` (no evidence cited).
+
+## Copilot
+
+`app/services/copilot/`:
+
+```
+text -> entities (code) -> intent (rules if confident, else LLM among the top 3) -> slot check -> handler
+```
+
+| Group (SO5) | Intents |
+|---|---|
+| rule_query | `rule_lookup` (rules/limits per doc type, compares a stated amount), `rule_explain`, `standard_search` |
+| case_query | `case_status`, `list_findings` (filter by severity/rule/doc/type/category/review), `explain_finding`, `evidence_gaps`, `compare_versions`, `list_versions`, `search_cases` |
+| evidence_append | `evidence_append` |
+| fresh_audit | `fresh_audit`, `rerun_audit`, `whatif_check` (audits a described transaction; not saved, not sent to C4) |
+| other | `help` |
+
+- **Adding an intent:** write one `@intent(...)` handler in `handlers.py`, with a
+  description, examples, patterns, signals and needs. The LLM prompt, the rules
+  fallback, the slot checks and the help text all come from it.
+- **Entities** (IDs, rule ids, severities, amounts…) are extracted in code only;
+  a small model was measured inventing them.
+- **Replies** are built in code from saved results and KG data.
+- **The response** has `intent`, `group`, `reply`, and `data`. `data` includes
+  `nlu`: how the intent was chosen and what the rules and the LLM each said.
+- **Any model:** set `C03_LLM_PROVIDER`, `C03_LLM_MODEL` and `C03_LLM_BASE_URL`.
+  New providers go in `app/services/llm/providers.py`.
+
+SO5 evaluation (`eval/copilot_intents.jsonl`, 63 labelled queries):
+
+```powershell
+.venv\Scripts\python.exe -m scripts.eval_copilot --out eval/results_copilot.json
+```
+
+| Mode | Intent acc. | Group acc. | Mean latency |
+|---|---|---|---|
+| rules | 98.4% | 100% | ~0 s |
+| llm (phi4-mini, all 15 intents) | 87.3% | 96.8% | 2.8 s |
+| auto (rules + phi4-mini on 22/63) | 96.8% | 100% | 1.0 s |
+
+The rules were written alongside this set, so their score is optimistic. An
+independent set written by other people is needed for the dissertation figure.
 
 ## Outputs for Component-04
 

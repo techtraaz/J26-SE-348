@@ -21,11 +21,31 @@ def _flag(name: str, default: bool) -> bool:
 
 _load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 
-# --- LLM (narration only; never decides a verdict) -------------------------
-MODEL_NAME: str = os.getenv("C03_MODEL_NAME", "phi4-mini")
+# --- LLM (self-hosted; narrates and reads requests, never decides a verdict) --
+# Provider: ollama | openai (any self-hosted OpenAI-compatible server: llama.cpp,
+# vLLM, LM Studio) | none. Swap the model here, no code change.
 LLM_ENABLED: bool = _flag("C03_LLM_ENABLED", True)
-OLLAMA_HOST: str = os.getenv("OLLAMA_HOST", "http://localhost:11434")
-LLM_TIMEOUT: float = float(os.getenv("C03_LLM_TIMEOUT", "8"))
+LLM_PROVIDER: str = os.getenv("C03_LLM_PROVIDER", "ollama").lower()
+MODEL_NAME: str = os.getenv("C03_LLM_MODEL", os.getenv("C03_MODEL_NAME", "phi4-mini"))
+LLM_BASE_URL: str = os.getenv("C03_LLM_BASE_URL", os.getenv(
+    "OLLAMA_HOST", "http://localhost:11434" if LLM_PROVIDER == "ollama" else "http://localhost:8080/v1"))
+LLM_API_KEY: str = os.getenv("C03_LLM_API_KEY", "")  # only if the local server needs one
+LLM_TIMEOUT: float = float(os.getenv("C03_LLM_TIMEOUT", "8"))  # audit trace narration
+COPILOT_LLM_TIMEOUT: float = float(os.getenv("C03_COPILOT_LLM_TIMEOUT", "25"))  # first call loads the model
+LLM_RETRY_COOLDOWN: float = float(os.getenv("C03_LLM_RETRY_COOLDOWN", "30"))
+
+# --- Copilot -------------------------------------------------------------------
+# auto  -> rules decide when confident, otherwise the LLM (rules if it fails)
+# rules -> never the LLM      llm -> always ask the LLM (rules if it fails)
+COPILOT_NLU: str = os.getenv("C03_COPILOT_NLU", "auto").lower()
+# Rules are "confident" with a top score >= this and a lead >= the margin.
+COPILOT_RULES_CONFIDENT_SCORE: float = float(os.getenv("C03_COPILOT_RULES_SCORE", "2.5"))
+COPILOT_RULES_MARGIN: float = float(os.getenv("C03_COPILOT_RULES_MARGIN", "1.0"))
+# In auto mode the LLM chooses among the rules' top N intents (all when none scored).
+COPILOT_LLM_CANDIDATES: int = int(os.getenv("C03_COPILOT_LLM_CANDIDATES", "3"))
+COPILOT_MAX_ITEMS: int = 10  # findings / cases listed in one reply
+# Fields read from a sentence are less certain than extracted documents.
+WHATIF_FIELD_CONFIDENCE: float = 0.6
 
 # NEVER let the LLM write free Cypher at run time. Locked.
 ALLOW_FREE_CYPHER: bool = False

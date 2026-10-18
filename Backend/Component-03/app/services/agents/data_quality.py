@@ -1,14 +1,15 @@
-"""Agent 1: Data Quality, the gatekeeper. Checks in Python; the LLM only narrates.
+"""Agent 1: Data Quality, the gatekeeper. Checks in Python, no LLM.
 
 Returns (findings, rejected_doc_ids, early_stop, trace). A document missing a
 required field (CHK-006) or of an unsupported type (REV-002) is rejected: kept
-in the result with its finding, excluded from the rule checks. The run stops early when nothing could be checked, and the findings
-then say why (never an empty, clean-looking result).
+in the result with its finding, excluded from the rule checks. The run stops
+early when nothing could be checked, and the findings then say why (never an
+empty, clean-looking result).
 """
 from app import config
 from app.schemas.case import AuditCase
 from app.schemas.findings import Finding, TraceEntry
-from app.services import llm, rules
+from app.services import rules
 
 
 def run(case: AuditCase) -> tuple[list[Finding], list[str], bool, list[TraceEntry]]:
@@ -28,11 +29,8 @@ def run(case: AuditCase) -> tuple[list[Finding], list[str], bool, list[TraceEntr
 
     reviews = sum(f.review_status == "needs_more_evidence" for f in findings)
     violations = len(findings) - reviews
-    note = llm.narrate(
-        f"Say only: data quality found {violations} violation(s) and {reviews} review "
-        f"item(s) in {len(case.docs)} document(s).",
-        fallback=f"Data quality: {violations} violation(s), {reviews} review item(s) "
-                 f"in {len(case.docs)} document(s).")
+    note = (f"Data quality: {violations} violation(s), {reviews} review item(s) "
+            f"in {len(case.docs)} document(s).")
     trace = [TraceEntry(agent_name="data_quality", decision_type="gate", detail=note)]
     if incomplete:
         trace.append(TraceEntry(agent_name="data_quality", decision_type="reject",

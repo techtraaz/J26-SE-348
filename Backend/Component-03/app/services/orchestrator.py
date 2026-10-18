@@ -45,6 +45,7 @@ class RunContext:
     case_id: str
     kg: KGClient
     publisher: EventPublisher
+    narrate: bool = True  # one LLM trace line from Reasoning; off for what-if checks
     seq: Iterator[int] = field(default_factory=lambda: itertools.count(1))
 
 
@@ -106,7 +107,7 @@ def n_anomaly(state: AuditState, config: RunnableConfig) -> dict:
 
 def n_reasoning(state: AuditState, config: RunnableConfig) -> dict:
     ctx = _ctx(config)
-    merged, t = reasoning.run(state["case"], list(state["findings"]), ctx.kg)
+    merged, t = reasoning.run(state["case"], list(state["findings"]), ctx.kg, ctx.narrate)
     return _finish(ctx, "reasoning", merged, {"reasoned": merged, "trace": t})
 
 
@@ -166,14 +167,14 @@ def _result(case: AuditCase, final: dict, version: int, previous: dict | None,
 
 
 def _execute(case: AuditCase, kg: KGClient | None, publisher: EventPublisher | None,
-             store: ResultStore | None) -> Iterator[tuple[str, Any]]:
+             store: ResultStore | None, narrate: bool = True) -> Iterator[tuple[str, Any]]:
     """Run the graph once. Yields ("update", per-node update) then ("result", AuditResult)."""
     kg = kg or default_kg()
     store = store or default_store()
     pub = publisher or EventPublisher()
     previous = store.latest(case.case_id)
     version = store.next_version(case.case_id)
-    ctx = RunContext(case_id=case.case_id, kg=kg, publisher=pub)
+    ctx = RunContext(case_id=case.case_id, kg=kg, publisher=pub, narrate=narrate)
     pub.pipeline_start(case.case_id, len(case.docs), version)
     start = time.perf_counter()
     final: dict | None = None
@@ -199,8 +200,8 @@ def _execute(case: AuditCase, kg: KGClient | None, publisher: EventPublisher | N
 
 def run_case(case: AuditCase, kg: KGClient | None = None,
              publisher: EventPublisher | None = None,
-             store: ResultStore | None = None) -> AuditResult:
-    for kind, data in _execute(case, kg, publisher, store):
+             store: ResultStore | None = None, narrate: bool = True) -> AuditResult:
+    for kind, data in _execute(case, kg, publisher, store, narrate):
         if kind == "result":
             return data
     raise OrchestratorConfigError("Run ended without a result.")
