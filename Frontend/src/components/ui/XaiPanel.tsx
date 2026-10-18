@@ -58,13 +58,17 @@ export function XaiPanel() {
     }
   }, [events]);
 
+  // The SSE stream ID: selected case, or the general session for copilot chats
+  const { generalSessionId } = useUI();
+  const streamId = selectedCase || generalSessionId;
+
   // SSE connection for live XAI traces
   useEffect(() => {
-    if (!xaiPanelOpen || !selectedCase || !env.c4Base) return;
+    if (!xaiPanelOpen || !streamId || !env.c4Base) return;
     setEvents([]);
     setInsight(null);
 
-    const url = `${env.c4Base}/xai/stream/${selectedCase}`;
+    const url = `${env.c4Base}/xai/stream/${streamId}`;
     const es = new EventSource(url);
     evtSourceRef.current = es;
 
@@ -94,7 +98,7 @@ export function XaiPanel() {
       evtSourceRef.current = null;
       setConnected(false);
     };
-  }, [xaiPanelOpen, selectedCase]);
+  }, [xaiPanelOpen, streamId]);
 
   // Generate report
   const handleGenerateReport = async () => {
@@ -217,7 +221,7 @@ export function XaiPanel() {
           <ThinkingTimeline
             events={events}
             insight={insight}
-            selectedCase={selectedCase}
+            streamId={streamId}
             connected={connected}
           />
         ) : (
@@ -236,25 +240,12 @@ export function XaiPanel() {
 
 /* ── Thinking Timeline ──────────────────────────────────────────────── */
 
-function ThinkingTimeline({ events, insight, selectedCase, connected }: {
+function ThinkingTimeline({ events, insight, streamId, connected }: {
   events: TraceEvent[];
   insight: string | null;
-  selectedCase: string | null;
+  streamId: string;
   connected: boolean;
 }) {
-  if (!selectedCase) {
-    return (
-      <div style={{ textAlign: "center", padding: "48px 20px", color: "var(--text-soft)" }}>
-        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--border)" strokeWidth="1.2" style={{ marginBottom: "14px" }}>
-          <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
-        </svg>
-        <p style={{ fontSize: "13px", lineHeight: 1.6, ...fontBase }}>
-          Select a case to view the<br />XAI execution timeline
-        </p>
-      </div>
-    );
-  }
-
   if (events.length === 0 && !insight) {
     return (
       <div style={{ textAlign: "center", padding: "48px 20px", color: "var(--text-soft)" }}>
@@ -262,10 +253,10 @@ function ThinkingTimeline({ events, insight, selectedCase, connected }: {
           <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
         </svg>
         <p style={{ fontSize: "13px", lineHeight: 1.6, ...fontBase }}>
-          {connected ? "Waiting for audit events…" : "Connecting to XAI stream…"}
+          {connected ? "Waiting for events…" : "Connecting to XAI stream…"}
         </p>
         <p style={{ fontSize: "11px", marginTop: "8px", color: "var(--text-soft)", ...monoFont }}>
-          {selectedCase}
+          {streamId}
         </p>
       </div>
     );
