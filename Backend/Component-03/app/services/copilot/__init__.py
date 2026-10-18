@@ -58,13 +58,50 @@ def _entities(q: CopilotQuery, store: ResultStore,
     return memory_rules.apply(ent, q.text, memory if same_case else None), case_id
 
 
+# ── Copilot XAI tracing (fire-and-forget, same collection as orchestrator) ──
+
+import logging
+import time
+from datetime import UTC, datetime
+
+_xai_log = logging.getLogger("c03.copilot.xai")
+_copilot_seq = 0
+
+
+def _copilot_emit(store: ResultStore, event: dict) -> None:
+    """Write one trace doc to c03_callback_traces. Swallows ALL errors."""
+    global _copilot_seq
+    _copilot_seq += 1
+    event["seq"] = _copilot_seq
+    try:
+        col = store.traces_collection()
+        if col is not None:
+            col.insert_one(event)
+    except Exception:  # noqa: BLE001
+        _xai_log.debug("Copilot trace write skipped (non-fatal)", exc_info=True)
+
+
 def answer(q: CopilotQuery, kg: KGClient | None = None, store: ResultStore | None = None,
            memory: SessionContext | None = None) -> CopilotResponse:
     """One request. `memory` (a chat session's context) lets follow-ups such as
     "why did that one fire?" resolve; without it every request stands alone."""
     kg = kg or default_kg()
     store = store or default_store()
+    t0 = time.perf_counter()
+    ts = datetime.now(UTC).isoformat()
+
     entities, case_id = _entities(q, store, memory)
+
+    # ── XAI: copilot_start ──
+    _copilot_emit(store, {
+        "event_type": "copilot_start",
+        "case_id": case_id or q.session_id or "general",
+        "version": 0,
+        "agent": "copilot",
+        "detail": q.text[:300],
+        "ts": ts,
+    })
+
     turn = Turn(query=q, entities=entities, kg=kg, store=store, case_id=case_id)
     ctx = RequestContext(has_docs=bool(q.docs), case_id=case_id,
                          case_audited=bool(case_id) and turn.record() is not None,
@@ -73,7 +110,32 @@ def answer(q: CopilotQuery, kg: KGClient | None = None, store: ResultStore | Non
     spec = REGISTRY[nlu.intent]
     meta = {"nlu": nlu.as_dict(), "entities": entities.as_dict(), "case_id": case_id}
 
+    # ── XAI: copilot_nlu ──
+    _copilot_emit(store, {
+        "event_type": "copilot_nlu",
+        "case_id": case_id or q.session_id or "general",
+        "version": 0,
+        "agent": "copilot_nlu",
+        "detail": f"Intent: {nlu.intent} (method: {nlu.method})",
+        "intent": nlu.intent,
+        "nlu_method": nlu.method,
+        "ts": datetime.now(UTC).isoformat(),
+    })
+
     def respond(reply: str, data: dict | None = None, needs: str | None = None) -> CopilotResponse:
+        # ── XAI: copilot_end ──
+        elapsed = (time.perf_counter() - t0) * 1000
+        _copilot_emit(store, {
+            "event_type": "copilot_end",
+            "case_id": case_id or q.session_id or "general",
+            "version": 0,
+            "agent": "copilot",
+            "detail": reply[:300],
+            "intent": spec.name,
+            "duration_ms": round(elapsed, 1),
+            "status": "needs_slot" if needs else "done",
+            "ts": datetime.now(UTC).isoformat(),
+        })
         return CopilotResponse(intent=spec.name, group=spec.group, reply=reply,
                                suggestions=[] if needs else list(spec.follow_ups),
                                data={**(data or {}), **meta, **({"needs": needs} if needs else {})})
@@ -91,3 +153,4 @@ def answer(q: CopilotQuery, kg: KGClient | None = None, store: ResultStore | Non
     except (ValueError, KGError) as exc:
         return respond(f"The knowledge graph could not answer: {exc}")
     return respond(out.text, out.data)
+

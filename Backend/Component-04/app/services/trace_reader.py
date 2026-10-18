@@ -56,6 +56,9 @@ def _sse_event_type(evt: CallbackEvent) -> str:
         "llm_end": "llm_done",
         "llm_error": "llm_error",
         "pipeline_end": "pipeline_end",
+        "copilot_start": "agent_thinking",
+        "copilot_nlu": "agent_done",
+        "copilot_end": "agent_done",
     }.get(evt.event_type, "trace")
 
 
@@ -235,6 +238,46 @@ async def _handle_pipeline_end(evt: CallbackEvent) -> None:
         insight_generator.maybe_generate_insight(evt.case_id, evt.total_findings or 0))
 
 
+# ── Copilot event handler ──────────────────────────────────────────────
+
+async def _handle_copilot(evt: CallbackEvent) -> None:
+    """Handle copilot trace events — persist and broadcast to SSE."""
+    _step_counters[evt.case_id] = _step_counters.get(evt.case_id, 0) + 1
+    step = _step_counters[evt.case_id]
+    received = _now_iso()
+    sse_type = _sse_event_type(evt)
+
+    run = await db.get_latest_run(evt.case_id)
+    run_id = run["id"] if run else 0
+
+    await db.insert_trace(
+        run_id=run_id,
+        case_id=evt.case_id,
+        event_type=evt.event_type,
+        agent_name=evt.agent or "copilot",
+        decision_type="copilot",
+        detail=evt.detail or evt.data.get("detail", ""),
+        findings_count=None,
+        step_index=step,
+        duration_ms=evt.duration_ms,
+        source_timestamp=evt.ts,
+        received_at=received,
+        raw_payload=evt.model_dump(),
+    )
+    await sse_manager.broadcast(evt.case_id, {
+        "event_type": sse_type,
+        "case_id": evt.case_id,
+        "agent_name": evt.agent or "copilot",
+        "detail": evt.detail or evt.data.get("detail", ""),
+        "duration_ms": evt.duration_ms,
+        "step_index": step,
+        "source_timestamp": evt.ts,
+        "received_at": received,
+    })
+    logger.info("  ├─ Copilot %s  case=%s  detail=%s",
+                evt.event_type, evt.case_id, (evt.detail or "")[:60])
+
+
 # ── Dispatcher ─────────────────────────────────────────────────────────
 
 async def _dispatch(raw: dict) -> None:
@@ -256,6 +299,8 @@ async def _dispatch(raw: dict) -> None:
             await _handle_chain_error(evt)
         case "pipeline_end":
             await _handle_pipeline_end(evt)
+        case "copilot_start" | "copilot_nlu" | "copilot_end":
+            await _handle_copilot(evt)
         case _:
             logger.debug("Ignoring event type: %s", evt.event_type)
 

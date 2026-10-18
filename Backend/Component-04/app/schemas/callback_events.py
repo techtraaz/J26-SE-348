@@ -12,6 +12,9 @@ Event types:
   - llm_end         : LLM response received
   - llm_error       : LLM call failed
   - pipeline_end    : full audit complete, includes total_findings and status
+  - copilot_start   : copilot query received
+  - copilot_nlu     : intent classification complete
+  - copilot_end     : copilot response ready
 """
 
 from __future__ import annotations
@@ -25,6 +28,7 @@ EventType = Literal[
     "pipeline_start", "pipeline_end",
     "chain_start", "chain_end", "chain_error",
     "llm_start", "llm_end", "llm_error",
+    "copilot_start", "copilot_nlu", "copilot_end",
 ]
 
 
@@ -56,6 +60,11 @@ class CallbackEvent(BaseModel):
     doc_count: int | None = None
     total_findings: int | None = None
     status: str | None = None
+
+    # copilot events
+    detail: str | None = None
+    intent: str | None = None
+    nlu_method: str | None = None
 
 
 def parse_callback_event(raw: dict[str, Any]) -> CallbackEvent:
