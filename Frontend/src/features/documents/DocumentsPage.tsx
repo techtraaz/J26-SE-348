@@ -2,21 +2,26 @@ import { useCallback, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { c1, c3 } from "@/lib/apiClient";
-import { auditSummary, DOC_TYPES, isJsonFile, isScan, readJsonDocuments } from "@/lib/documents";
+import { auditSummary, isJsonFile, isScan, readJsonDocuments } from "@/lib/documents";
 import { useUI } from "@/store/ui";
 import { routes } from "@/config/routes";
+import type { C1Record, DocumentPreview } from "@/types/review";
+import { ReviewPanel, type ReviewResult } from "@/features/documents/ReviewPanel";
 
-// A scanned file on its way through Component-01 before it becomes a case document.
+// A scanned file on its way through Component-01, then reviewed before it joins the case.
 interface Scan {
   key: string;
   name: string;
-  state: "uploading" | "extracting" | "ready" | "error";
+  state: "uploading" | "extracting" | "reading" | "review" | "error";
   message?: string;
-  extraction?: Record<string, unknown>;
-  docType: string;
-  year: number;
+  record?: C1Record; // C1's verified record when it has one, else its extraction
+  preview?: DocumentPreview;
 }
 
+const SCAN_STATE: Record<Scan["state"], string> = {
+  uploading: "Uploading to Component 01…", extracting: "Component 01 is reading the document…",
+  reading: "Matching lines to fields…", review: "", error: "",
+};
 const POLL_MS = 2000;
 const POLL_LIMIT = 90; // ~3 minutes
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -39,6 +44,18 @@ export function DocumentsPage() {
   const updateScan = (key: string, patch: Partial<Scan>) =>
     setScans((prev) => prev.map((s) => (s.key === key ? { ...s, ...patch } : s)));
 
+  // C3 reads the lines into fields; the reviewer checks them in the panel.
+  const readScan = useCallback(async (key: string, record: C1Record, docType?: string) => {
+    const { selectedCase: current, newCase: create } = useUI.getState();
+    const caseId = current ?? create();
+    try {
+      const [preview] = await c3.previewC1(caseId, [{ ...record, ...(docType ? { doc_type: docType } : {}) }]);
+      updateScan(key, { state: "review", preview });
+    } catch (e) {
+      updateScan(key, { state: "error", message: e instanceof Error ? e.message : "Could not read the document." });
+    }
+  }, []);
+
   const extract = useCallback(async (key: string, file: File) => {
     try {
       const { id } = await c1.upload(file);
@@ -47,7 +64,10 @@ export function DocumentsPage() {
         const doc = await c1.status(id);
         const state = doc.latest_run?.status;
         if (state === "succeeded") {
-          updateScan(key, { state: "ready", extraction: await c1.extraction(id) });
+          const verified = await c1.verified(id);
+          const record: C1Record = verified ? { verified } : { extraction: await c1.extraction(id) };
+          updateScan(key, { state: "reading", record });
+          await readScan(key, record);
           return;
         }
         if (state === "failed") throw new Error(doc.error_message || "Extraction failed in Component 01.");
@@ -57,7 +77,7 @@ export function DocumentsPage() {
     } catch (e) {
       updateScan(key, { state: "error", message: e instanceof Error ? e.message : "Upload failed." });
     }
-  }, []);
+  }, [readScan]);
 
   const handleFiles = useCallback(async (fileList: FileList) => {
     setNotice(null);
@@ -72,8 +92,7 @@ export function DocumentsPage() {
         }
       } else if (isScan(f) && c1.enabled()) {
         const key = crypto.randomUUID();
-        setScans((prev) => [...prev, { key, name: f.name, state: "uploading", docType: "invoice",
-                                       year: new Date().getFullYear() }]);
+        setScans((prev) => [...prev, { key, name: f.name, state: "uploading" }]);
         extract(key, f);
       } else if (isScan(f)) {
         problems.push(`${f.name}: scanned documents need Component 01 (set VITE_C1_BASE). Upload JSON documents for now.`);
@@ -84,20 +103,20 @@ export function DocumentsPage() {
     if (problems.length) setNotice({ text: problems.join("\n"), error: true });
   }, [selectedCase, newCase, stageDocs, extract]);
 
-  async function addScanToCase(s: Scan) {
-    if (!selectedCase || !s.extraction) return;
+  async function confirmScan(s: Scan, r: ReviewResult) {
+    if (!selectedCase || !s.record) return;
+    setBusy(true);
     try {
-      const out = await c3.intakeC1({ case_id: selectedCase, documents: [
-        { extraction: s.extraction, doc_type: s.docType, period_year: s.year }] });
+      const out = await c3.confirmC1(selectedCase, [{ ...s.record, doc_type: r.docType,
+        period_year: r.periodYear, parent_doc_id: r.parentDocId, fields: r.fields }]);
       stageDocs(selectedCase, out.case.docs);
       setScans((prev) => prev.filter((x) => x.key !== s.key));
-      const fields = out.case.docs[0] ? Object.keys(out.case.docs[0].fields).length : 0;
-      const unmapped = Object.values(out.unmapped_regions).reduce((a, b) => a + b, 0);
-      setNotice({ text: `${s.name}: ${fields} field(s) read, ${unmapped} text region(s) without a field.`
-                        + (out.issues.length ? `\n${out.issues.join("\n")}` : "") });
+      const raises = out.issues.length ? `\nIt will raise:\n- ${out.issues.join("\n- ")}` : "";
+      setNotice({ text: `${s.name} added to ${selectedCase}.${raises}` });
     } catch (e) {
-      updateScan(s.key, { state: "error", message: e instanceof Error ? e.message : "Intake failed." });
+      setNotice({ text: e instanceof Error ? e.message : "Could not add the document.", error: true });
     }
+    setBusy(false);
   }
 
   async function audit() {
@@ -175,25 +194,20 @@ export function DocumentsPage() {
         }}>{notice.text}</p>
       )}
 
-      {/* Scans in Component-01 */}
+      {/* Scans: C1 extraction, then the reviewer checks what C3 read */}
       {scans.length > 0 && (
         <Section title="Scans">
-          {scans.map((s) => (
+          {scans.map((s) => s.state === "review" && s.preview ? (
+            <ReviewPanel key={s.key} name={s.name} preview={s.preview} busy={busy}
+                         parents={docs.map((d) => d.doc_id)}
+                         onConfirm={(r) => confirmScan(s, r)}
+                         onReread={(docType) => s.record && readScan(s.key, s.record, docType)}
+                         onDiscard={() => setScans((prev) => prev.filter((x) => x.key !== s.key))} />
+          ) : (
             <Row key={s.key} title={s.name}
-                 meta={s.state === "error" ? s.message ?? "" : s.state === "ready" ? "Extracted. Set its type and year." : `${s.state}…`}
+                 meta={s.state === "error" ? s.message ?? "" : SCAN_STATE[s.state]}
                  error={s.state === "error"}
-                 onRemove={() => setScans((prev) => prev.filter((x) => x.key !== s.key))}>
-              {s.state === "ready" && (
-                <div style={{ display: "flex", gap: "6px", marginTop: "6px" }}>
-                  <select value={s.docType} onChange={(e) => updateScan(s.key, { docType: e.target.value })} style={selectStyle}>
-                    {DOC_TYPES.map((t) => <option key={t} value={t}>{t.replace(/_/g, " ")}</option>)}
-                  </select>
-                  <input type="number" value={s.year} min={1900} max={2999} style={{ ...selectStyle, width: "90px" }}
-                         onChange={(e) => updateScan(s.key, { year: Number(e.target.value) })} />
-                  <button onClick={() => addScanToCase(s)} style={pillButton}>Add to case</button>
-                </div>
-              )}
-            </Row>
+                 onRemove={() => setScans((prev) => prev.filter((x) => x.key !== s.key))} />
           ))}
         </Section>
       )}

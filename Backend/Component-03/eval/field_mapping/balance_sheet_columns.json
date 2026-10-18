@@ -1,0 +1,207 @@
+{
+  "name": "balance_sheet_columns",
+  "input": {
+    "extraction": {
+      "document_id": "c1-bs-2026",
+      "run": {
+        "id": "run-c1-bs-2026",
+        "status": "succeeded"
+      },
+      "regions": [
+        {
+          "sequence": 1,
+          "page_number": 1,
+          "text": "ACME HOLDINGS PLC",
+          "confidence": 0.99,
+          "box": [
+            200,
+            10,
+            420,
+            30
+          ],
+          "provenance": "paddleocr"
+        },
+        {
+          "sequence": 2,
+          "page_number": 1,
+          "text": "STATEMENT OF FINANCIAL POSITION",
+          "confidence": 0.98,
+          "box": [
+            150,
+            35,
+            480,
+            55
+          ],
+          "provenance": "paddleocr"
+        },
+        {
+          "sequence": 3,
+          "page_number": 1,
+          "text": "As at 31 March 2026",
+          "confidence": 0.97,
+          "box": [
+            220,
+            58,
+            400,
+            72
+          ],
+          "provenance": "paddleocr"
+        },
+        {
+          "sequence": 4,
+          "page_number": 1,
+          "text": "2026",
+          "confidence": 0.99,
+          "box": [
+            400,
+            90,
+            440,
+            104
+          ],
+          "provenance": "paddleocr"
+        },
+        {
+          "sequence": 5,
+          "page_number": 1,
+          "text": "2025",
+          "confidence": 0.99,
+          "box": [
+            500,
+            90,
+            540,
+            104
+          ],
+          "provenance": "paddleocr"
+        },
+        {
+          "sequence": 6,
+          "page_number": 1,
+          "text": "Total current assets",
+          "confidence": 0.96,
+          "box": [
+            20,
+            120,
+            220,
+            135
+          ],
+          "provenance": "paddleocr"
+        },
+        {
+          "sequence": 7,
+          "page_number": 1,
+          "text": "80,000",
+          "confidence": 0.95,
+          "box": [
+            390,
+            120,
+            450,
+            135
+          ],
+          "provenance": "paddleocr"
+        },
+        {
+          "sequence": 8,
+          "page_number": 1,
+          "text": "60,000",
+          "confidence": 0.95,
+          "box": [
+            490,
+            120,
+            550,
+            135
+          ],
+          "provenance": "paddleocr"
+        },
+        {
+          "sequence": 9,
+          "page_number": 1,
+          "text": "Total non-current assets 100,000 90,000",
+          "confidence": 0.94,
+          "box": [
+            20,
+            140,
+            550,
+            155
+          ],
+          "provenance": "paddleocr"
+        },
+        {
+          "sequence": 10,
+          "page_number": 1,
+          "text": "Total assets",
+          "confidence": 0.97,
+          "box": [
+            20,
+            165,
+            160,
+            180
+          ],
+          "provenance": "paddleocr"
+        },
+        {
+          "sequence": 11,
+          "page_number": 1,
+          "text": "180,000",
+          "confidence": 0.71,
+          "box": [
+            385,
+            165,
+            450,
+            180
+          ],
+          "provenance": "paddleocr"
+        },
+        {
+          "sequence": 12,
+          "page_number": 1,
+          "text": "150,000",
+          "confidence": 0.9,
+          "box": [
+            485,
+            165,
+            550,
+            180
+          ],
+          "provenance": "paddleocr"
+        },
+        {
+          "sequence": 13,
+          "page_number": 1,
+          "text": "Total liabilities 90,000 70,000",
+          "confidence": 0.95,
+          "box": [
+            20,
+            190,
+            550,
+            205
+          ],
+          "provenance": "paddleocr"
+        },
+        {
+          "sequence": 14,
+          "page_number": 1,
+          "text": "Total equity 60,000 80,000",
+          "confidence": 0.93,
+          "box": [
+            20,
+            210,
+            550,
+            225
+          ],
+          "provenance": "paddleocr"
+        }
+      ]
+    }
+  },
+  "expected": {
+    "doc_type": "balance_sheet",
+    "period_year": 2026,
+    "fields": {
+      "total_current_assets": 80000.0,
+      "total_non_current_assets": 100000.0,
+      "total_assets": 180000.0,
+      "total_liabilities": 90000.0,
+      "total_equity": 60000.0
+    }
+  }
+}

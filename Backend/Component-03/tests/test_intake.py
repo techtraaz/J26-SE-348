@@ -1,6 +1,6 @@
 import pytest
 
-from app.services.intake import IntakeError, from_c1, normalize_case, parse_number
+from app.services.intake import IntakeError, normalize_case, parse_number
 from tests.conftest import doc
 
 
@@ -32,32 +32,9 @@ def test_bad_intake_raises(payload):
         normalize_case(payload)
 
 
-def _region(seq, text, key=None, conf=0.9):
-    return {"sequence": seq, "page_number": 1, "text": text, "confidence": conf,
-            "provenance": "paddleocr", "field_key": key}
-
-
-def test_from_c1_maps_field_regions():
-    case, unmapped = from_c1("C", [{
-        "doc_type": "invoice", "period_year": 2026,
-        "extraction": {"document_id": "INV-1", "run": {"status": "succeeded"}, "regions": [
-            _region(1, "Rs. 125,000.00", "amount", 0.93), _region(2, "Thank you"),
-            _region(3, "credit", "purchase_basis", 0.7)]}}])
-    d = case.docs[0]
-    assert d.doc_id == "INV-1" and d.fields == {"amount": 125000.0, "purchase_basis": "credit"}
-    assert d.confidences == {"amount": 0.93, "purchase_basis": 0.7}
-    assert d.methods["amount"] == "paddleocr" and unmapped == {"INV-1": 1}
-
-
-def test_from_c1_keeps_conflicting_values_at_lower_confidence():
-    case, _ = from_c1("C", [{"doc_type": "invoice", "period_year": 2026, "extraction": {
-        "document_id": "I", "run": {"status": "succeeded"},
-        "regions": [_region(1, "100", "amount", 0.9), _region(2, "700", "amount", 0.6)]}}])
-    assert case.docs[0].fields["amount"] == ["100", "700"]
-    assert case.docs[0].confidences["amount"] == 0.6
-
-
-def test_from_c1_rejects_unfinished_run():
+def test_source_is_validated_and_kept():
+    case = normalize_case({"case_id": "C", "docs": [doc("I", "invoice", {"amount": 5}, source={
+        "document_id": "c1-1", "run_id": "r1", "verified_version": 2, "confirmed_by": "nimal"})]})
+    assert case.docs[0].source.human_verified and case.docs[0].source.verified_version == 2
     with pytest.raises(IntakeError):
-        from_c1("C", [{"doc_type": "invoice", "period_year": 2026, "extraction": {
-            "document_id": "I", "run": {"status": "running"}, "regions": []}}])
+        normalize_case({"case_id": "C", "docs": [doc("I", "invoice", {}, source={"run_id": "r1"})]})

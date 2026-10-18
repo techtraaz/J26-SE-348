@@ -4,6 +4,20 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 
+class DocumentSource(BaseModel):
+    """Where a document's values came from, so every audit traces back to the
+    exact upstream record."""
+    component: str = "c1"
+    document_id: str
+    run_id: str | None = None
+    verified_version: int | None = None  # None = machine extraction, not human-verified
+    confirmed_by: str | None = None
+
+    @property
+    def human_verified(self) -> bool:
+        return self.verified_version is not None
+
+
 class AuditDocument(BaseModel):
     doc_id: str
     case_id: str
@@ -12,7 +26,8 @@ class AuditDocument(BaseModel):
     parent_doc_id: str | None = None  # the document this one supports
     fields: dict[str, Any] = Field(default_factory=dict)
     confidences: dict[str, float] = Field(default_factory=dict)  # per field, 0..1
-    methods: dict[str, str] = Field(default_factory=dict)  # per field: C1 engine, or human
+    methods: dict[str, str] = Field(default_factory=dict)  # per field: where the value came from
+    source: DocumentSource | None = None  # None = values sent directly (no upstream record)
 
 
 class AuditCase(BaseModel):

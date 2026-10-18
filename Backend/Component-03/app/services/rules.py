@@ -10,6 +10,7 @@ violations):
   REV-001 low confidence field          REV-005 KG-linked evidence missing from case
   REV-002 unsupported document type     REV-006 KG rule could not be evaluated
   REV-003 unreadable/conflicting value  REV-007 KG rules could not be loaded
+  REV-008 source not human-verified (C1 machine extraction)
   REV-004 intake issue (parent link, confidence range, no fields)
 """
 from app import config
@@ -219,12 +220,18 @@ def data_quality_findings(case: AuditCase) -> list[Finding]:
                                   f"Confidence {conf} for '{fname}' in {d.doc_id} is outside "
                                   f"0..1; the extraction score cannot be trusted.", [d.doc_id]))
             elif conf < config.REVIEW_CONFIDENCE_LIMIT:
+                why = ("was matched to its line by AI and not confirmed by a person"
+                       if d.methods.get(fname, "").endswith("c3:unconfirmed")
+                       else f"has low confidence {conf:.2f}")
                 out.append(review(f"{d.doc_id}-REV001-{fname}", "REV-001",
-                                  f"Field '{fname}' in {d.doc_id} has low confidence "
-                                  f"{conf:.2f}, needs human review (not an audit violation).",
-                                  [d.doc_id], confidence=float(conf)))
+                                  f"Field '{fname}' in {d.doc_id} {why}; needs human review "
+                                  f"(not an audit violation).", [d.doc_id], confidence=float(conf)))
         if d.parent_doc_id is not None and d.parent_doc_id not in ids:
             out.append(review(f"{d.doc_id}-REV004-parent", "REV-004",
                               f"{d.doc_id} says it supports {d.parent_doc_id}, which is not "
                               f"in this case.", [d.doc_id]))
+        if d.source is not None and not d.source.human_verified:
+            out.append(review(f"{d.doc_id}-REV008", "REV-008",
+                              f"{d.doc_id} was read from {d.source.component.upper()}'s machine "
+                              f"extraction; no person has verified it there yet.", [d.doc_id]))
     return out
