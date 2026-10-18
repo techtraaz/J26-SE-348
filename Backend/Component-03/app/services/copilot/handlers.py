@@ -77,6 +77,8 @@ def _filter(findings: list[dict], e: Entities, rec: dict) -> list[dict]:
     types = _doc_types(rec)
     out = []
     for f in findings:
+        if e.finding_ids and f["finding_id"] not in e.finding_ids:
+            continue
         if e.severities and f["severity"] not in e.severities:
             continue
         if e.rule_ids and f["rule_id"] not in e.rule_ids:
@@ -126,7 +128,7 @@ def whatif_check(turn: Turn) -> Reply:
             f"Correct me if a value is wrong.")
     body = (_bullets(rule_findings) if rule_findings
             else "No audit rule failed for these values.")
-    return Reply(f"{head}\n{body}", {"read": read, "findings": rule_findings,
+    return Reply(f"{head}\n{body}", {"read": read, "findings": rule_findings, "unsaved": True,
                                       "result": result.model_dump()})
 
 
@@ -177,12 +179,14 @@ def rerun_audit(turn: Turn) -> Reply:
         examples=("why did CHK-004 fire on case ABC-1?", "explain the POL-07 finding on INV-9"),
         patterns={r"\bwhy\b": 1.5, r"\b(fired|flagged|raised|triggered|failed)\b": 1.5,
                   r"\breason(ing)?\b": 1.0, r"\bexplain\b": 0.5, r"\bfinding\b": 1.0},
-        signals={"rule_ids": 1.0, "doc_ids": 1.0, "case_ids": 1.0}, needs=("saved_case",),
+        signals={"rule_ids": 1.0, "doc_ids": 1.0, "case_ids": 1.0, "finding_ids": 1.5},
+        needs=("saved_case",),
         follow_ups=("Show the findings that need review", "What evidence is missing?"))
 def explain_finding(turn: Turn) -> Reply:
     rec = turn.record()
     matches = _filter(rec["findings"], turn.entities, rec)
-    if not (turn.entities.rule_ids or turn.entities.doc_ids) and len(rec["findings"]) > 1:
+    named = turn.entities.rule_ids or turn.entities.doc_ids or turn.entities.finding_ids
+    if not named and len(rec["findings"]) > 1:
         ids = ", ".join(sorted({f["rule_id"] for f in rec["findings"]}))
         return Reply(f"Which finding? Case {turn.case_id} has: {ids}. Name a rule id or document.")
     if not matches:
@@ -217,8 +221,12 @@ def list_findings(turn: Turn) -> Reply:
         return Reply(f"Case {turn.case_id} has no version {version}.")
     matches = _filter(rec["findings"], turn.entities, rec)
     head = f"Case {turn.case_id} version {rec['version']}: {len(matches)} matching finding(s)."
+    e = turn.entities
+    filters = {"severities": e.severities, "rule_ids": e.rule_ids, "doc_ids": e.doc_ids,
+               "doc_types": e.doc_types, "categories": e.categories,
+               "review_statuses": e.review_statuses}
     return Reply(f"{head}\n{_bullets(matches)}" if matches else head,
-                 {"version": rec["version"], "findings": matches})
+                 {"version": rec["version"], "findings": matches, "filters": filters})
 
 
 @intent("evidence_gaps", group="case_query",

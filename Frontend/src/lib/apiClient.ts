@@ -4,6 +4,8 @@ import type {
   AuditDocument,
   AuditResult,
   CaseSummary,
+  ChatMessage,
+  ChatSession,
   CopilotRequest,
   CopilotResponse,
 } from "@/types/audit";
@@ -33,6 +35,8 @@ async function request<T>(base: string, path: string, init?: RequestInit): Promi
   return r.json() as Promise<T>;
 }
 
+const session = (id?: string) => (id ? `?session_id=${encodeURIComponent(id)}` : "");
+
 const json = (body: unknown): RequestInit => ({
   method: "POST",
   headers: { "Content-Type": "application/json" },
@@ -44,13 +48,28 @@ export const c3 = {
   cases: () => request<{ cases: CaseSummary[] }>(env.c3Base, "/audit/cases").then((r) => r.cases),
   latest: (caseId: string) =>
     request<AuditResult>(env.c3Base, `/audit/${encodeURIComponent(caseId)}/latest`),
-  run: (body: AuditCase) => request<AuditResult>(env.c3Base, "/audit/run", json(body)),
-  appendEvidence: (caseId: string, docs: AuditDocument[]) =>
-    request<AuditResult>(env.c3Base, `/audit/${encodeURIComponent(caseId)}/evidence`, json({ docs })),
+  // With a sessionId the result is also written into that chat.
+  run: (body: AuditCase, sessionId?: string) =>
+    request<AuditResult>(env.c3Base, `/audit/run${session(sessionId)}`, json(body)),
+  appendEvidence: (caseId: string, docs: AuditDocument[], sessionId?: string) =>
+    request<AuditResult>(env.c3Base, `/audit/${encodeURIComponent(caseId)}/evidence${session(sessionId)}`,
+      json({ docs })),
   intakeC1: (body: unknown) =>
     request<{ case: AuditCase; unmapped_regions: Record<string, number>; issues: string[] }>(
       env.c3Base, "/audit/intake/c1", json(body)),
-  copilot: (body: CopilotRequest) => request<CopilotResponse>(env.c3Base, "/copilot/query", json(body)),
+  copilot: (body: CopilotRequest) =>
+    request<CopilotResponse>(env.c3Base, "/copilot/query", json(body)),
+};
+
+// Component-03 saved chats.
+export const chat = {
+  sessions: () => request<{ sessions: ChatSession[] }>(env.c3Base, "/chat/sessions").then((r) => r.sessions),
+  messages: (sessionId: string, before?: number) =>
+    request<{ messages: ChatMessage[] }>(env.c3Base,
+      `/chat/${encodeURIComponent(sessionId)}/messages?limit=100${before ? `&before=${before}` : ""}`)
+      .then((r) => r.messages),
+  clear: (sessionId: string) =>
+    request<{ deleted: string }>(env.c3Base, `/chat/${encodeURIComponent(sessionId)}`, { method: "DELETE" }),
 };
 
 // Component-01: OCR/VLM extraction. Used only when VITE_C1_BASE is set.

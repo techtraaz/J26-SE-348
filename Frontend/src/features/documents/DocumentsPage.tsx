@@ -24,7 +24,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 export function DocumentsPage() {
   const qc = useQueryClient();
   const navigate = useNavigate();
-  const { selectedCase, setCase, newCase, draftCases, staged, stageDocs, unstage, clearStaged, addMessage } = useUI();
+  const { selectedCase, setCase, newCase, draftCases, staged, stageDocs, unstage, clearStaged } = useUI();
   const cases = useQuery({ queryKey: ["c3-cases"], queryFn: c3.cases, retry: false });
   const [scans, setScans] = useState<Scan[]>([]);
   const [isDragging, setIsDragging] = useState(false);
@@ -105,15 +105,14 @@ export function DocumentsPage() {
     setBusy(true);
     setNotice(null);
     try {
+      // The case's chat id is its case id; C3 writes the result into that chat.
       const result = audited.has(selectedCase)
-        ? await c3.appendEvidence(selectedCase, docs)
-        : await c3.run({ case_id: selectedCase, docs });
+        ? await c3.appendEvidence(selectedCase, docs, selectedCase)
+        : await c3.run({ case_id: selectedCase, docs }, selectedCase);
       clearStaged(selectedCase);
-      const summary = auditSummary(result);
-      addMessage(selectedCase, { id: crypto.randomUUID(), role: "assistant", ...summary,
-                                 suggestions: ["Show the high severity findings", "What evidence is missing?"] });
-      await qc.invalidateQueries({ queryKey: ["c3-cases"] });
-      setNotice({ text: summary.content });
+      await Promise.all([qc.invalidateQueries({ queryKey: ["c3-cases"] }),
+                         qc.invalidateQueries({ queryKey: ["chat", selectedCase] })]);
+      setNotice({ text: auditSummary(result) });
     } catch (e) {
       setNotice({ text: e instanceof Error ? e.message : "Audit failed.", error: true });
     }

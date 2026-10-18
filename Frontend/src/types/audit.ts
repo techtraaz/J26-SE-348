@@ -83,6 +83,7 @@ export type CopilotGroup = "rule_query" | "case_query" | "evidence_append" | "fr
 export interface CopilotRequest {
   text: string;
   case_id?: string | null;
+  session_id?: string | null; // saves the turn and lets follow-ups use the chat's memory
   docs?: AuditDocument[];
 }
 
@@ -90,6 +91,35 @@ export interface CopilotResponse {
   intent: string; // fine-grained intent, e.g. list_findings, whatif_check
   group: CopilotGroup;
   reply: string;
+  session_id: string | null;
   suggestions: string[];
   data: (Record<string, unknown> & { findings?: Finding[]; version?: number; needs?: string }) | null;
+}
+
+// Saved chat (Component-03 /chat). A case's own chat has session_id === case_id.
+export type ChatRole = "user" | "copilot" | "report" | "system";
+
+export interface ChatMessage {
+  message_id: string;
+  session_id: string;
+  seq: number;
+  case_id: string | null;
+  role: ChatRole;
+  text: string;
+  intent: string | null;
+  group: CopilotGroup | null;
+  suggestions: string[];
+  refs: { version: number | null; finding_ids: string[] } | null;
+  findings: Finding[]; // filled in by the server from the saved audit version
+  data: Record<string, unknown> & { attached_docs?: number; report_url?: string };
+  source: string;
+  created_at: string;
+}
+
+export interface ChatSession {
+  session_id: string;
+  case_id: string | null;
+  title: string;
+  created_at: string;
+  updated_at: string;
 }

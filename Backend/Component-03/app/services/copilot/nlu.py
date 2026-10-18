@@ -56,11 +56,12 @@ class RequestContext:
     has_docs: bool = False
     case_id: str | None = None
     case_audited: bool = False  # the case already has a saved audit
+    memory: str = ""  # one-line summary of the conversation so far
 
     def describe(self) -> str:
         return (f"Documents attached: {'yes' if self.has_docs else 'no'}. "
                 f"Current case: {self.case_id or 'none'}"
-                f"{' (already audited)' if self.case_audited else ''}.")
+                f"{' (already audited)' if self.case_audited else ''}. {self.memory}").strip()
 
 
 def _flags(entities: Entities, ctx: RequestContext) -> dict[str, bool]:

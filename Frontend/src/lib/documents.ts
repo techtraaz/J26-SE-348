@@ -1,4 +1,4 @@
-import type { AuditDocument, AuditResult, Finding } from "@/types/audit";
+import type { AuditDocument, AuditResult } from "@/types/audit";
 
 // Component-02 DocumentType codes (same list as C3 config.ALLOWED_DOC_TYPES).
 export const DOC_TYPES = [
@@ -40,14 +40,13 @@ export async function readJsonDocuments(file: File): Promise<AuditDocument[]> {
   return list.map((d, i) => asDocument(d, `${file.name} [${i + 1}]`));
 }
 
-/** Chat text for a finished audit. */
-export function auditSummary(r: AuditResult): { content: string; findings: Finding[] } {
+/** One-line summary of a finished audit. */
+export function auditSummary(r: AuditResult): string {
   const rule = r.findings.filter((f) => !f.rule_id.startsWith("REV-"));
   const reviews = r.findings.filter((f) => f.review_status === "needs_more_evidence").length;
   const high = rule.filter((f) => f.severity === "high").length;
-  const head = r.status === "not_auditable"
-    ? `Case ${r.case_id} version ${r.version} is not auditable. The reasons are below.`
-    : `Case ${r.case_id} version ${r.version} saved: ${rule.length} rule finding(s) (${high} high), ${reviews} need review.`;
-  const rejected = r.rejected_records.length ? `\nRejected documents: ${r.rejected_records.join(", ")}.` : "";
-  return { content: head + rejected, findings: r.findings };
+  if (r.status === "not_auditable") return `Case ${r.case_id} version ${r.version} is not auditable; see the chat for the reasons.`;
+  const rejected = r.rejected_records.length ? ` Rejected documents: ${r.rejected_records.join(", ")}.` : "";
+  return `Case ${r.case_id} version ${r.version} saved: ${rule.length} rule finding(s) (${high} high), `
+    + `${reviews} need review.${rejected} The result is in the case's chat.`;
 }

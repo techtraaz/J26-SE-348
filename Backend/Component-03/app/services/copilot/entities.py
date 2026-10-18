@@ -61,6 +61,7 @@ class Entities:
     doc_types: list[str] = field(default_factory=list)
     standards: list[str] = field(default_factory=list)
     amounts: list[Amount] = field(default_factory=list)
+    finding_ids: list[str] = field(default_factory=list)  # set only from session memory
 
     def as_dict(self) -> dict:
         return {k: ([a.value for a in v] if k == "amounts" else v)
