@@ -1,159 +1,191 @@
-import { useState } from "react";
-import { api } from "@/lib/apiClient";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { c3, chat } from "@/lib/apiClient";
+import { isJsonFile, readJsonDocuments } from "@/lib/documents";
+import { useUI } from "@/store/ui";
+import { FindingCard } from "@/components/audit/FindingCard";
+import type { CaseSummary, ChatMessage, Finding } from "@/types/audit";
 
-interface ChatMessage {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-  timestamp: Date;
-}
-
-interface ChatSession {
-  id: string;
-  title: string;
-  timeAgo: string;
-}
-
-const mockSessions: ChatSession[] = [
-  { id: "1", title: "Project planning discussion", timeAgo: "2h ago" },
-  { id: "2", title: "Flutter app development ideas", timeAgo: "5h ago" },
-  { id: "3", title: "Website design suggestions", timeAgo: "1d ago" },
-  { id: "4", title: "Learning roadmap", timeAgo: "2d ago" },
-  { id: "5", title: "Daily productivity tips", timeAgo: "3d ago" },
+const STARTERS = [
+  "Summarise this case",
+  "Which rules apply to invoices?",
+  "Which cases have high severity findings?",
+  "I paid Rs 150,000 cash for a laptop but booked it on credit, is that ok?",
 ];
+const SHOWN_FINDINGS = 6;
+
+// A case in the sidebar: audited (with its latest summary) or started here and not audited yet.
+type SidebarCase = { case_id: string; summary: CaseSummary | null };
+// Shown only until the server answers (pending) or because sending failed (not saved).
+type LocalMessage = { key: string; role: "user" | "error"; text: string; attached?: number };
+
+function timeAgo(iso: string): string {
+  const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+  if (mins < 60) return `${mins}m ago`;
+  if (mins < 1440) return `${Math.round(mins / 60)}h ago`;
+  return `${Math.round(mins / 1440)}d ago`;
+}
+
+/** The reply text lists findings as "- RULE ..." lines; drop those when cards show them. */
+function replyText(content: string, findings: Finding[]): string {
+  if (!findings.length) return content;
+  const ids = new Set(findings.map((f) => f.rule_id));
+  return content.split("\n")
+    .filter((line) => !(line.startsWith("- ") && ids.has(line.slice(2).split(" ")[0])))
+    .filter((line) => !/^\.{0,3}and \d+ more\.$/.test(line.trim()))
+    .join("\n").trim();
+}
 
 export function DashboardPage() {
-  const [sessions] = useState<ChatSession[]>(mockSessions);
-  const [activeSession, setActiveSession] = useState<string>("1");
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const qc = useQueryClient();
+  const { selectedCase, setCase, newCase, draftCases, generalSessionId, staged, stageDocs, clearStaged } = useUI();
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
+  const [attachError, setAttachError] = useState("");
+  const [local, setLocal] = useState<Record<string, LocalMessage[]>>({});
+  const fileRef = useRef<HTMLInputElement>(null);
+  const endRef = useRef<HTMLDivElement>(null);
 
-  async function sendMessage() {
-    if (!input.trim() || busy) return;
-    const userMsg: ChatMessage = {
-      id: crypto.randomUUID(),
-      role: "user",
-      content: input,
-      timestamp: new Date(),
-    };
-    setMessages((prev) => [...prev, userMsg]);
-    const text = input;
+  const sessionId = selectedCase ?? generalSessionId; // a case's chat id is its case id
+  const cases = useQuery({ queryKey: ["c3-cases"], queryFn: c3.cases, retry: false });
+  const history = useQuery({ queryKey: ["chat", sessionId], queryFn: () => chat.messages(sessionId), retry: false });
+  const saved = history.data ?? [];
+  const pending = local[sessionId] ?? [];
+  const attached = selectedCase ? staged[selectedCase] ?? [] : [];
+
+  const sidebar = useMemo((): SidebarCase[] => {
+    const audited = cases.data ?? [];
+    const known = new Set(audited.map((c) => c.case_id));
+    const drafts = draftCases.filter((id) => !known.has(id)).map((id) => ({ case_id: id, summary: null }));
+    return [...drafts, ...audited.map((c) => ({ case_id: c.case_id, summary: c }))];
+  }, [cases.data, draftCases]);
+
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); },
+            [saved.length, pending.length, busy]);
+
+  const addLocal = (m: LocalMessage) => setLocal((s) => ({ ...s, [sessionId]: [...(s[sessionId] ?? []), m] }));
+  const dropLocal = (key: string) =>
+    setLocal((s) => ({ ...s, [sessionId]: (s[sessionId] ?? []).filter((m) => m.key !== key) }));
+
+  async function send(textArg?: string) {
+    const docs = attached;
+    const text = (textArg ?? input).trim() || (docs.length ? "Audit these documents" : "");
+    if (!text || busy) return;
+    const key = crypto.randomUUID();
+    addLocal({ key, role: "user", text, attached: docs.length || undefined });
     setInput("");
     setBusy(true);
     try {
-      const resp = await api.c3Copilot({ text, case_id: "CASE-TV" });
-      const botMsg: ChatMessage = {
-        id: crypto.randomUUID(),
-        role: "assistant",
-        content: (resp as any).reply || "I understand your question. Let me help you with that.",
-        timestamp: new Date(),
-      };
-      setMessages((prev) => [...prev, botMsg]);
-    } catch {
-      const botMsg: ChatMessage = {
-        id: crypto.randomUUID(),
-        role: "assistant",
-        content: "I'm currently offline. Please start the backend server on port 8003 to enable live responses.",
-        timestamp: new Date(),
-      };
-      setMessages((prev) => [...prev, botMsg]);
+      const r = await c3.copilot({ text, case_id: selectedCase, session_id: sessionId, docs });
+      await qc.invalidateQueries({ queryKey: ["chat", sessionId] });
+      dropLocal(key);
+      if (docs.length && selectedCase && r.data?.version) clearStaged(selectedCase);
+      if (r.group === "fresh_audit" || r.group === "evidence_append") {
+        await qc.invalidateQueries({ queryKey: ["c3-cases"] });
+      }
+    } catch (e) {
+      addLocal({ key: crypto.randomUUID(), role: "error",
+                 text: e instanceof Error ? e.message : "Request failed." });
     }
     setBusy(false);
   }
 
+  async function clearChat() {
+    try {
+      await chat.clear(sessionId);
+    } catch {
+      // nothing saved yet for this chat
+    }
+    setLocal((s) => ({ ...s, [sessionId]: [] }));
+    await qc.invalidateQueries({ queryKey: ["chat", sessionId] });
+  }
+
+  async function attach(files: FileList) {
+    setAttachError("");
+    const caseId = selectedCase ?? newCase();
+    try {
+      const docs = [];
+      for (const f of Array.from(files)) {
+        if (!isJsonFile(f)) throw new Error(`${f.name}: attach JSON documents here; send scans through the Library.`);
+        docs.push(...await readJsonDocuments(f));
+      }
+      stageDocs(caseId, docs);
+    } catch (e) {
+      setAttachError(e instanceof Error ? e.message : "Could not read the file.");
+    }
+  }
+
+  const empty = saved.length === 0 && pending.length === 0;
+  const last = saved[saved.length - 1];
+
   return (
     <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
-      {/* ── Chat History Sidebar ── */}
+      {/* ── Cases (one chat per case) ── */}
       <aside style={{
-        width: "240px",
-        flexShrink: 0,
-        borderRight: "1px solid var(--border-light)",
-        padding: "20px 16px",
-        display: "flex",
-        flexDirection: "column",
-        gap: "4px",
-        overflowY: "auto",
+        width: "240px", flexShrink: 0, borderRight: "1px solid var(--border-light)",
+        padding: "20px 16px", display: "flex", flexDirection: "column", gap: "4px", overflowY: "auto",
       }}>
-        {/* Sidebar Header */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
-          <span style={{ fontWeight: 600, fontSize: "13px", color: "var(--text-h)" }}>Chat History</span>
+          <span style={{ fontWeight: 600, fontSize: "13px", color: "var(--text-h)" }}>Cases</span>
           <button
             style={{
               width: "24px", height: "24px", borderRadius: "6px", border: "1px solid var(--border)",
               background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
               color: "var(--text-muted)", fontSize: "16px", fontFamily: "inherit",
             }}
-            onClick={() => { setMessages([]); setActiveSession(""); }}
-            title="New chat"
+            onClick={() => newCase()}
+            title="New case"
           >+</button>
         </div>
 
-        {/* Session List */}
-        {sessions.map((s) => (
-          <button
-            key={s.id}
-            onClick={() => setActiveSession(s.id)}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "10px",
-              padding: "8px 10px",
-              borderRadius: "8px",
-              border: "none",
-              background: activeSession === s.id ? "var(--sidebar-active)" : "transparent",
-              cursor: "pointer",
-              width: "100%",
-              textAlign: "left",
-              fontFamily: "inherit",
-              transition: "background 0.15s",
-            }}
-            onMouseEnter={(e) => { if (activeSession !== s.id) e.currentTarget.style.background = "var(--sidebar-hover)"; }}
-            onMouseLeave={(e) => { if (activeSession !== s.id) e.currentTarget.style.background = "transparent"; }}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-soft)" strokeWidth="1.5">
-              <circle cx="12" cy="12" r="10" />
-            </svg>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: "13px", color: "var(--text-h)", fontWeight: activeSession === s.id ? 500 : 400, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {s.title}
-              </div>
-            </div>
-            <span style={{ fontSize: "11px", color: "var(--text-soft)", flexShrink: 0 }}>{s.timeAgo}</span>
-          </button>
+        <SessionButton active={selectedCase === null} onClick={() => setCase(null)}
+                       title="General questions" meta="rules, standards, what-ifs" />
+        {cases.isError && (
+          <p style={{ fontSize: "12px", color: "var(--danger)", margin: "6px 4px" }}>
+            Cases unavailable: {(cases.error as Error).message}
+          </p>
+        )}
+        {sidebar.map((c) => (
+          <SessionButton key={c.case_id} active={selectedCase === c.case_id} onClick={() => setCase(c.case_id)}
+                         title={c.case_id} meta={c.summary ? caseMeta(c.summary) : "new · not audited"}
+                         right={c.summary ? timeAgo(c.summary.created_at) : ""} />
         ))}
       </aside>
 
-      {/* ── Main Chat Area ── */}
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", position: "relative" }}>
-        {/* Messages or Empty State */}
+      {/* ── Conversation ── */}
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", position: "relative", minWidth: 0 }}>
+        {!empty && (
+          <button onClick={clearChat} disabled={busy} title="Delete this chat's history (audits are kept)" style={{
+            position: "absolute", top: "12px", right: "20px", zIndex: 1, background: "none", border: "none",
+            cursor: "pointer", color: "var(--text-soft)", fontSize: "12px", fontFamily: "inherit",
+          }}>Clear chat</button>
+        )}
         <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column" }}>
-          {messages.length === 0 ? (
+          {empty ? (
             <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "48px 24px" }}>
               <h1 className="heading-serif" style={{ fontSize: "38px", marginBottom: "10px", color: "var(--text-h)" }}>
                 What can I help with?
               </h1>
-              <p style={{ color: "var(--text-muted)", fontSize: "15px" }}>
-                Ask me anything, get ideas, or solve problems.
+              <p style={{ color: "var(--text-muted)", fontSize: "15px", marginBottom: "20px", textAlign: "center" }}>
+                {history.isError
+                  ? `Chat history unavailable: ${(history.error as Error).message}`
+                  : selectedCase
+                    ? `Ask about case ${selectedCase}, or attach documents to audit them.`
+                    : "Ask about rules, standards or your cases, or describe a transaction to check it."}
               </p>
+              <Chips items={STARTERS} onPick={(t) => send(t)} disabled={busy} />
             </div>
           ) : (
-            <div style={{ maxWidth: "680px", width: "100%", margin: "0 auto", padding: "32px 24px", display: "flex", flexDirection: "column", gap: "20px" }}>
-              {messages.map((m) => (
-                <div key={m.id} style={{ display: "flex", flexDirection: "column", alignItems: m.role === "user" ? "flex-end" : "flex-start" }}>
-                  <div style={{
-                    maxWidth: "85%",
-                    padding: "12px 16px",
-                    borderRadius: m.role === "user" ? "16px 16px 4px 16px" : "16px 16px 16px 4px",
-                    background: m.role === "user" ? "var(--text-h)" : "var(--surface)",
-                    color: m.role === "user" ? "#f5f0ea" : "var(--text)",
-                    fontSize: "14px",
-                    lineHeight: "1.6",
-                    border: m.role === "assistant" ? "1px solid var(--border-light)" : "none",
-                  }}>
-                    {m.content}
-                  </div>
-                </div>
+            <div style={{ maxWidth: "720px", width: "100%", margin: "0 auto", padding: "40px 24px 32px", display: "flex", flexDirection: "column", gap: "20px" }}>
+              {saved.map((m) => (
+                <Message key={m.message_id} m={m} showSuggestions={m === last && !pending.length}
+                         busy={busy} onPick={(t) => send(t)} />
+              ))}
+              {pending.map((m) => (
+                <Bubble key={m.key} user={m.role === "user"} error={m.role === "error"}>
+                  {m.text}
+                  {m.attached ? <div style={{ fontSize: "12px", opacity: 0.75, marginTop: "4px" }}>+ {m.attached} document(s)</div> : null}
+                </Bubble>
               ))}
               {busy && (
                 <div style={{ display: "flex", alignItems: "flex-start" }}>
@@ -162,83 +194,169 @@ export function DashboardPage() {
                   </div>
                 </div>
               )}
+              <div ref={endRef} />
             </div>
           )}
         </div>
 
-        {/* ── Message Input ── */}
-        <div style={{ padding: "16px 24px 24px", maxWidth: "680px", width: "100%", margin: "0 auto" }}>
+        {/* ── Message input ── */}
+        <div style={{ padding: "16px 24px 24px", maxWidth: "720px", width: "100%", margin: "0 auto" }}>
+          {(attached.length > 0 || attachError) && (
+            <div style={{ display: "flex", gap: "8px", alignItems: "center", marginBottom: "8px", fontSize: "12px", flexWrap: "wrap" }}>
+              {attached.length > 0 && (
+                <span style={{ border: "1px solid var(--border)", borderRadius: "var(--radius-pill)", padding: "3px 10px", color: "var(--text-h)" }}>
+                  {attached.length} document(s) attached to {selectedCase}
+                  <button onClick={() => selectedCase && clearStaged(selectedCase)} title="Remove"
+                          style={{ marginLeft: "6px", background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)" }}>×</button>
+                </span>
+              )}
+              {attachError && <span style={{ color: "var(--danger)" }}>{attachError}</span>}
+            </div>
+          )}
           <div style={{
-            background: "var(--input-bg)",
-            borderRadius: "var(--radius-xl)",
-            padding: "12px 16px",
-            display: "flex",
-            flexDirection: "column",
-            gap: "8px",
+            background: "var(--input-bg)", borderRadius: "var(--radius-xl)", padding: "12px 16px",
+            display: "flex", flexDirection: "column", gap: "8px",
           }}>
             <input
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
-              placeholder="Message..."
-              style={{
-                border: "none",
-                outline: "none",
-                background: "transparent",
-                fontSize: "14px",
-                color: "var(--text-h)",
-                fontFamily: "inherit",
-                width: "100%",
-              }}
+              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
+              placeholder={attached.length ? "Say what to do with the documents, or press Enter to audit them" : "Message..."}
+              style={{ border: "none", outline: "none", background: "transparent", fontSize: "14px", color: "var(--text-h)", fontFamily: "inherit", width: "100%" }}
             />
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <div style={{ display: "flex", gap: "12px" }}>
-                {/* Attachment icons */}
-                <button style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-soft)", padding: "2px" }} title="Attach file">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
-                  </svg>
-                </button>
-                <button style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-soft)", padding: "2px" }} title="Add image">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-                    <circle cx="8.5" cy="8.5" r="1.5" />
-                    <polyline points="21 15 16 10 5 21" />
-                  </svg>
-                </button>
-                <button style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-soft)", padding: "2px" }} title="Tools">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
-                  </svg>
-                </button>
-              </div>
-              {/* Send button */}
-              <button
-                onClick={sendMessage}
-                disabled={!input.trim() || busy}
-                style={{
-                  width: "32px",
-                  height: "32px",
-                  borderRadius: "50%",
-                  border: "none",
-                  background: input.trim() ? "var(--text-h)" : "var(--border)",
-                  cursor: input.trim() ? "pointer" : "default",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  transition: "background 0.2s",
-                }}
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={input.trim() ? "#f5f0ea" : "var(--text-soft)"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="22" y1="2" x2="11" y2="13" />
-                  <polygon points="22 2 15 22 11 13 2 9 22 2" />
+              <button onClick={() => fileRef.current?.click()} title="Attach JSON documents"
+                      style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-soft)", padding: "2px" }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
                 </svg>
               </button>
+              <input ref={fileRef} type="file" accept=".json,application/json" multiple style={{ display: "none" }}
+                     onChange={(e) => { if (e.target.files) attach(e.target.files); e.target.value = ""; }} />
+              <SendButton ready={Boolean(input.trim() || attached.length) && !busy} onClick={() => send()} />
             </div>
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function caseMeta(c: CaseSummary): string {
+  if (c.status === "not_auditable") return `v${c.version} · not auditable`;
+  return `v${c.version} · ${c.findings} finding(s)${c.high ? `, ${c.high} high` : ""}`;
+}
+
+function SessionButton({ active, onClick, title, meta, right }: {
+  active: boolean; onClick: () => void; title: string; meta: string; right?: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        display: "flex", alignItems: "center", gap: "10px", padding: "8px 10px", borderRadius: "8px",
+        border: "none", background: active ? "var(--sidebar-active)" : "transparent", cursor: "pointer",
+        width: "100%", textAlign: "left", fontFamily: "inherit", transition: "background 0.15s",
+      }}
+      onMouseEnter={(e) => { if (!active) e.currentTarget.style.background = "var(--sidebar-hover)"; }}
+      onMouseLeave={(e) => { if (!active) e.currentTarget.style.background = "transparent"; }}
+    >
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: "13px", color: "var(--text-h)", fontWeight: active ? 500 : 400, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {title}
+        </div>
+        <div style={{ fontSize: "11px", color: "var(--text-soft)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{meta}</div>
+      </div>
+      {right && <span style={{ fontSize: "11px", color: "var(--text-soft)", flexShrink: 0 }}>{right}</span>}
+    </button>
+  );
+}
+
+function Bubble({ user, error, children }: { user: boolean; error?: boolean; children: React.ReactNode }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: user ? "flex-end" : "flex-start" }}>
+      <div style={{
+        maxWidth: "85%", padding: "12px 16px",
+        borderRadius: user ? "16px 16px 4px 16px" : "16px 16px 16px 4px",
+        background: user ? "var(--text-h)" : "var(--surface)",
+        color: user ? "#f5f0ea" : error ? "var(--danger)" : "var(--text)",
+        fontSize: "14px", lineHeight: "1.6", whiteSpace: "pre-wrap",
+        border: user ? "none" : `1px solid ${error ? "var(--danger)" : "var(--border-light)"}`,
+      }}>{children}</div>
+    </div>
+  );
+}
+
+function Message({ m, showSuggestions, busy, onPick }: {
+  m: ChatMessage; showSuggestions: boolean; busy: boolean; onPick: (t: string) => void;
+}) {
+  const [all, setAll] = useState(false);
+  const user = m.role === "user";
+  const shown = all ? m.findings : m.findings.slice(0, SHOWN_FINDINGS);
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: user ? "flex-end" : "flex-start", gap: "8px" }}>
+      {m.role === "report" || m.role === "system" ? (
+        <div style={{
+          maxWidth: "85%", padding: "10px 14px", borderRadius: "var(--radius)", fontSize: "13px",
+          border: "1px dashed var(--border)", color: "var(--text)", background: "var(--accent-bg)",
+        }}>
+          <span style={{ fontWeight: 600, color: "var(--text-h)" }}>
+            {m.role === "report" ? `Report${m.refs?.version ? ` · v${m.refs.version}` : ""}` : "Notice"} ({m.source.toUpperCase()})
+          </span>
+          <div style={{ whiteSpace: "pre-wrap", marginTop: "4px" }}>{m.text}</div>
+          {typeof m.data.report_url === "string" && (
+            <a href={m.data.report_url} target="_blank" rel="noreferrer" style={{ color: "var(--text-h)", fontSize: "12px" }}>Open report</a>
+          )}
+        </div>
+      ) : (
+        <Bubble user={user}>
+          {user ? m.text : replyText(m.text, m.findings)}
+          {m.data.attached_docs ? <div style={{ fontSize: "12px", opacity: 0.75, marginTop: "4px" }}>+ {m.data.attached_docs} document(s)</div> : null}
+        </Bubble>
+      )}
+      {m.findings.length > 0 && (
+        <div style={{ width: "85%", display: "flex", flexDirection: "column", gap: "6px" }}>
+          {shown.map((f) => <FindingCard key={f.finding_id} f={f} />)}
+          {m.findings.length > SHOWN_FINDINGS && (
+            <button onClick={() => setAll(!all)} style={{
+              alignSelf: "flex-start", background: "none", border: "none", cursor: "pointer",
+              color: "var(--text-muted)", fontSize: "12px", fontFamily: "inherit", padding: 0,
+            }}>{all ? "Show fewer" : `Show all ${m.findings.length} findings`}</button>
+          )}
+        </div>
+      )}
+      {m.data.refs_missing ? <span style={{ fontSize: "12px", color: "var(--text-soft)" }}>The audit version this message refers to is no longer available.</span> : null}
+      {showSuggestions && !user && m.suggestions.length ? <Chips items={m.suggestions} onPick={onPick} disabled={busy} /> : null}
+    </div>
+  );
+}
+
+function SendButton({ ready, onClick }: { ready: boolean; onClick: () => void }) {
+  return (
+    <button onClick={onClick} disabled={!ready} style={{
+      width: "32px", height: "32px", borderRadius: "50%", border: "none",
+      background: ready ? "var(--text-h)" : "var(--border)", cursor: ready ? "pointer" : "default",
+      display: "flex", alignItems: "center", justifyContent: "center", transition: "background 0.2s",
+    }}>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={ready ? "#f5f0ea" : "var(--text-soft)"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <line x1="22" y1="2" x2="11" y2="13" />
+        <polygon points="22 2 15 22 11 13 2 9 22 2" />
+      </svg>
+    </button>
+  );
+}
+
+function Chips({ items, onPick, disabled }: { items: string[]; onPick: (t: string) => void; disabled: boolean }) {
+  return (
+    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", maxWidth: "640px", justifyContent: "inherit" }}>
+      {items.map((t) => (
+        <button key={t} onClick={() => onPick(t)} disabled={disabled} style={{
+          padding: "6px 12px", borderRadius: "var(--radius-pill)", border: "1px solid var(--border)",
+          background: "var(--surface)", color: "var(--text-h)", fontSize: "12px", cursor: disabled ? "default" : "pointer",
+          fontFamily: "inherit",
+        }}>{t}</button>
+      ))}
     </div>
   );
 }

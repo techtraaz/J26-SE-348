@@ -1,16 +1,18 @@
 """FastAPI doors for Component-03."""
 import json
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import Body, FastAPI, HTTPException
+from fastapi import Body, FastAPI, HTTPException, Path
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
 from app import config
-from app.schemas.copilot import CopilotQuery
-from app.services import copilot, intake, orchestrator, rules
+from app.schemas.chat import ExternalMessage
+from app.schemas.copilot import SESSION_ID_PATTERN, CopilotQuery
+from app.services import chat, copilot, intake, orchestrator, rules
+from app.services.chat_store import default_chat_store
 from app.services.kg_client import KGError, default_kg
-from app.services.store import StoreError, default_store
+from app.services.store import StoreError, case_summary, default_store
 
 app = FastAPI(title="NOMOS Component 03 — Audit Reasoning")
 app.add_middleware(CORSMiddleware, allow_origins=config.CORS_ORIGINS,
@@ -26,6 +28,8 @@ C1_BODY = Body(..., examples=[{"case_id": "CASE-1", "documents": [{
             "regions": [{"sequence": 1, "page_number": 1, "text": "Rs. 125,000.00",
                          "confidence": 0.93, "provenance": "paddleocr", "field_key": "amount"}]}}]}])
 DOCS_BODY = Body(..., examples=[{"docs": []}])
+SessionId = Annotated[str, Path(pattern=SESSION_ID_PATTERN)]
+CaseId = Annotated[str, Path(pattern=SESSION_ID_PATTERN)]
 
 
 def _case(payload: Any):
@@ -74,10 +78,20 @@ def audit_intake_c1(payload: dict = C1_BODY,
     return out
 
 
+def _check_session(session_id: str | None) -> None:
+    if session_id is not None and not intake.SAFE_ID_RE.fullmatch(session_id):
+        raise HTTPException(status_code=422, detail=f"invalid session_id {session_id!r}")
+
+
 @app.post("/audit/run")
-def audit_run(payload: dict = CASE_BODY):
-    """Run the full audit; the result is saved as the next version of the case."""
-    return _store_call(orchestrator.run_case, _case(payload)).model_dump()
+def audit_run(payload: dict = CASE_BODY, session_id: str | None = None):
+    """Run the full audit; the result is saved as the next version of the case.
+    With ?session_id= the result also appears in that chat."""
+    _check_session(session_id)
+    result = _store_call(orchestrator.run_case, _case(payload))
+    if session_id:
+        _store_call(chat.record_audit, default_chat_store(), session_id, result)
+    return result.model_dump()
 
 
 @app.post("/audit/run/stream")
@@ -97,15 +111,25 @@ def audit_run_stream(payload: dict = CASE_BODY):
 
 
 @app.post("/audit/{case_id}/evidence")
-def audit_append(case_id: str, payload: dict = DOCS_BODY):
+def audit_append(case_id: str, payload: dict = DOCS_BODY, session_id: str | None = None):
     """Add documents to the latest version of a case and re-run (new version)."""
+    _check_session(session_id)
     try:
-        return _store_call(orchestrator.append_evidence, case_id,
-                           payload.get("docs", [])).model_dump()
+        result = _store_call(orchestrator.append_evidence, case_id, payload.get("docs", []))
+        if session_id:
+            _store_call(chat.record_audit, default_chat_store(), session_id, result)
+        return result.model_dump()
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except intake.IntakeError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.get("/audit/cases")
+def audit_cases(limit: int = 100):
+    """Audited cases, newest first: latest version, status and finding counts."""
+    records = _store_call(default_store().latest_all, max(1, min(limit, 500)))
+    return {"cases": [case_summary(r) for r in records]}
 
 
 @app.get("/audit/{case_id}/versions")
@@ -131,7 +155,43 @@ def audit_version(case_id: str, version: int):
 
 @app.post("/copilot/query")
 def copilot_query(q: CopilotQuery):
+    """Without session_id each request stands alone; with it the turn is saved
+    and follow-ups use the session's memory."""
+    if q.session_id:
+        return _store_call(chat.converse, q, default_kg(), default_store(),
+                           default_chat_store()).model_dump()
     return _store_call(copilot.answer, q).model_dump()
+
+
+@app.get("/chat/sessions")
+def chat_sessions(limit: int = 100, case_id: str | None = None):
+    """Chats, most recently active first."""
+    rows = _store_call(default_chat_store().list_sessions, max(1, min(limit, 500)), case_id)
+    return {"sessions": [s.model_dump() for s in rows]}
+
+
+@app.get("/chat/{session_id}/messages")
+def chat_messages(session_id: SessionId, before: int | None = None, limit: int = 50):
+    """History oldest first, with findings filled in. Page back with ?before=<seq>."""
+    rows = _store_call(chat.history, default_chat_store(), default_store(), session_id,
+                       before, max(1, min(limit, 200)))
+    return {"session_id": session_id, "messages": [m.model_dump() for m in rows]}
+
+
+@app.delete("/chat/{session_id}")
+def chat_delete(session_id: SessionId):
+    """Delete a chat and its messages. Audit results are not touched."""
+    if not _store_call(default_chat_store().delete_session, session_id):
+        raise HTTPException(status_code=404, detail=f"No chat {session_id!r}")
+    return {"deleted": session_id}
+
+
+@app.post("/chat/case/{case_id}/messages")
+def chat_post_to_case(case_id: CaseId, msg: ExternalMessage):
+    """For other components, e.g. C4 when a report is ready: the message goes to
+    every chat of the case. Only the case_id (and version) from C3's events is needed."""
+    rows = _store_call(chat.post_to_case, default_chat_store(), case_id, msg)
+    return {"case_id": case_id, "messages": [m.model_dump() for m in rows]}
 
 
 @app.get("/kg/rules/{doc_type}")

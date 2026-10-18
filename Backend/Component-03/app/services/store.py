@@ -49,6 +49,16 @@ def _summary(rec: dict) -> dict:
             "docs": len(rec.get("case", {}).get("docs", []))}
 
 
+def case_summary(rec: dict) -> dict:
+    """One line per case for lists: newest version, status and finding counts."""
+    findings = rec.get("findings", [])
+    rule = [f for f in findings if not f["rule_id"].startswith("REV-")]
+    return {"case_id": rec["case_id"], "version": rec["version"], "status": rec["status"],
+            "created_at": rec["created_at"], "docs": len(rec.get("case", {}).get("docs", [])),
+            "findings": len(rule), "high": sum(f["severity"] == "high" for f in rule),
+            "needs_review": sum(f["review_status"] == "needs_more_evidence" for f in findings)}
+
+
 class MemoryStore(ResultStore):
     """Process-only store for tests and offline development."""
 
@@ -88,18 +98,18 @@ class MemoryStore(ResultStore):
         return sorted(newest, key=lambda r: r["created_at"], reverse=True)[:limit]
 
 
-class MongoStore(ResultStore):
-    def __init__(self, uri: str | None = None, db_name: str | None = None,
-                 client=None) -> None:
+class MongoConnection:
+    """One lazily opened MongoDB client, shared by the result and chat stores.
+    Every failure becomes StoreError, so callers never see driver exceptions."""
+
+    def __init__(self, uri: str | None = None, db_name: str | None = None, client=None) -> None:
         self._uri = config.MONGODB_URI if uri is None else uri
         self._db_name = db_name or config.MONGODB_DB
         self._client = client
-        self._ready = False
+        self._indexes: set[str] = set()
         self._lock = threading.Lock()
 
-    def _db(self):
-        from pymongo.errors import PyMongoError
-
+    def db(self):
         with self._lock:
             if self._client is None:
                 if not self._uri:
@@ -107,27 +117,45 @@ class MongoStore(ResultStore):
                 from pymongo import MongoClient
                 self._client = MongoClient(self._uri, serverSelectionTimeoutMS=config.MONGODB_TIMEOUT_MS,
                                            appname="nomos-c03")
-            db = self._client[self._db_name]
-            if not self._ready:
-                try:
-                    db[config.RESULTS_COLLECTION].create_index(
-                        [("case_id", 1), ("version", -1)], unique=True)
-                    # TTL index: auto-expire callback traces after N days
-                    db[config.CALLBACK_TRACES_COLLECTION].create_index(
-                        "ts", expireAfterSeconds=config.CALLBACK_TRACES_TTL_DAYS * 86400)
-                    db[config.CALLBACK_TRACES_COLLECTION].create_index(
-                        [("case_id", 1), ("version", 1), ("seq", 1)])
-                except PyMongoError as exc:
-                    raise StoreError(f"MongoDB is not reachable: {exc}") from exc
-                self._ready = True
-            return db
+            return self._client[self._db_name]
 
-    def _run(self, fn):
+    def run(self, fn):
         from pymongo.errors import PyMongoError
         try:
-            return fn(self._db())
+            return fn(self.db())
         except PyMongoError as exc:
             raise StoreError(f"MongoDB error: {exc}") from exc
+
+    def ensure_index(self, collection: str, keys: list, **options) -> None:
+        key = f"{collection}:{keys}"
+        if key not in self._indexes:
+            self.run(lambda db: db[collection].create_index(keys, **options))
+            self._indexes.add(key)
+
+
+_mongo: MongoConnection | None = None
+_mongo_lock = threading.Lock()
+
+
+def shared_mongo() -> MongoConnection:
+    global _mongo
+    with _mongo_lock:
+        if _mongo is None:
+            _mongo = MongoConnection()
+        return _mongo
+
+
+class MongoStore(ResultStore):
+    def __init__(self, uri: str | None = None, db_name: str | None = None,
+                 client=None, conn: MongoConnection | None = None) -> None:
+        self._conn = conn or MongoConnection(uri, db_name, client)
+
+    def _db(self):
+        return self._conn.db()
+
+    def _run(self, fn):
+        self._conn.ensure_index(config.RESULTS_COLLECTION, [("case_id", 1), ("version", -1)], unique=True)
+        return self._conn.run(fn)
 
     def next_version(self, case_id):
         from pymongo import ReturnDocument
@@ -142,7 +170,11 @@ class MongoStore(ResultStore):
     def traces_collection(self):
         """Return the callback traces collection for XAITracerCallback."""
         try:
-            return self._db()[config.CALLBACK_TRACES_COLLECTION]
+            # Lazily create indexes on first access
+            self._conn.ensure_index(
+                config.CALLBACK_TRACES_COLLECTION,
+                [("case_id", 1), ("version", 1), ("seq", 1)])
+            return self._conn.db()[config.CALLBACK_TRACES_COLLECTION]
         except Exception:  # noqa: BLE001 — never block the audit
             return None
 
@@ -182,5 +214,5 @@ def default_store() -> ResultStore:
             mode = config.STORE_MODE.lower()
             if mode not in ("mongo", "memory"):
                 raise StoreError(f"Unknown C03_STORE_MODE {mode!r}; use mongo|memory.")
-            _store = MongoStore() if mode == "mongo" else MemoryStore()
+            _store = MongoStore(conn=shared_mongo()) if mode == "mongo" else MemoryStore()
         return _store

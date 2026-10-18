@@ -33,11 +33,19 @@ result is never returned unless it was saved.
 | POST | `/audit/run` | run and save the next version |
 | POST | `/audit/run/stream` | NDJSON: one line per finished agent, then the result |
 | POST | `/audit/{case_id}/evidence` | add docs to the latest version and re-run |
+| GET | `/audit/cases` | audited cases, newest first (latest version, status, counts) |
 | GET | `/audit/{case_id}/versions` | every saved version (summary) |
 | GET | `/audit/{case_id}/versions/{v}` | one saved version, with its input case |
 | GET | `/audit/{case_id}/latest` | newest saved version |
 | POST | `/copilot/query` | `{text, case_id?, docs?}` → natural-language request (see Copilot) |
 | GET | `/kg/rules/{doc_type}` | the KG rules C3 would apply |
+| GET | `/chat/sessions[?case_id=]` | saved chats, most recently active first |
+| GET | `/chat/{session_id}/messages[?before=<seq>&limit=]` | history, oldest first, findings filled in |
+| DELETE | `/chat/{session_id}` | delete a chat (audit results are kept) |
+| POST | `/chat/case/{case_id}/messages` | another component posts into a case's chat (C4 report ready) |
+
+`POST /audit/run`, `POST /audit/{case_id}/evidence` and `POST /copilot/query`
+accept a `session_id`; the turn or result is then saved in that chat.
 
 ## Inputs
 
@@ -102,8 +110,11 @@ text -> entities (code) -> intent (rules if confident, else LLM among the top 3)
 - **Entities** (IDs, rule ids, severities, amounts…) are extracted in code only;
   a small model was measured inventing them.
 - **Replies** are built in code from saved results and KG data.
-- **The response** has `intent`, `group`, `reply`, and `data`. `data` includes
-  `nlu`: how the intent was chosen and what the rules and the LLM each said.
+- **The response** has `intent`, `group`, `reply`, `suggestions` (follow-up
+  questions) and `data`. `data.findings` holds any findings the reply is about;
+  `data.nlu` says how the intent was chosen and what the rules and the LLM said.
+- **Context counts:** documents attached to an already-audited case are added
+  to it (evidence append) unless the text explicitly asks for a fresh audit.
 - **Any model:** set `C03_LLM_PROVIDER`, `C03_LLM_MODEL` and `C03_LLM_BASE_URL`.
   New providers go in `app/services/llm/providers.py`.
 
@@ -121,6 +132,29 @@ SO5 evaluation (`eval/copilot_intents.jsonl`, 63 labelled queries):
 
 The rules were written alongside this set, so their score is optimistic. An
 independent set written by other people is needed for the dissertation figure.
+
+## Chat sessions and memory
+
+`app/services/chat.py`, `chat_store.py`, `copilot/memory.py`. MongoDB:
+`c03_chat_sessions` (one per chat, with its memory), `c03_chat_messages`
+(ordered by a per-session `seq`), `c03_chat_counters`.
+
+- A case's own chat has `session_id == case_id` (one chat per case for now);
+  general chats use other ids (`GEN-...`). `session_id` is separate from
+  `case_id`, so several chats per case need no redesign.
+- Messages store findings **by reference** (`refs: {version, finding_ids}`) and
+  are filled in from the saved audit version when read. Saved versions never
+  change, so a message always shows what was said then. What-if findings are
+  in no saved audit, so they are stored inline.
+- **Memory** is a small structured context per session, updated in code after
+  each turn: `case_id`, `version`, `last_intent`, `finding_ids`, `filters`.
+  "why did that one fire?" uses the findings shown last, "only the high ones"
+  narrows the last list, and with no case named the last case is used. The LLM
+  only gets a one-line summary of it; the transcript is never fed to the model.
+- **Reports from C4:** `POST /chat/case/{case_id}/messages` with
+  `{"role": "report", "text": "...", "version": 3, "data": {"report_url": "..."}, "source": "c4"}`.
+  C4 needs only the `case_id` and `version` from C3's events; C3 routes the
+  message to every chat of that case (creating the case's chat if needed).
 
 ## Outputs for Component-04
 
