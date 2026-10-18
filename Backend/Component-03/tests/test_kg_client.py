@@ -180,11 +180,11 @@ def test_unsupported_doc_type_does_not_crash_audit():
                       doc_type="bank_statement", period_year=2026,
                       fields={"amount": 10})])
     res = orchestrator.run_case(case, MockKGClient())
-    assert res.status == "pending_auditor_review"
-    assert any(f.rule_id == "CHK-007" for f in res.findings)
-    assert any("not supported" in f.message for f in res.findings)
-    assert any(t.agent_name == "compliance" and "unsupported" in t.detail.lower()
-               for t in res.trace)
+    # The only doc is unrecognised: not_auditable, one REV-002, never a duplicate.
+    assert res.status == "not_auditable"
+    assert any(f.rule_id == "REV-002" and "not supported" in f.message
+               for f in res.findings)
+    assert not any(f.rule_id == "CHK-007" for f in res.findings)
 
 
 def test_kg_rules_endpoint_rejects_bad_doc_type_with_4xx():

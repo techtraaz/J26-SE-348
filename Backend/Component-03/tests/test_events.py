@@ -134,6 +134,44 @@ def test_published_events_match_c4_contract_models():
         assert e.ts
 
 
+def test_concurrent_runs_keep_their_own_event_state(monkeypatch):
+    """Two audits in two threads must not overwrite each other's flags."""
+    import threading
+
+    from app import config
+    from app.services import telemetry
+
+    monkeypatch.setattr(config, "EVENTS_ENABLED", True)
+    barrier = threading.Barrier(2)
+
+    def emit_start(case_id, doc_count):
+        barrier.wait()  # both runs are mid-flight before either reports
+        return case_id != "CASE-FAIL"
+
+    monkeypatch.setattr(telemetry, "emit_pipeline_start", emit_start)
+    monkeypatch.setattr(telemetry, "emit_agent_end",
+                        lambda case_id, *a, **k: case_id != "CASE-FAIL")
+    monkeypatch.setattr(telemetry, "emit_pipeline_end",
+                        lambda case_id, total: case_id != "CASE-FAIL")
+
+    out: dict = {}
+
+    def work(case_id):
+        out[case_id] = orchestrator.run_case(_tv_case(case_id), KGClient())
+
+    threads = [threading.Thread(target=work, args=(cid,))
+               for cid in ("CASE-OK", "CASE-FAIL")]
+    for th in threads:
+        th.start()
+    for th in threads:
+        th.join()
+
+    assert out["CASE-OK"].events_published is True
+    assert out["CASE-FAIL"].events_published is False
+    assert not any(t.agent_name == "events" for t in out["CASE-OK"].trace)
+    assert any(t.agent_name == "events" for t in out["CASE-FAIL"].trace)
+
+
 def test_version_bumps_once_per_run():
     orchestrator.VERSION_STORE.pop("CASE-VER", None)
     r1 = orchestrator.run_case(_tv_case("CASE-VER"), KGClient(),

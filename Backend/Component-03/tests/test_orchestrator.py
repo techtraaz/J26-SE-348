@@ -240,6 +240,50 @@ def test_unreadable_number_is_review_item_and_value_kept():
     assert rev[0].review_status == "needs_more_evidence"
 
 
+def test_all_unrecognised_docs_return_not_auditable():
+    case = AuditCase(case_id="CASE-UNREC", docs=[
+        AuditDocument(doc_id="A1", case_id="CASE-UNREC", doc_type="unknown",
+                      period_year=2026, fields={"amount": 10.0}),
+        AuditDocument(doc_id="A2", case_id="CASE-UNREC", doc_type="bank_statement",
+                      period_year=2026, fields={"amount": 20.0})])
+    res = orchestrator.run_case(case, KGClient())
+    assert res.status == "not_auditable"
+    rev = [f for f in res.findings if f.rule_id == "REV-002"]
+    assert sorted(f.evidence_ids[0] for f in rev) == ["A1", "A2"]
+    assert not any(f.rule_id == "CHK-007" for f in res.findings)
+
+
+def test_mixed_unsupported_doc_has_rev002_not_chk007():
+    case = AuditCase(case_id="CASE-MIXED", docs=[
+        AuditDocument(doc_id="BS1", case_id="CASE-MIXED",
+                      doc_type="balance_sheet", period_year=2026,
+                      fields={"assets": 50000, "liabilities": 30000, "capital": 20000}),
+        AuditDocument(doc_id="X1", case_id="CASE-MIXED",
+                      doc_type="bank_statement", period_year=2026,
+                      fields={"amount": 10.0})])
+    res = orchestrator.run_case(case, KGClient())
+    assert res.status == "pending_auditor_review"
+    assert any(f.rule_id == "REV-002" and f.evidence_ids == ["X1"]
+               for f in res.findings)
+    assert not any(f.rule_id == "CHK-007" for f in res.findings)
+
+
+def test_validate_case_issues_are_visible_review_findings():
+    case = AuditCase(case_id="CASE-ISSUES", docs=[
+        AuditDocument(doc_id="BS1", case_id="CASE-ISSUES",
+                      doc_type="balance_sheet", period_year=2026,
+                      fields={"assets": 50000, "liabilities": 30000, "capital": 20000},
+                      confidences={"assets": 1.8}),
+        AuditDocument(doc_id="INV1", case_id="CASE-ISSUES", doc_type="invoice",
+                      period_year=2026, parent_doc_id="MISSING",
+                      fields={"amount": 10.0})])
+    res = orchestrator.run_case(case, KGClient())
+    issues = [f for f in res.findings if f.rule_id == "REV-004"]
+    assert any("outside 0..1" in f.message for f in issues)
+    assert any("parent_doc_id" in f.message for f in issues)
+    assert all(f.review_status == "needs_more_evidence" for f in issues)
+
+
 def test_clean_case_zero_findings():
     res = orchestrator.run_case(_clean_case(), KGClient())
     assert res.status == "pending_auditor_review"

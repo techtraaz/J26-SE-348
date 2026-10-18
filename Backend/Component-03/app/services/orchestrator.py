@@ -122,9 +122,15 @@ def build_graph() -> object:
             for x in t:
                 x.seq = next(_seq_from(config))
         _emit_agent(config, case.case_id, "data_quality", f, t)
+        unrecognised = [d for d in case.docs
+                        if d.doc_type == "unknown"
+                        or d.doc_type not in settings.ALLOWED_DOC_TYPES]
+        all_unrecognised = bool(case.docs) and len(unrecognised) == len(case.docs)
+        only_reviews = all(x.review_status == "needs_more_evidence" for x in f)
         return {"findings": f, "trace": t, "rejected_records": rejected,
-                "early_stop": len(case.docs) == 0 or
-                              (len(rejected) >= len(case.docs) > 0)}
+                "early_stop": (len(case.docs) == 0
+                               or (len(rejected) >= len(case.docs) > 0)
+                               or (all_unrecognised and only_reviews))}
 
     def route_after_dq(state: AuditState):
         if state.get("early_stop"):
@@ -198,7 +204,9 @@ def _fresh_cfg(kg: KGClient | None,
 def run_case(case: AuditCase, kg: KGClient | None = None,
              publisher: EventPublisher | None = None) -> AuditResult:
     kg = kg or default_kg()
-    pub = publisher or default_publisher()
+    # A fresh publisher per run: concurrent audits never share published/failed
+    # state, so each result reports its own run truthfully.
+    pub = publisher or EventPublisher()
     pub.pipeline_start(case.case_id, len(case.docs))
     start = time.perf_counter()
     out = GRAPH.invoke(_initial(case), config=_fresh_cfg(kg, pub))
@@ -236,7 +244,7 @@ def stream_case(case: AuditCase, kg: KGClient | None = None,
     """Single graph run. Yields JSON-safe per-node updates, then one final result.
     Version bumped exactly once."""
     kg = kg or default_kg()
-    pub = publisher or default_publisher()
+    pub = publisher or EventPublisher()  # per-run state; concurrency-safe
     pub.pipeline_start(case.case_id, len(case.docs))
     start = time.perf_counter()
     acc: dict = {"trace": [], "rejected_records": [], "rejected_citations": [],

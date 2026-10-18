@@ -28,14 +28,9 @@ def run(case: AuditCase, kg: KGClient) -> tuple[list[Finding], list[TraceEntry]]
             rules = kg.get_rules(d.doc_type)
             check_rules = kg.get_check_rules(d.doc_type)
         except ValueError:
+            # Not a finding: Data Quality already raised one REV-002 for this
+            # document. One finding per document, never a REV-002 + CHK-007 pair.
             unsupported.append(d.doc_id)
-            findings.append(Finding(
-                finding_id=f"{d.doc_id}-CHK007-doctype", rule_id="CHK-007",
-                category="format", severity="low",
-                message=(f"Document type '{d.doc_type}' in {d.doc_id} is not "
-                         f"supported by the knowledge graph; policy checks "
-                         f"skipped, needs review."),
-                evidence_ids=[d.doc_id]))
             continue
         # KG policy: e.g. dual approval limit
         for r in rules:

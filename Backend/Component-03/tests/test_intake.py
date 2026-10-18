@@ -93,6 +93,37 @@ def test_unparsable_numeric_value_kept_and_flagged():
                for i in intake.validate_case(case))
 
 
+def test_only_numeric_fields_are_parsed():
+    payload = _valid_payload()
+    payload["docs"][1]["fields"] = {"amount": 10000, "cheque_no": "004521",
+                                    "invoice_no": "INV-2026-0007"}
+    case = intake.normalize_case(payload)
+    doc = case.docs[1]
+    assert doc.fields["amount"] == 10000
+    assert doc.fields["cheque_no"] == "004521"
+    assert doc.fields["invoice_no"] == "INV-2026-0007"
+    issues = intake.validate_case(case)
+    assert not any("cheque_no" in i or "invoice_no" in i for i in issues)
+
+
+@pytest.mark.parametrize("raw", ["1,23", "12,34,567", "1,2345"])
+def test_malformed_thousands_separators_stay_strings_and_are_flagged(raw):
+    payload = _valid_payload()
+    payload["docs"][1]["fields"] = {"amount": raw}
+    case = intake.normalize_case(payload)
+    assert case.docs[1].fields["amount"] == raw
+    assert any("could not be read as a number" in i
+               for i in intake.validate_case(case))
+
+
+@pytest.mark.parametrize("raw,expected", [("1,234,567.89", 1234567.89),
+                                          ("1,000", 1000.0)])
+def test_valid_thousands_grouping_is_parsed(raw, expected):
+    payload = _valid_payload()
+    payload["docs"][1]["fields"] = {"amount": raw}
+    assert intake.normalize_case(payload).docs[1].fields["amount"] == expected
+
+
 def test_validate_case_flags_parent_and_unsupported_type():
     payload = _valid_payload()
     payload["docs"][1]["parent_doc_id"] = "MISSING"
@@ -144,3 +175,17 @@ def test_audit_run_goes_through_intake():
     no_year = _valid_payload()
     del no_year["docs"][0]["period_year"]
     assert client.post("/audit/run", json=no_year).status_code == 422
+
+
+def test_audit_run_surfaces_intake_issues_as_review_findings():
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    payload = _valid_payload()
+    payload["docs"][1]["parent_doc_id"] = "MISSING"
+    body = TestClient(app).post("/audit/run", json=payload).json()
+    assert any(f["rule_id"] == "REV-004"
+               and f["review_status"] == "needs_more_evidence"
+               and "parent_doc_id" in f["message"]
+               for f in body["findings"])

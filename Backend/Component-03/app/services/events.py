@@ -40,11 +40,26 @@ class EventPublisher:
         self.reset()
 
     def reset(self) -> None:
-        """Clear per-run state. Called at the start of every pipeline."""
-        self.published = False
+        """Clear per-run state. Called at the start of every pipeline.
+
+        run_case/stream_case build a fresh publisher per run, so two concurrent
+        audits never share these flags; this is defensive for reuse too.
+        """
+        self._sent = 0
         self._disabled = False
         self._failed = False
         self._warned = False
+
+    @property
+    def published(self) -> bool:
+        """True only when every event of this run was sent (no drop, no disable)."""
+        return self._sent > 0 and not self._failed and not self._disabled
+
+    def _record(self, ok: bool) -> None:
+        if ok:
+            self._sent += 1
+        else:
+            self._failed = True
 
     def publish(self, payload: dict) -> None:
         """Send raw JSON to the injected client. A no-op without one."""
@@ -52,9 +67,9 @@ class EventPublisher:
             return
         try:
             self._client.publish(self.channel, json.dumps(payload, default=str))
-            self.published = True
+            self._record(True)
         except Exception:  # noqa: BLE001 - best-effort publish must never raise
-            self._failed = True
+            self._record(False)
             if not self._warned:
                 logger.warning("Trace event publish failed; continuing audit.")
                 self._warned = True
@@ -80,10 +95,7 @@ class EventPublisher:
         if not config.EVENTS_ENABLED:
             self._disabled = True
             return
-        if telemetry.emit_pipeline_start(case_id, doc_count):
-            self.published = True
-        else:
-            self._failed = True
+        self._record(telemetry.emit_pipeline_start(case_id, doc_count))
 
     def agent_end(self, case_id: str, agent: str, findings_count: int,
                   trace: dict) -> None:
@@ -95,10 +107,7 @@ class EventPublisher:
         if not config.EVENTS_ENABLED:
             self._disabled = True
             return
-        if telemetry.emit_agent_end(case_id, agent, findings_count, trace):
-            self.published = True
-        else:
-            self._failed = True
+        self._record(telemetry.emit_agent_end(case_id, agent, findings_count, trace))
 
     def pipeline_end(self, case_id: str, total_findings: int) -> None:
         if self._injected:
@@ -108,10 +117,7 @@ class EventPublisher:
         if not config.EVENTS_ENABLED:
             self._disabled = True
             return
-        if telemetry.emit_pipeline_end(case_id, total_findings):
-            self.published = True
-        else:
-            self._failed = True
+        self._record(telemetry.emit_pipeline_end(case_id, total_findings))
 
 
 _publisher = EventPublisher()

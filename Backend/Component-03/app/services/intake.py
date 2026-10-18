@@ -19,6 +19,8 @@ SAFE_ID_RE = re.compile(r"^[A-Za-z0-9 _\-.]{1,64}$")
 _YEAR_MIN, _YEAR_MAX = 1900, 2999
 # Currency prefixes/symbols OCR often glues onto a number.
 _CURRENCY_RE = re.compile(r"(?i)\b(?:rs|lkr)\.?|[₨₹$€£]")
+# Commas are allowed only as thousands groups: 1,234,567.89 (no "1,23").
+_THOUSANDS_RE = re.compile(r"^\d{1,3}(,\d{3})*(\.\d+)?$")
 
 
 class IntakeError(ValueError):
@@ -36,16 +38,16 @@ def _conf(value: Any, where: str) -> float:
 
 def _parse_number(value: Any) -> Any:
     """Turn a numeric string like '250,000' or 'Rs. 10,000.00' into a float.
-    Anything that does not read cleanly as a number is returned unchanged."""
+
+    Commas are accepted only as thousands groups (1,234,567.89); a malformed
+    group such as '1,23' or '12,34,567' stays a string and is flagged by
+    validate_case. Anything else that does not read cleanly is kept unchanged."""
     if isinstance(value, bool) or not isinstance(value, str):
         return value
-    text = _CURRENCY_RE.sub("", value).strip().replace(",", "").strip()
-    if not any(ch.isdigit() for ch in text):
+    text = _CURRENCY_RE.sub("", value).strip()
+    if not _THOUSANDS_RE.fullmatch(text):
         return value
-    try:
-        return float(text)
-    except ValueError:
-        return value
+    return float(text.replace(",", ""))
 
 
 def _one_doc(raw: dict, case_id: str, where: str, seen: set[str]) -> AuditDocument:
@@ -67,7 +69,9 @@ def _one_doc(raw: dict, case_id: str, where: str, seen: set[str]) -> AuditDocume
     fields = raw.get("fields") or {}
     if not isinstance(fields, dict):
         raise IntakeError(f"{where}: fields must be an object")
-    fields = {k: _parse_number(v) for k, v in fields.items()}
+    # Only numeric fields are parsed; IDs, dates and codes stay exactly as sent.
+    fields = {k: (_parse_number(v) if k in config.NUMERIC_FIELDS else v)
+              for k, v in fields.items()}
     parent = raw.get("parent_doc_id")
     if parent is not None and not isinstance(parent, str):
         raise IntakeError(f"{where}: parent_doc_id must be a string or null")
