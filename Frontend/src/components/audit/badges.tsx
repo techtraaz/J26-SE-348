@@ -28,15 +28,3 @@ export function EmptyState({ text }: { text: string }) {
 export function ErrorState({ text }: { text: string }) {
   return <div className="rounded-xl border border-[var(--danger)] bg-[#FEE2E2] p-4 text-sm">{text}</div>;
 }
-
-export function AgentProgress({ steps, done }: { steps: string[]; done: number }) {
-  return (
-    <ol className="flex flex-wrap gap-2 text-xs">
-      {steps.map((s, i) => (
-        <li key={s} className={`rounded-full px-3 py-1 ${i < done ? "bg-[var(--primary)] text-white" : "bg-[var(--surface-muted)]"}`}>
-          {i + 1}. {s}
-        </li>
-      ))}
-    </ol>
-  );
-}

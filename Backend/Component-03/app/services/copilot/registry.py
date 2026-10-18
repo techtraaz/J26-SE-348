@@ -35,6 +35,7 @@ class IntentSpec:
     patterns: dict[str, float] = field(default_factory=dict)  # regex -> weight
     signals: dict[str, float] = field(default_factory=dict)  # entity/flag -> weight
     needs: tuple[str, ...] = ()
+    follow_ups: tuple[str, ...] = ()  # next questions offered to the user
 
 
 REGISTRY: dict[str, IntentSpec] = {}
@@ -43,7 +44,7 @@ FALLBACK_INTENT = "help"
 
 def intent(name: str, *, group: Group, description: str, examples: tuple[str, ...],
            patterns: dict[str, float] | None = None, signals: dict[str, float] | None = None,
-           needs: tuple[str, ...] = ()):
+           needs: tuple[str, ...] = (), follow_ups: tuple[str, ...] = ()):
     unknown = set(needs) - set(NEEDS)
     if unknown:
         raise ValueError(f"intent {name}: unknown needs {sorted(unknown)}")
@@ -53,6 +54,7 @@ def intent(name: str, *, group: Group, description: str, examples: tuple[str, ..
             raise ValueError(f"intent {name!r} registered twice")
         REGISTRY[name] = IntentSpec(name=name, group=group, description=description,
                                     examples=examples, handler=fn, patterns=patterns or {},
-                                    signals=signals or {}, needs=needs)
+                                    signals=signals or {}, needs=needs,
+                                    follow_ups=follow_ups)
         return fn
     return register

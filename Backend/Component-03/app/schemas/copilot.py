@@ -17,6 +17,7 @@ class CopilotResponse(BaseModel):
     intent: str  # fine-grained intent name from the registry
     group: Group  # the proposal's category: rule_query / case_query / evidence_append / fresh_audit
     reply: str
+    suggestions: list[str] = Field(default_factory=list)  # follow-up questions to offer
     # Handler output plus "nlu" (how the intent was chosen), "entities", "case_id",
     # and "needs" when the request was missing something.
     data: dict[str, Any] | None = None

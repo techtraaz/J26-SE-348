@@ -8,7 +8,7 @@ from app.main import app
 from app.schemas.copilot import CopilotQuery
 from app.services import copilot, intake, llm, orchestrator
 from app.services.copilot.entities import extract
-from app.services.copilot.nlu import understand
+from app.services.copilot.nlu import RequestContext, understand
 from app.services.copilot.registry import REGISTRY
 from app.services.llm.providers import LLMError, LLMProvider
 from tests.conftest import doc
@@ -91,19 +91,19 @@ def test_registry_is_complete():
 ])
 def test_rules_classifier(text, has_docs, intent, monkeypatch):
     monkeypatch.setattr(config, "COPILOT_NLU", "rules")
-    assert understand(text, extract(text), has_docs, None).intent == intent
+    assert understand(text, extract(text), RequestContext(has_docs=has_docs)).intent == intent
 
 
 def test_confident_rules_skip_the_llm(fake_llm):
     provider = fake_llm({"intent": "help"})
-    u = understand("explain CHK-004", extract("explain CHK-004"), False, None)
+    u = understand("explain CHK-004", extract("explain CHK-004"), RequestContext())
     assert u.intent == "rule_explain" and u.method == "rules" and not provider.calls
 
 
 def test_unsure_rules_ask_the_llm_among_top_candidates(fake_llm):
     provider = fake_llm({"intent": "case_status"})
     text = "anything I should know about ACME-1?"
-    u = understand(text, extract(text, known_case_ids=["ACME-1"]), False, "ACME-1")
+    u = understand(text, extract(text, known_case_ids=["ACME-1"]), RequestContext(case_id="ACME-1"))
     assert u.method == "llm" and u.intent == "case_status"
     schema = provider.calls[0][2]
     assert len(schema["properties"]["intent"]["enum"]) <= config.COPILOT_LLM_CANDIDATES + 1
@@ -114,7 +114,7 @@ def test_unsure_rules_ask_the_llm_among_top_candidates(fake_llm):
 def test_bad_or_failed_llm_falls_back_to_rules(fake_llm, reply):
     fake_llm(reply)
     text = "anything about it?"
-    u = understand(text, extract(text), False, None)
+    u = understand(text, extract(text), RequestContext())
     assert u.method == "rules_fallback" and u.intent in REGISTRY and u.llm_error
 
 
@@ -185,3 +185,28 @@ def test_llm_trace_line_must_only_repeat_given_numbers():
     assert llm.is_safe("3 findings for 2 docs", "case has 3 findings for 2 docs")
     assert not llm.is_safe("3 findings, Rs. 9,000 lost", "case has 3 findings")
     assert not llm.is_safe("breaks GDPR", "x")
+
+
+def test_every_follow_up_routes_to_a_real_intent(monkeypatch):
+    monkeypatch.setattr(config, "COPILOT_NLU", "rules")
+    for spec in REGISTRY.values():
+        for text in spec.follow_ups:
+            got = understand(text, extract(text), RequestContext(case_id="C-1")).intent
+            assert got != "help", f"{spec.name} follow-up {text!r} routes to help"
+
+
+def test_replies_carry_suggestions_and_findings(kg, audited):
+    r = ask(kg, audited, "what is the status of case ACME-1?")
+    assert r.suggestions and {f["rule_id"] for f in r.data["findings"]} >= {"CHK-001", "CHK-005"}
+    asking = ask(kg, audited, "show the high severity findings")
+    assert asking.data["needs"] == "saved_case" and asking.suggestions == []
+
+
+def test_attaching_docs_to_an_audited_case_appends_not_replaces(kg, audited, fake_llm):
+    fake_llm({"intent": "fresh_audit"})  # a model that guesses wrong must not decide this
+    receipt = [doc("RC-9", "receipt", {"amount": 140000}, parent_doc_id="INV-9")]
+    r = ask(kg, audited, "Audit these documents", case_id="ACME-1", docs=receipt)
+    assert r.intent == "evidence_append" and r.data["version"] == 3
+    assert len(audited.latest("ACME-1")["case"]["docs"]) == 4  # earlier documents kept
+    fresh = ask(kg, audited, "run a fresh audit from scratch on these", case_id="ACME-1", docs=receipt)
+    assert fresh.intent == "fresh_audit"  # an explicit fresh audit still wins

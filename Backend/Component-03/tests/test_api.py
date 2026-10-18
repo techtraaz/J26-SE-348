@@ -48,3 +48,12 @@ def test_c1_intake_endpoint_can_run():
 def test_stream_endpoint():
     lines = client.post("/audit/run/stream", json=CASE).text.strip().splitlines()
     assert '"result"' in lines[-1]
+
+
+def test_cases_list_shows_latest_version_per_case():
+    client.post("/audit/run", json=CASE)
+    client.post("/audit/run", json=CASE)
+    client.post("/audit/run", json={"case_id": "API-2", "docs": [doc("I", "invoice", {"amount": 150000})]})
+    cases = {c["case_id"]: c for c in client.get("/audit/cases").json()["cases"]}
+    assert cases["API-1"]["version"] == 2 and cases["API-1"]["high"] == 1
+    assert cases["API-2"]["findings"] == 1 and cases["API-2"]["docs"] == 1

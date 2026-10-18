@@ -33,6 +33,7 @@ result is never returned unless it was saved.
 | POST | `/audit/run` | run and save the next version |
 | POST | `/audit/run/stream` | NDJSON: one line per finished agent, then the result |
 | POST | `/audit/{case_id}/evidence` | add docs to the latest version and re-run |
+| GET | `/audit/cases` | audited cases, newest first (latest version, status, counts) |
 | GET | `/audit/{case_id}/versions` | every saved version (summary) |
 | GET | `/audit/{case_id}/versions/{v}` | one saved version, with its input case |
 | GET | `/audit/{case_id}/latest` | newest saved version |
@@ -102,8 +103,11 @@ text -> entities (code) -> intent (rules if confident, else LLM among the top 3)
 - **Entities** (IDs, rule ids, severities, amounts…) are extracted in code only;
   a small model was measured inventing them.
 - **Replies** are built in code from saved results and KG data.
-- **The response** has `intent`, `group`, `reply`, and `data`. `data` includes
-  `nlu`: how the intent was chosen and what the rules and the LLM each said.
+- **The response** has `intent`, `group`, `reply`, `suggestions` (follow-up
+  questions) and `data`. `data.findings` holds any findings the reply is about;
+  `data.nlu` says how the intent was chosen and what the rules and the LLM said.
+- **Context counts:** documents attached to an already-audited case are added
+  to it (evidence append) unless the text explicitly asks for a fresh audit.
 - **Any model:** set `C03_LLM_PROVIDER`, `C03_LLM_MODEL` and `C03_LLM_BASE_URL`.
   New providers go in `app/services/llm/providers.py`.
 

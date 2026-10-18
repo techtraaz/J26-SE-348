@@ -10,7 +10,7 @@ from app import config
 from app.schemas.copilot import CopilotQuery
 from app.services import copilot, intake, orchestrator, rules
 from app.services.kg_client import KGError, default_kg
-from app.services.store import StoreError, default_store
+from app.services.store import StoreError, case_summary, default_store
 
 app = FastAPI(title="NOMOS Component 03 — Audit Reasoning")
 app.add_middleware(CORSMiddleware, allow_origins=config.CORS_ORIGINS,
@@ -106,6 +106,13 @@ def audit_append(case_id: str, payload: dict = DOCS_BODY):
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except intake.IntakeError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.get("/audit/cases")
+def audit_cases(limit: int = 100):
+    """Audited cases, newest first: latest version, status and finding counts."""
+    records = _store_call(default_store().latest_all, max(1, min(limit, 500)))
+    return {"cases": [case_summary(r) for r in records]}
 
 
 @app.get("/audit/{case_id}/versions")

@@ -51,6 +51,16 @@ def _summary(rec: dict) -> dict:
             "docs": len(rec.get("case", {}).get("docs", []))}
 
 
+def case_summary(rec: dict) -> dict:
+    """One line per case for lists: newest version, status and finding counts."""
+    findings = rec.get("findings", [])
+    rule = [f for f in findings if not f["rule_id"].startswith("REV-")]
+    return {"case_id": rec["case_id"], "version": rec["version"], "status": rec["status"],
+            "created_at": rec["created_at"], "docs": len(rec.get("case", {}).get("docs", [])),
+            "findings": len(rule), "high": sum(f["severity"] == "high" for f in rule),
+            "needs_review": sum(f["review_status"] == "needs_more_evidence" for f in findings)}
+
+
 class MemoryStore(ResultStore):
     """Process-only store for tests and offline development."""
 

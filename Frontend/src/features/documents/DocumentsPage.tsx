@@ -1,76 +1,156 @@
-import { useState, useRef, useCallback } from "react";
+import { useCallback, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { c1, c3 } from "@/lib/apiClient";
+import { auditSummary, DOC_TYPES, isJsonFile, isScan, readJsonDocuments } from "@/lib/documents";
+import { useUI } from "@/store/ui";
+import { routes } from "@/config/routes";
 
-interface UploadedFile {
+// A scanned file on its way through Component-01 before it becomes a case document.
+interface Scan {
+  key: string;
   name: string;
-  size: string;
-  date: string;
-  id: string;
+  state: "uploading" | "extracting" | "ready" | "error";
+  message?: string;
+  extraction?: Record<string, unknown>;
+  docType: string;
+  year: number;
 }
 
-const formatFileSize = (bytes: number): string => {
-  if (bytes >= 1048576) return `${(bytes / 1048576).toFixed(1)} MB`;
-  return `${(bytes / 1024).toFixed(0)} KB`;
-};
-
-const formatDate = (): string => {
-  return new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-};
+const POLL_MS = 2000;
+const POLL_LIMIT = 90; // ~3 minutes
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export function DocumentsPage() {
-  const [files, setFiles] = useState<UploadedFile[]>([
-    { id: "1", name: "Project_Requirements.pdf", size: "2.4 MB", date: "Apr 28, 2025" },
-    { id: "2", name: "Research_Notes.docx", size: "856 KB", date: "Apr 25, 2025" },
-    { id: "3", name: "Product_Roadmap.pdf", size: "1.8 MB", date: "Apr 22, 2025" },
-  ]);
+  const qc = useQueryClient();
+  const navigate = useNavigate();
+  const { selectedCase, setCase, newCase, draftCases, staged, stageDocs, unstage, clearStaged, addMessage } = useUI();
+  const cases = useQuery({ queryKey: ["c3-cases"], queryFn: c3.cases, retry: false });
+  const [scans, setScans] = useState<Scan[]>([]);
   const [isDragging, setIsDragging] = useState(false);
+  const [notice, setNotice] = useState<{ text: string; error?: boolean } | null>(null);
+  const [busy, setBusy] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const handleFiles = useCallback((fileList: FileList) => {
-    const newFiles = Array.from(fileList).map((f) => ({
-      id: crypto.randomUUID(),
-      name: f.name,
-      size: formatFileSize(f.size),
-      date: formatDate(),
-    }));
-    setFiles((prev) => [...newFiles, ...prev]);
+  const audited = new Set((cases.data ?? []).map((c) => c.case_id));
+  const caseOptions = [...draftCases.filter((id) => !audited.has(id)), ...audited];
+  const docs = selectedCase ? staged[selectedCase] ?? [] : [];
+
+  const updateScan = (key: string, patch: Partial<Scan>) =>
+    setScans((prev) => prev.map((s) => (s.key === key ? { ...s, ...patch } : s)));
+
+  const extract = useCallback(async (key: string, file: File) => {
+    try {
+      const { id } = await c1.upload(file);
+      updateScan(key, { state: "extracting" });
+      for (let i = 0; i < POLL_LIMIT; i++) {
+        const doc = await c1.status(id);
+        const state = doc.latest_run?.status;
+        if (state === "succeeded") {
+          updateScan(key, { state: "ready", extraction: await c1.extraction(id) });
+          return;
+        }
+        if (state === "failed") throw new Error(doc.error_message || "Extraction failed in Component 01.");
+        await sleep(POLL_MS);
+      }
+      throw new Error("Extraction is taking too long; try again later.");
+    } catch (e) {
+      updateScan(key, { state: "error", message: e instanceof Error ? e.message : "Upload failed." });
+    }
   }, []);
 
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    if (e.dataTransfer.files.length) handleFiles(e.dataTransfer.files);
-  }, [handleFiles]);
+  const handleFiles = useCallback(async (fileList: FileList) => {
+    setNotice(null);
+    const caseId = selectedCase ?? newCase();
+    const problems: string[] = [];
+    for (const f of Array.from(fileList)) {
+      if (isJsonFile(f)) {
+        try {
+          stageDocs(caseId, await readJsonDocuments(f));
+        } catch (e) {
+          problems.push(e instanceof Error ? e.message : `${f.name}: unreadable`);
+        }
+      } else if (isScan(f) && c1.enabled()) {
+        const key = crypto.randomUUID();
+        setScans((prev) => [...prev, { key, name: f.name, state: "uploading", docType: "invoice",
+                                       year: new Date().getFullYear() }]);
+        extract(key, f);
+      } else if (isScan(f)) {
+        problems.push(`${f.name}: scanned documents need Component 01 (set VITE_C1_BASE). Upload JSON documents for now.`);
+      } else {
+        problems.push(`${f.name}: unsupported file type.`);
+      }
+    }
+    if (problems.length) setNotice({ text: problems.join("\n"), error: true });
+  }, [selectedCase, newCase, stageDocs, extract]);
 
-  const removeFile = (id: string) => setFiles((prev) => prev.filter((f) => f.id !== id));
+  async function addScanToCase(s: Scan) {
+    if (!selectedCase || !s.extraction) return;
+    try {
+      const out = await c3.intakeC1({ case_id: selectedCase, documents: [
+        { extraction: s.extraction, doc_type: s.docType, period_year: s.year }] });
+      stageDocs(selectedCase, out.case.docs);
+      setScans((prev) => prev.filter((x) => x.key !== s.key));
+      const fields = out.case.docs[0] ? Object.keys(out.case.docs[0].fields).length : 0;
+      const unmapped = Object.values(out.unmapped_regions).reduce((a, b) => a + b, 0);
+      setNotice({ text: `${s.name}: ${fields} field(s) read, ${unmapped} text region(s) without a field.`
+                        + (out.issues.length ? `\n${out.issues.join("\n")}` : "") });
+    } catch (e) {
+      updateScan(s.key, { state: "error", message: e instanceof Error ? e.message : "Intake failed." });
+    }
+  }
+
+  async function audit() {
+    if (!selectedCase || !docs.length) return;
+    setBusy(true);
+    setNotice(null);
+    try {
+      const result = audited.has(selectedCase)
+        ? await c3.appendEvidence(selectedCase, docs)
+        : await c3.run({ case_id: selectedCase, docs });
+      clearStaged(selectedCase);
+      const summary = auditSummary(result);
+      addMessage(selectedCase, { id: crypto.randomUUID(), role: "assistant", ...summary,
+                                 suggestions: ["Show the high severity findings", "What evidence is missing?"] });
+      await qc.invalidateQueries({ queryKey: ["c3-cases"] });
+      setNotice({ text: summary.content });
+    } catch (e) {
+      setNotice({ text: e instanceof Error ? e.message : "Audit failed.", error: true });
+    }
+    setBusy(false);
+  }
 
   return (
-    <div style={{ maxWidth: "640px", margin: "0 auto", padding: "48px 24px 64px" }}>
-      {/* Heading */}
+    <div style={{ maxWidth: "640px", margin: "0 auto", padding: "48px 24px 64px", width: "100%" }}>
       <h1 className="heading-serif" style={{ fontSize: "42px", textAlign: "center", marginBottom: "8px" }}>
         Your Library
       </h1>
-      <p style={{ textAlign: "center", color: "var(--text-muted)", fontSize: "15px", marginBottom: "36px" }}>
-        Upload documents to use in your conversations.
+      <p style={{ textAlign: "center", color: "var(--text-muted)", fontSize: "15px", marginBottom: "28px" }}>
+        Add documents to a case and audit them.
       </p>
 
-      {/* Drop Zone */}
+      {/* Target case */}
+      <div style={{ display: "flex", gap: "8px", alignItems: "center", marginBottom: "20px", fontSize: "14px" }}>
+        <span style={{ color: "var(--text-muted)" }}>Case</span>
+        <select value={selectedCase ?? ""} onChange={(e) => setCase(e.target.value || null)} style={selectStyle}>
+          <option value="">Choose a case…</option>
+          {caseOptions.map((id) => <option key={id} value={id}>{id}{audited.has(id) ? "" : " (new)"}</option>)}
+        </select>
+        <button onClick={() => newCase()} style={pillButton}>New case</button>
+      </div>
+
+      {/* Drop zone */}
       <div
         onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
         onDragLeave={() => setIsDragging(false)}
-        onDrop={handleDrop}
-        style={{
-          border: `2px dashed ${isDragging ? "var(--text-muted)" : "var(--border)"}`,
-          borderRadius: "var(--radius-lg)",
-          padding: "40px 24px",
-          textAlign: "center",
-          marginBottom: "36px",
-          background: isDragging ? "var(--accent-bg)" : "transparent",
-          transition: "all 0.2s ease",
-          cursor: "pointer",
-        }}
+        onDrop={(e) => { e.preventDefault(); setIsDragging(false); if (e.dataTransfer.files.length) handleFiles(e.dataTransfer.files); }}
         onClick={() => inputRef.current?.click()}
+        style={{
+          border: `2px dashed ${isDragging ? "var(--text-muted)" : "var(--border)"}`, borderRadius: "var(--radius-lg)",
+          padding: "40px 24px", textAlign: "center", marginBottom: "24px",
+          background: isDragging ? "var(--accent-bg)" : "transparent", transition: "all 0.2s ease", cursor: "pointer",
+        }}
       >
-        {/* Upload Icon */}
         <div style={{ marginBottom: "12px" }}>
           <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" style={{ margin: "0 auto" }}>
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
@@ -78,81 +158,117 @@ export function DocumentsPage() {
             <line x1="12" y1="3" x2="12" y2="15" />
           </svg>
         </div>
-        <p style={{ fontWeight: 500, color: "var(--text-h)", fontSize: "15px", marginBottom: "4px" }}>
-          Drag and drop files here
-        </p>
+        <p style={{ fontWeight: 500, color: "var(--text-h)", fontSize: "15px", marginBottom: "4px" }}>Drag and drop files here</p>
         <p style={{ color: "var(--text-soft)", fontSize: "13px", marginBottom: "16px" }}>
-          or browse from your computer
+          JSON documents{c1.enabled() ? ", or PDF / PNG / JPG scans" : ""}
         </p>
-        <button
-          onClick={(e) => { e.stopPropagation(); inputRef.current?.click(); }}
-          style={{
-            padding: "8px 24px",
-            borderRadius: "var(--radius-pill)",
-            border: "1px solid var(--border)",
-            background: "var(--surface)",
-            color: "var(--text-h)",
-            fontSize: "13px",
-            fontWeight: 500,
-            cursor: "pointer",
-            fontFamily: "inherit",
-          }}
-        >
-          Choose files
-        </button>
-        <input ref={inputRef} type="file" multiple style={{ display: "none" }} onChange={(e) => { if (e.target.files) handleFiles(e.target.files); }} />
+        <button onClick={(e) => { e.stopPropagation(); inputRef.current?.click(); }} style={pillButton}>Choose files</button>
+        <input ref={inputRef} type="file" multiple style={{ display: "none" }}
+               accept={c1.enabled() ? ".json,.pdf,.png,.jpg,.jpeg" : ".json"}
+               onChange={(e) => { if (e.target.files) handleFiles(e.target.files); e.target.value = ""; }} />
       </div>
 
-      {/* Uploaded Files */}
-      {files.length > 0 && (
-        <div>
-          <h3 style={{ fontWeight: 600, fontSize: "16px", color: "var(--text-h)", marginBottom: "16px" }}>
-            Uploaded files
-          </h3>
-          <div style={{ display: "flex", flexDirection: "column" }}>
-            {files.map((file) => (
-              <div
-                key={file.id}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "14px",
-                  padding: "14px 0",
-                  borderBottom: "1px solid var(--border-light)",
-                }}
-              >
-                {/* File icon */}
-                <div style={{ flexShrink: 0, color: "var(--text-muted)" }}>
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                    <polyline points="14 2 14 8 20 8" />
-                  </svg>
-                </div>
-                {/* File info */}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 500, fontSize: "14px", color: "var(--text-h)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {file.name}
-                  </div>
-                  <div style={{ fontSize: "12px", color: "var(--text-muted)", marginTop: "2px" }}>
-                    {file.size} · {file.date}
-                  </div>
-                </div>
-                {/* Delete button */}
-                <button
-                  onClick={() => removeFile(file.id)}
-                  style={{ flexShrink: 0, background: "none", border: "none", cursor: "pointer", color: "var(--text-soft)", padding: "4px" }}
-                  title="Remove file"
-                >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="3 6 5 6 21 6" />
-                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                  </svg>
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
+      {notice && (
+        <p style={{
+          whiteSpace: "pre-wrap", fontSize: "13px", marginBottom: "20px", padding: "10px 14px",
+          borderRadius: "var(--radius)", border: `1px solid ${notice.error ? "var(--danger)" : "var(--border-light)"}`,
+          color: notice.error ? "var(--danger)" : "var(--text)", background: "var(--surface)",
+        }}>{notice.text}</p>
       )}
+
+      {/* Scans in Component-01 */}
+      {scans.length > 0 && (
+        <Section title="Scans">
+          {scans.map((s) => (
+            <Row key={s.key} title={s.name}
+                 meta={s.state === "error" ? s.message ?? "" : s.state === "ready" ? "Extracted. Set its type and year." : `${s.state}…`}
+                 error={s.state === "error"}
+                 onRemove={() => setScans((prev) => prev.filter((x) => x.key !== s.key))}>
+              {s.state === "ready" && (
+                <div style={{ display: "flex", gap: "6px", marginTop: "6px" }}>
+                  <select value={s.docType} onChange={(e) => updateScan(s.key, { docType: e.target.value })} style={selectStyle}>
+                    {DOC_TYPES.map((t) => <option key={t} value={t}>{t.replace(/_/g, " ")}</option>)}
+                  </select>
+                  <input type="number" value={s.year} min={1900} max={2999} style={{ ...selectStyle, width: "90px" }}
+                         onChange={(e) => updateScan(s.key, { year: Number(e.target.value) })} />
+                  <button onClick={() => addScanToCase(s)} style={pillButton}>Add to case</button>
+                </div>
+              )}
+            </Row>
+          ))}
+        </Section>
+      )}
+
+      {/* Documents waiting to be audited */}
+      {selectedCase && (
+        <Section title={`Documents for ${selectedCase}`}>
+          {docs.length === 0 && <p style={{ fontSize: "13px", color: "var(--text-muted)" }}>No documents added yet.</p>}
+          {docs.map((d) => (
+            <Row key={d.doc_id} title={d.doc_id}
+                 meta={`${d.doc_type.replace(/_/g, " ")} · ${d.period_year} · ${Object.keys(d.fields).length} field(s)`
+                       + (d.parent_doc_id ? ` · supports ${d.parent_doc_id}` : "")}
+                 onRemove={() => unstage(selectedCase, d.doc_id)} />
+          ))}
+          {docs.length > 0 && (
+            <div style={{ display: "flex", gap: "8px", marginTop: "16px" }}>
+              <button onClick={audit} disabled={busy} style={{ ...pillButton, background: "var(--text-h)", color: "#f5f0ea", border: "none" }}>
+                {busy ? "Auditing…" : audited.has(selectedCase) ? `Add ${docs.length} to the case and re-audit` : `Audit ${docs.length} document(s)`}
+              </button>
+              <button onClick={() => navigate(routes.dashboard)} style={pillButton}>Open chat</button>
+            </div>
+          )}
+          {docs.length === 0 && audited.has(selectedCase) && (
+            <button onClick={() => navigate(routes.dashboard)} style={{ ...pillButton, marginTop: "12px" }}>Open chat</button>
+          )}
+        </Section>
+      )}
+    </div>
+  );
+}
+
+const selectStyle: React.CSSProperties = {
+  padding: "6px 10px", borderRadius: "var(--radius)", border: "1px solid var(--border)",
+  background: "var(--surface)", color: "var(--text-h)", fontSize: "13px", fontFamily: "inherit",
+};
+
+const pillButton: React.CSSProperties = {
+  padding: "8px 18px", borderRadius: "var(--radius-pill)", border: "1px solid var(--border)",
+  background: "var(--surface)", color: "var(--text-h)", fontSize: "13px", fontWeight: 500,
+  cursor: "pointer", fontFamily: "inherit",
+};
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div style={{ marginBottom: "28px" }}>
+      <h3 style={{ fontWeight: 600, fontSize: "16px", color: "var(--text-h)", marginBottom: "12px" }}>{title}</h3>
+      <div style={{ display: "flex", flexDirection: "column" }}>{children}</div>
+    </div>
+  );
+}
+
+function Row({ title, meta, error, onRemove, children }: {
+  title: string; meta: string; error?: boolean; onRemove: () => void; children?: React.ReactNode;
+}) {
+  return (
+    <div style={{ display: "flex", alignItems: "flex-start", gap: "14px", padding: "12px 0", borderBottom: "1px solid var(--border-light)" }}>
+      <div style={{ flexShrink: 0, color: "var(--text-muted)", paddingTop: "2px" }}>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+          <polyline points="14 2 14 8 20 8" />
+        </svg>
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div className="id" style={{ fontWeight: 500, fontSize: "14px", color: "var(--text-h)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</div>
+        <div style={{ fontSize: "12px", color: error ? "var(--danger)" : "var(--text-muted)", marginTop: "2px" }}>{meta}</div>
+        {children}
+      </div>
+      <button onClick={onRemove} title="Remove"
+              style={{ flexShrink: 0, background: "none", border: "none", cursor: "pointer", color: "var(--text-soft)", padding: "4px" }}>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="3 6 5 6 21 6" />
+          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+        </svg>
+      </button>
     </div>
   );
 }

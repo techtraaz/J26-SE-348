@@ -10,12 +10,12 @@ from app.services import intake
 from app.services.copilot import handlers  # noqa: F401 - registers the intents
 from app.services.copilot.entities import Entities, extract
 from app.services.copilot.handlers import Turn
-from app.services.copilot.nlu import understand
+from app.services.copilot.nlu import RequestContext, understand
 from app.services.copilot.registry import NEEDS, REGISTRY
 from app.services.kg_client import KGClient, KGError, default_kg
 from app.services.store import ResultStore, default_store
 
-__all__ = ["answer", "extract", "understand"]
+__all__ = ["RequestContext", "answer", "extract", "understand"]
 
 
 def _missing(need: str, turn: Turn) -> str | None:
@@ -58,13 +58,16 @@ def answer(q: CopilotQuery, kg: KGClient | None = None,
     kg = kg or default_kg()
     store = store or default_store()
     entities, case_id = _entities(q, store)
-    nlu = understand(q.text, entities, bool(q.docs), case_id)
-    spec = REGISTRY[nlu.intent]
     turn = Turn(query=q, entities=entities, kg=kg, store=store, case_id=case_id)
+    ctx = RequestContext(has_docs=bool(q.docs), case_id=case_id,
+                         case_audited=bool(case_id) and turn.record() is not None)
+    nlu = understand(q.text, entities, ctx)
+    spec = REGISTRY[nlu.intent]
     meta = {"nlu": nlu.as_dict(), "entities": entities.as_dict(), "case_id": case_id}
 
     def respond(reply: str, data: dict | None = None, needs: str | None = None) -> CopilotResponse:
         return CopilotResponse(intent=spec.name, group=spec.group, reply=reply,
+                               suggestions=[] if needs else list(spec.follow_ups),
                                data={**(data or {}), **meta, **({"needs": needs} if needs else {})})
 
     for need in spec.needs:
