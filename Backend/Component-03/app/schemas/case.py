@@ -1,19 +1,20 @@
-"""Case shapes. One case = one balance sheet + supporting docs + past years."""
+"""Case shapes. One case = the documents of one audit (statements, supporting docs, past years)."""
 from typing import Any
-from pydantic import BaseModel
+
+from pydantic import BaseModel, Field
 
 
 class AuditDocument(BaseModel):
     doc_id: str
     case_id: str
-    doc_type: str = "unknown"  # balance_sheet, income_statement, invoice, receipt, unknown
-    period_year: int = 2026
-    parent_doc_id: str | None = None  # which doc supports which
-    fields: dict[str, Any] = {}  # numeric + text values, e.g. {"assets": 50000, "cash_out": 10000}
-    confidences: dict[str, float] = {}  # per-field OCR confidence 0..1
-    methods: dict[str, str] = {}  # per-field: ocr, vlm, human
+    doc_type: str = "unknown"  # a C2 DocumentType code, or unknown
+    period_year: int
+    parent_doc_id: str | None = None  # the document this one supports
+    fields: dict[str, Any] = Field(default_factory=dict)
+    confidences: dict[str, float] = Field(default_factory=dict)  # per field, 0..1
+    methods: dict[str, str] = Field(default_factory=dict)  # per field: C1 engine, or human
 
 
 class AuditCase(BaseModel):
     case_id: str
-    docs: list[AuditDocument] = []
+    docs: list[AuditDocument] = Field(default_factory=list)
