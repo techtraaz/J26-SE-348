@@ -35,16 +35,6 @@ def test_bad_intake_is_422_and_store_outage_is_503(monkeypatch):
     assert client.post("/audit/run", json=CASE).status_code == 503
 
 
-def test_c1_intake_endpoint_can_run():
-    body = {"case_id": "C1-CASE", "documents": [{"doc_type": "invoice", "period_year": 2026,
-            "extraction": {"document_id": "INV-1", "run": {"status": "succeeded"}, "regions": [
-                {"sequence": 1, "page_number": 1, "text": "Rs. 125,000", "confidence": 0.9,
-                 "provenance": "paddleocr", "field_key": "amount"}]}}]}
-    out = client.post("/audit/intake/c1?run=true", json=body).json()
-    assert out["case"]["docs"][0]["fields"]["amount"] == 125000.0
-    assert any(f["rule_id"] == "POL-07" for f in out["result"]["findings"])
-
-
 def test_stream_endpoint():
     lines = client.post("/audit/run/stream", json=CASE).text.strip().splitlines()
     assert '"result"' in lines[-1]

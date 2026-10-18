@@ -56,7 +56,7 @@ def test_pipeline_extracts_and_validates(reader):
     assert r9.extraction.requirements[0].applies_to == ["inventories"]
     assert len(r9.extraction.equations) == 1
     assert any(i.kind == "applies_to" and i.action == "changed" for i in r9.issues)
-    assert "LKAS 2:40A" in result.skipped
+    assert "LKAS 2:40A" not in by_id and "LKAS 2:40A" not in result.skipped
     assert "Already in the graph" in llm.calls[0]
 
 
@@ -71,6 +71,13 @@ def test_max_chunks_limits_llm_calls(reader):
     llm = FakeLLM()
     result = KGPipeline(llm, reader, max_chunks=1).run(_doc(LKAS2_PAGE))
     assert len(llm.calls) == 1 and "LKAS 2:41" in result.skipped
+
+
+def test_parallel_workers_give_the_same_result(reader):
+    one = KGPipeline(FakeLLM({"Paragraph: 9\n": LKAS2_9}), reader).run(_doc(LKAS2_PAGE))
+    four = KGPipeline(FakeLLM({"Paragraph: 9\n": LKAS2_9}), reader, workers=4).run(_doc(LKAS2_PAGE))
+    assert [r.chunk.id for r in four.results] == [r.chunk.id for r in one.results]
+    assert four.summary() == one.summary()
 
 
 def test_llm_failure_is_recorded_not_raised(reader):

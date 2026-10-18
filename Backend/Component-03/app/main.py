@@ -5,11 +5,12 @@ from typing import Annotated, Any
 from fastapi import Body, FastAPI, HTTPException, Path
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel, Field
 
 from app import config
 from app.schemas.chat import ExternalMessage
 from app.schemas.copilot import SESSION_ID_PATTERN, CopilotQuery
-from app.services import chat, copilot, intake, orchestrator, rules
+from app.services import c1_review, chat, copilot, intake, orchestrator, rules
 from app.services.chat_store import default_chat_store
 from app.services.kg_client import KGError, default_kg
 from app.services.store import StoreError, case_summary, default_store
@@ -22,14 +23,19 @@ CASE_BODY = Body(..., examples=[{"case_id": "CASE-1", "docs": [{
     "doc_id": "BS-2026", "doc_type": "balance_sheet", "period_year": 2026,
     "fields": {"assets": 50000, "liabilities": 30000, "capital": 20000},
     "confidences": {"assets": 0.97}, "methods": {"assets": "paddleocr"}}]}])
-C1_BODY = Body(..., examples=[{"case_id": "CASE-1", "documents": [{
-        "doc_type": "invoice", "period_year": 2026, "extraction": {
-            "document_id": "INV-001", "run": {"status": "succeeded"},
-            "regions": [{"sequence": 1, "page_number": 1, "text": "Rs. 125,000.00",
-                         "confidence": 0.93, "provenance": "paddleocr", "field_key": "amount"}]}}]}])
 DOCS_BODY = Body(..., examples=[{"docs": []}])
 SessionId = Annotated[str, Path(pattern=SESSION_ID_PATTERN)]
 CaseId = Annotated[str, Path(pattern=SESSION_ID_PATTERN)]
+
+
+class C1PreviewRequest(BaseModel):
+    case_id: str = Field(pattern=SESSION_ID_PATTERN)
+    documents: list[c1_review.C1Input] = Field(min_length=1, max_length=50)
+
+
+class C1ConfirmRequest(BaseModel):
+    case_id: str = Field(pattern=SESSION_ID_PATTERN)
+    documents: list[c1_review.ReviewedDocument] = Field(min_length=1, max_length=50)
 
 
 def _case(payload: Any):
@@ -62,20 +68,27 @@ def audit_intake(payload: dict = CASE_BODY):
             "issues": [f.message for f in rules.data_quality_findings(case)]}
 
 
-@app.post("/audit/intake/c1")
-def audit_intake_c1(payload: dict = C1_BODY,
-                    run: bool = False):
-    """Map Component-01 extractions to a case; with ?run=true also audit it."""
+@app.post("/audit/intake/c1/preview")
+def audit_intake_c1_preview(body: C1PreviewRequest):
+    """What C3 reads from Component-01 documents, for the Library review. Saves nothing."""
     try:
-        case, unmapped = intake.from_c1(payload.get("case_id", ""), payload.get("documents", []))
+        return {"case_id": body.case_id,
+                "documents": c1_review.preview(body.case_id, body.documents, default_kg())}
+    except KGError as exc:
+        raise HTTPException(status_code=502, detail=f"Knowledge graph error: {exc}") from exc
+
+
+@app.post("/audit/intake/c1/confirm")
+def audit_intake_c1_confirm(body: C1ConfirmRequest):
+    """The reviewer's decisions become case documents (values and confidences set by C3).
+    Audit them with POST /audit/run or /audit/{case_id}/evidence."""
+    try:
+        return {"contract_version": intake.INTAKE_VERSION,
+                **c1_review.confirm_case(body.case_id, body.documents, default_kg())}
     except intake.IntakeError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    out = {"contract_version": intake.INTAKE_VERSION, "case": case.model_dump(),
-           "unmapped_regions": unmapped,
-           "issues": [f.message for f in rules.data_quality_findings(case)]}
-    if run:
-        out["result"] = _store_call(orchestrator.run_case, case).model_dump()
-    return out
+    except KGError as exc:
+        raise HTTPException(status_code=502, detail=f"Knowledge graph error: {exc}") from exc
 
 
 def _check_session(session_id: str | None) -> None:

@@ -29,7 +29,8 @@ result is never returned unless it was saved.
 |---|---|---|
 | GET | `/health` | settings in use (KG mode, store, LLM) |
 | POST | `/audit/intake` | normalize + check a case, no run |
-| POST | `/audit/intake/c1[?run=true]` | map Component-01 extractions to a case (and run it) |
+| POST | `/audit/intake/c1/preview` | what C3 reads from C1 documents, for the Library review (saves nothing) |
+| POST | `/audit/intake/c1/confirm` | the reviewer's decisions -> case documents (then audit them) |
 | POST | `/audit/run` | run and save the next version |
 | POST | `/audit/run/stream` | NDJSON: one line per finished agent, then the result |
 | POST | `/audit/{case_id}/evidence` | add docs to the latest version and re-run |
@@ -49,12 +50,44 @@ accept a `session_id`; the turn or result is then saved in that chat.
 
 ## Inputs
 
-**Component-01.** `POST /audit/intake/c1` takes C1's `GET /documents/{id}/extraction`
-reply plus what C1 does not know (`doc_type`, `period_year`, `parent_doc_id`). A
-region with a `field_key` becomes that field (value = text, confidence = raw
-score, method = provenance). Regions without a `field_key` are counted in
-`unmapped_regions`. Two regions with different text for one field are both kept
-and flagged (REV-003).
+**Component-01.** C1 reads documents line by line (text, raw confidence, box)
+with no field template. C3 turns lines into fields and a person reviews them in
+the Library before auditing (`app/services/field_mapper.py`, `c1_review.py`):
+
+1. **Source:** C1's human-verified record when it has one
+   (`GET /api/v1/documents/{id}/verified`, proposed in
+   [docs/c1_verified_record_contract.md](docs/c1_verified_record_contract.md)),
+   else its machine extraction (`/extraction`).
+2. **Rules:** label and amount on one line, the amount to the right on the same
+   row (by box), or on the next line. Labels are matched against C2's field
+   names and aliases (`GET /query/fields`) plus everyday receipt wording. The
+   first amount on a line is the current period. Dates, times, ids and column
+   heading years are never read as amounts. Document type and year are only
+   suggested.
+3. **LLM fallback:** only for **required** fields still missing (CHK-006's list
+   and the policy-limit field) when lines holding numbers are unused. The LLM
+   returns line ids from a fixed list; the value is read from that line in code,
+   so it cannot invent a number. An optional rule input that is absent (e.g. no
+   "cash out" on an invoice) is reported as "this check will not run", never guessed.
+4. **Review:** confirm type, year and parent; edit values; confirm AI matches;
+   add a field from an unused line; then **confirm**. C3 recomputes every value
+   from its line and sets every confidence itself:
+
+| How the value was read | Confidence | `methods` ends with |
+|---|---|---|
+| verified C1 record | 1.0 (a person confirmed it) | `c3:rules` / `c3:confirmed` |
+| machine extraction | lowest raw score of its lines | `c3:rules` / `c3:confirmed` |
+| AI match, not confirmed | capped at 0.4, so REV-001 "not confirmed" | `c3:unconfirmed` |
+| typed by the reviewer | 1.0 | `c3:human` |
+
+Each document keeps `source: {component, document_id, run_id, verified_version,
+confirmed_by}`; a machine extraction (`verified_version: null`) raises REV-008,
+and every finding's reasoning chain names its source.
+
+Mapping quality: `.venv\Scripts\python.exe -m scripts.eval_fields` (labelled
+documents in `eval/field_mapping/`). Current set (4 documents written for this):
+rules 100% precision / 90% recall, rules + phi4-mini 100% / 100%, type and year
+100%. Add real C1 documents to make it meaningful.
 
 **Component-02.** `KG_URL` is C2's base URL (e.g. `http://localhost:8002`). C3
 calls only C2's fixed `GET /query/...` endpoints: `rules`, `check-rules`,
@@ -83,6 +116,7 @@ violations:
 | REV-005 | KG links a document that is not in the case |
 | REV-006 | KG rule could not be evaluated |
 | REV-007 | KG rules could not be loaded (those checks did not run) |
+| REV-008 | document read from C1's machine extraction, not human-verified |
 
 `evidence_validation`: `passed` (every claimed value matched), `existence_only`
 (cited docs exist, no values to check), `failed` (kept, flagged, and logged in

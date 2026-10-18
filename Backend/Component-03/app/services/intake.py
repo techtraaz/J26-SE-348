@@ -5,10 +5,8 @@ IntakeError with a reason, never a silent drop. Lenient on content: unknown
 doc types, unreadable numbers and odd confidences flow on and become visible
 Data Quality findings.
 
-Two doors:
-- normalize_case(payload)  canonical case JSON {case_id, docs: [...]}
-- from_c1(case_id, docs)   Component-01 extractions (GET /documents/{id}/extraction)
-                           plus the doc metadata C1 does not know
+normalize_case(payload) takes canonical case JSON {case_id, docs: [...]}.
+Component-01 documents reach it through the review flow (app.services.c1_review).
 """
 import re
 from typing import Any
@@ -16,8 +14,7 @@ from typing import Any
 from pydantic import ValidationError
 
 from app import config
-from app.schemas.c1 import C1Document
-from app.schemas.case import AuditCase, AuditDocument
+from app.schemas.case import AuditCase, AuditDocument, DocumentSource
 
 INTAKE_VERSION = "canonical-v2"
 SAFE_ID_RE = re.compile(r"^[A-Za-z0-9 _\-.]{1,64}$")
@@ -89,11 +86,17 @@ def _doc(raw: dict, case_id: str, where: str, seen: set[str]) -> AuditDocument:
     methods = raw.get("methods") or {}
     if not isinstance(confidences, dict) or not isinstance(methods, dict):
         raise IntakeError(f"{where}: confidences and methods must be objects")
+    source = raw.get("source")
+    if source is not None:
+        try:
+            source = DocumentSource.model_validate(source)
+        except ValidationError as exc:
+            raise IntakeError(f"{where}: invalid source: {exc.errors()[0]['msg']}") from None
     return AuditDocument(
         doc_id=doc_id, case_id=case_id, doc_type=doc_type, period_year=year,
         parent_doc_id=parent, fields=fields,
         confidences={str(k): _confidence(v, f"{where}.{k}") for k, v in confidences.items()},
-        methods={str(k): str(v) for k, v in methods.items()})
+        methods={str(k): str(v) for k, v in methods.items()}, source=source)
 
 
 def normalize_case(payload: Any) -> AuditCase:
@@ -110,52 +113,3 @@ def normalize_case(payload: Any) -> AuditCase:
     seen: set[str] = set()
     return AuditCase(case_id=case_id,
                      docs=[_doc(d, case_id, f"doc[{i}]", seen) for i, d in enumerate(docs_raw)])
-
-
-def from_c1(case_id: str, documents: list[Any]) -> tuple[AuditCase, dict[str, int]]:
-    """Map C1 extractions onto case documents.
-
-    A region with a field_key becomes that field: value = its text, confidence =
-    its raw score, method = its provenance (the engine). Two regions for the same
-    field with different text keep both values (Data Quality flags the conflict)
-    at the lower confidence. Regions without a field_key are counted, not used.
-    Returns (case, unmapped region count per doc_id)."""
-    if not isinstance(documents, list):
-        raise IntakeError("documents must be a list")
-    docs: list[dict] = []
-    unmapped: dict[str, int] = {}
-    for i, raw in enumerate(documents):
-        try:
-            spec = raw if isinstance(raw, C1Document) else C1Document.model_validate(raw)
-        except ValidationError as exc:
-            raise IntakeError(f"documents[{i}]: not a C1 extraction: {exc}") from None
-        ext = spec.extraction
-        if ext.run.status != "succeeded":
-            raise IntakeError(f"documents[{i}]: C1 run is {ext.run.status!r}, not succeeded")
-        doc_id = spec.doc_id or ext.document_id
-        fields: dict[str, Any] = {}
-        confidences: dict[str, float] = {}
-        methods: dict[str, str] = {}
-        skipped = 0
-        for r in sorted(ext.regions, key=lambda r: r.sequence):
-            if not r.field_key:
-                skipped += 1
-                continue
-            key, text = r.field_key, r.text.strip()
-            if key in fields:
-                values = fields[key] if isinstance(fields[key], list) else [fields[key]]
-                if text not in values:
-                    fields[key] = [*values, text]
-                    methods[key] = f"{methods[key]},{r.provenance}"
-                if r.confidence is not None:
-                    confidences[key] = min(confidences.get(key, r.confidence), r.confidence)
-                continue
-            fields[key] = text
-            methods[key] = r.provenance
-            if r.confidence is not None:
-                confidences[key] = r.confidence
-        unmapped[doc_id] = skipped
-        docs.append({"doc_id": doc_id, "doc_type": spec.doc_type,
-                     "period_year": spec.period_year, "parent_doc_id": spec.parent_doc_id,
-                     "fields": fields, "confidences": confidences, "methods": methods})
-    return normalize_case({"case_id": case_id, "docs": docs}), unmapped

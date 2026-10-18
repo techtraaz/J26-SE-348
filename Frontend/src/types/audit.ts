@@ -9,6 +9,9 @@ export interface AuditDocument {
   fields: Record<string, number | string | null>;
   confidences?: Record<string, number>;
   methods?: Record<string, string>;
+  // Upstream record the values came from; verified_version null = not human-verified.
+  source?: { component: string; document_id: string; run_id: string | null;
+             verified_version: number | null; confirmed_by: string | null } | null;
 }
 
 export interface AuditCase {

@@ -36,7 +36,8 @@ def test_dq_flags_unreadable_conflicting_and_intake_issues():
                  confidences={"amount": 1.7}),
              doc("R", "receipt", {"amount": ["100", "700"]}), doc("E", "receipt", {}))
     f, *_ = data_quality.run(c)
-    assert ids(f) == ["REV-003", "REV-003", "REV-004", "REV-004", "REV-004"]
+    # E is an empty receipt: missing its required amount (CHK-006) and no fields at all (REV-004)
+    assert ids(f) == ["CHK-006", "REV-003", "REV-003", "REV-004", "REV-004", "REV-004"]
 
 
 def test_dq_stops_when_nothing_is_checkable_and_says_why():
