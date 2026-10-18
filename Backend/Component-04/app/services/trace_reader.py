@@ -307,6 +307,12 @@ async def _dispatch(raw: dict) -> None:
 
 # ── Main reader loop ──────────────────────────────────────────────────
 
+# Track the last MongoDB ObjectId we've seen — so we only query newer docs.
+from bson import ObjectId as _ObjectId
+
+_last_oid: _ObjectId | None = None
+
+
 async def run_reader() -> None:
     """Poll MongoDB for new callback traces and process them.
 
@@ -314,6 +320,7 @@ async def run_reader() -> None:
     during FastAPI's lifespan.  It retries on connection failures with
     exponential backoff so a MongoDB outage never kills the server.
     """
+    global _last_oid
     backoff = 1  # seconds, doubles on each failure up to a cap
 
     while True:
@@ -334,23 +341,27 @@ async def run_reader() -> None:
 
             while True:
                 try:
-                    # Build query: find events newer than what we've seen
+                    # Only query documents newer than the last one we processed
                     query: dict = {}
-                    if _last_seen:
-                        # Find any event where (case_id, seq) is beyond last seen
-                        # Simple approach: query all recent events sorted by _id
-                        pass
+                    if _last_oid is not None:
+                        query["_id"] = {"$gt": _last_oid}
 
-                    # Fetch new events sorted by insertion order
                     cursor = col.find(
-                        {},  # no filter — scan for any unseen events
+                        query,
                         sort=[("_id", 1)],
                         limit=200,
                     )
                     new_count = 0
                     for doc in cursor:
+                        doc_id = doc.get("_id")
                         case_id = doc.get("case_id", "")
                         seq = doc.get("seq", 0)
+
+                        # Update the global cursor
+                        if doc_id is not None:
+                            _last_oid = doc_id
+
+                        # Per-case seq dedup (handles reprocessing edge cases)
                         last = _last_seen.get(case_id, 0)
                         if seq <= last:
                             continue
@@ -373,3 +384,4 @@ async def run_reader() -> None:
             logger.exception("MongoDB connection lost — retrying in %ss", backoff)
             await asyncio.sleep(backoff)
             backoff = min(backoff * 2, 30)
+
