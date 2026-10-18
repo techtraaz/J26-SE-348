@@ -241,41 +241,48 @@ async def _handle_pipeline_end(evt: CallbackEvent) -> None:
 # ── Copilot event handler ──────────────────────────────────────────────
 
 async def _handle_copilot(evt: CallbackEvent) -> None:
-    """Handle copilot trace events — persist and broadcast to SSE."""
+    """Handle copilot trace events — broadcast to SSE first, then persist."""
     _step_counters[evt.case_id] = _step_counters.get(evt.case_id, 0) + 1
     step = _step_counters[evt.case_id]
     received = _now_iso()
     sse_type = _sse_event_type(evt)
+    detail = evt.detail or evt.data.get("detail", "")
 
-    run = await db.get_latest_run(evt.case_id)
-    run_id = run["id"] if run else 0
-
-    await db.insert_trace(
-        run_id=run_id,
-        case_id=evt.case_id,
-        event_type=evt.event_type,
-        agent_name=evt.agent or "copilot",
-        decision_type="copilot",
-        detail=evt.detail or evt.data.get("detail", ""),
-        findings_count=None,
-        step_index=step,
-        duration_ms=evt.duration_ms,
-        source_timestamp=evt.ts,
-        received_at=received,
-        raw_payload=evt.model_dump(),
-    )
+    # Broadcast to SSE FIRST so the live panel updates immediately
     await sse_manager.broadcast(evt.case_id, {
         "event_type": sse_type,
         "case_id": evt.case_id,
         "agent_name": evt.agent or "copilot",
-        "detail": evt.detail or evt.data.get("detail", ""),
+        "detail": detail,
         "duration_ms": evt.duration_ms,
         "step_index": step,
         "source_timestamp": evt.ts,
         "received_at": received,
     })
+
+    # Then persist to SQLite (non-fatal if it fails)
+    try:
+        run = await db.get_latest_run(evt.case_id)
+        run_id = run["id"] if run else 0
+        await db.insert_trace(
+            run_id=run_id,
+            case_id=evt.case_id,
+            event_type=evt.event_type,
+            agent_name=evt.agent or "copilot",
+            decision_type="copilot",
+            detail=detail,
+            findings_count=None,
+            step_index=step,
+            duration_ms=evt.duration_ms,
+            source_timestamp=evt.ts,
+            received_at=received,
+            raw_payload=evt.model_dump(),
+        )
+    except Exception:
+        logger.debug("Copilot trace DB write failed (non-fatal)", exc_info=True)
+
     logger.info("  ├─ Copilot %s  case=%s  detail=%s",
-                evt.event_type, evt.case_id, (evt.detail or "")[:60])
+                evt.event_type, evt.case_id, (detail or "")[:60])
 
 
 # ── Dispatcher ─────────────────────────────────────────────────────────
