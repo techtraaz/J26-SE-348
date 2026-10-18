@@ -22,6 +22,7 @@ JOBS: dict[str, dict] = {}
 class OCRIngestRequest(BaseModel):
     file: str
     result: ExtractionResult
+    code: str | None = None
 
 
 def _run_job(job_id: str, doc: LoadedDocument, write: bool, max_chunks: int | None) -> None:
@@ -47,14 +48,16 @@ def _queue(background: BackgroundTasks, doc: LoadedDocument, write: bool,
 
 @router.post("/ingest/pdf", status_code=202)
 async def ingest_pdf(background: BackgroundTasks, file: Annotated[UploadFile, File()],
-                     write: bool = True, max_chunks: int | None = None) -> dict:
+                     write: bool = True, max_chunks: int | None = None,
+                     code: str | None = None) -> dict:
+    """code, e.g. "LKAS 18", is only needed when neither the file name nor the title page has it."""
     if not (file.filename or "").lower().endswith(".pdf"):
         raise HTTPException(400, "Upload a .pdf file")
     with tempfile.TemporaryDirectory() as tmp:
         path = Path(tmp) / Path(file.filename).name
         path.write_bytes(await file.read())
         try:
-            doc = load_pdf(path)
+            doc = load_pdf(path, code)
         except Exception as exc:
             raise HTTPException(422, f"Could not read PDF: {exc}") from exc
     return _queue(background, doc, write, max_chunks)
@@ -64,7 +67,7 @@ async def ingest_pdf(background: BackgroundTasks, file: Annotated[UploadFile, Fi
 def ingest_ocr(body: OCRIngestRequest, background: BackgroundTasks, write: bool = True,
                max_chunks: int | None = None) -> dict:
     """Scanned documents already read by Component 01."""
-    return _queue(background, load_extraction(body.result, body.file), write, max_chunks)
+    return _queue(background, load_extraction(body.result, body.file, body.code), write, max_chunks)
 
 
 @router.get("/jobs/{job_id}")

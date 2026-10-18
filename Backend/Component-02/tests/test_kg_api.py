@@ -31,8 +31,8 @@ def client(monkeypatch):
         return KGPipeline(llm, SeedReader(), run_write=run, max_chunks=max_chunks, embed=False)
 
     monkeypatch.setattr(service, "build_pipeline", fake_build)
-    monkeypatch.setattr(kg, "load_pdf", lambda path: LoadedDocument(
-        file=path.name, code="LKAS 2", source="pdf", pages=[Page(1, PAGE)]))
+    monkeypatch.setattr(kg, "load_pdf", lambda path, code=None: LoadedDocument(
+        file=path.name, code=code or "LKAS 2", source="pdf", pages=[Page(1, PAGE)]))
     kg.JOBS.clear()
     c = TestClient(app)
     c.written = written
@@ -47,6 +47,13 @@ def test_pdf_upload_runs_as_a_job(client):
     assert job["status"] == "done" and job["code"] == "LKAS 2"
     assert job["summary"]["requirements"] == 1 and job["summary"]["created"]["Requirement"] == 1
     assert client.written
+
+
+def test_code_param_is_passed_to_the_loader(client):
+    resp = client.post("/kg/ingest/pdf", params={"code": "LKAS 42", "write": False},
+                       files={"file": ("scan.pdf", b"%PDF", "application/pdf")})
+    job = client.get(f"/kg/jobs/{resp.json()['job_id']}").json()
+    assert job["code"] == "LKAS 42" and job["summary"]["created"]["Standard"] == 1
 
 
 def test_dry_run_does_not_write(client):

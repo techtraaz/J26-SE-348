@@ -8,20 +8,30 @@ and Sri Lanka Auditing Standards (SLAuS) for an audit knowledge graph.
 
 Rules:
 - Use only what the paragraph states. Do not add knowledge from outside the text.
+- is_normative is true when the paragraph states at least one requirement or definition.
+  Background, examples and history are not normative: false and empty lists.
 - A requirement is a rule an entity or auditor must or may follow.
   obligation: "shall" for shall or must, "should" for should, "may" for may or is permitted.
+  A rule with conditions (a), (b), (c) is one requirement that includes the conditions.
 - Requirement type is one of: recognition, measurement, presentation, classification,
   disclosure, transition.
-- applies_to uses only codes from the allowed lists. Leave it empty if none fit.
-- definitions only for terms the paragraph defines.
-- references are other standards or paragraphs named in the text.
+- applies_to: the codes from the allowed lists that the rule is about, at most 3.
+  Leave it empty when the rule is general.
+- definitions only for terms the paragraph defines, one per term.
+- references are other standards or paragraphs named in the text, e.g. "LKAS 37", "LKAS 1.54".
 - equations only when the text states a relationship between amounts, written with
-  allowed line item codes.
+  allowed line item codes, e.g. "lower of cost and net realisable value" is
+  "inventories == min(inventory_cost, inventory_nrv)".
 - If the paragraph describes something important for auditing that no list covers,
   add it to proposals with a short reason.
-- Background, examples and [Deleted] paragraphs: is_normative false and empty lists.
 
-Return JSON only."""
+Return one JSON object only, with exactly these keys (lists may be empty):
+{"is_normative": true,
+ "requirements": [{"text": "...", "type": "measurement", "obligation": "shall", "applies_to": ["..."]}],
+ "definitions": [{"term": "...", "text": "..."}],
+ "references": [{"target": "..."}],
+ "equations": [{"name": "...", "expression": "..."}],
+ "proposals": [{"label": "...", "name": "...", "reason": "..."}]}"""
 
 
 def _codes(name: str, codes: list[str]) -> str:

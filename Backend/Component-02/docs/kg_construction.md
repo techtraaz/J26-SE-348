@@ -10,10 +10,10 @@ Code: [`app/construction/`](../app/construction/).
 
 | Step | What it does |
 |---|---|
-| `chunk` | Splits the document into numbered paragraphs (`54`, `81A`, `4.1.1`, `QC11`, `B5.4.2`), keeping heading and page. Contents pages are skipped and numbered examples stay inside their paragraph. |
+| `chunk` | Splits the document into numbered paragraphs (`54`, `81A`, `4.1.1`, `QC11`, `B5.4.2`), keeping heading and page. Contents pages, `[Deleted]` paragraphs, "not yet effective" placeholders, footnotes and the unnumbered intro of a standard are dropped. Numbered examples stay inside their paragraph. |
 | `classify` | Standard, amendment or act go on; client documents (invoices, bank statements) stop here and belong to the evidence ledger. |
 | `retrieve_context` | Reads the allowed ontology codes and a snapshot of what the graph already holds for the standard. |
-| `extract` | One LLM call per paragraph, returning JSON in a fixed schema: requirements, definitions, references, equations and proposals. The prompt lists what the graph already knows for that paragraph. |
+| `extract` | One LLM call per paragraph (`LLM_WORKERS` in parallel), returning JSON in a fixed schema: requirements, definitions, references, equations and proposals. The prompt spells out the JSON shape and lists what the graph already knows for that paragraph. |
 | `validate` | Checks the output against the ontology: unknown codes removed, shall/may wording checked, duplicates dropped, equations with unknown line items turned into proposals. |
 | `resolve` | Matches against the graph so nothing is duplicated: requirements by wording within the paragraph, definitions by term, equations by expression. |
 | `write` | Validates the full write plan against the ontology, adds embeddings, and writes with `MERGE` so a document can be ingested again safely. |
@@ -30,6 +30,9 @@ Code: [`app/construction/`](../app/construction/).
 ## Evolving the ontology
 
 - New requirements and definitions attach to existing standards and paragraphs.
+- The standard code comes from the `code` parameter, else the file name (`LKAS_18_Revenue.pdf`),
+  else the title page ("Sri Lanka Accounting Standard – LKAS 18"). A code the graph does not
+  know yet gets a new `Standard` with `status: unreviewed`.
 - Equations that use line items the ontology does not have become **proposals**
   (`label`, `name`, `reason`), collected per document for review before the schema changes.
 - References in the text (`LKAS 1.25`, `paragraph 81A of LKAS 1`) become `REFERS_TO` links.
@@ -41,7 +44,22 @@ python -m scripts.check_llm                      # test the LLM connection on LK
 python -m scripts.extract_preview LKAS_02_Inventories.pdf --max-chunks 5   # dry run, saves JSON
 python -m scripts.ingest_all                     # all PDFs, resumable
 python -m scripts.ingest_all --dry-run --max-chunks 3
+python -m scripts.ingest_all --workers 4         # parallel LLM calls
+python -m scripts.ingest_all --no-embed          # GPU time on extraction only; embed afterwards
+python -m scripts.prune_chunks                   # list sections the chunker no longer makes
+python -m scripts.prune_chunks --apply           # and delete them
+python -m scripts.embed_chunks                   # embed chunks without an embedding
+python -m scripts.embed_chunks --recreate-index  # after changing EMBEDDING_MODEL / EMBEDDING_DIM
 ```
+
+LLM settings (`.env`):
+
+| Setting | Meaning |
+|---|---|
+| `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL` | Any OpenAI-compatible server. A token proxy that accepts `Authorization: Bearer` takes the token as `LLM_API_KEY`. |
+| `LLM_REASONING_EFFORT` | `none` turns off thinking on reasoning models such as Qwen 3.5 (about 15x faster on extraction). |
+| `LLM_WORKERS` | Paragraphs sent at once. Match the server's parallel slots. |
+| `EMBEDDING_BASE_URL`, `EMBEDDING_MODEL`, `EMBEDDING_DIM` | Embedding server, usually a local Ollama, so search works while the GPU is off. |
 
 `ingest_all` keeps `data/standards/processed/manifest.json` with the file hash and model of
 every finished file. A stopped run continues where it left off; a changed PDF or a different
@@ -52,8 +70,8 @@ model runs again. A failing file is logged and the batch continues. Totals go to
 
 | Endpoint | Purpose |
 |---|---|
-| `POST /kg/ingest/pdf` | Upload a text PDF. Returns a job (`202`). `?write=false` for a dry run. |
-| `POST /kg/ingest/ocr` | Component 01 OCR output (`ExtractionResult`) for scanned documents. |
+| `POST /kg/ingest/pdf` | Upload a text PDF. Returns a job (`202`). `?write=false` for a dry run, `?code=LKAS 18` when the file name and title page do not give the code. |
+| `POST /kg/ingest/ocr` | Component 01 OCR output (`ExtractionResult`) for scanned documents, optional `code`. |
 | `GET /kg/jobs/{id}` | Job status and summary: counts created and matched, issues, proposals. |
 | `GET /kg/jobs` | All jobs, newest first. |
 | `GET /kg/pipeline` | The pipeline as a Mermaid diagram. |
