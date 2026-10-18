@@ -31,3 +31,36 @@ body {
 
 .num, td.amount { font-variant-numeric: tabular-nums; }
 code, .id { font-family: 'JetBrains Mono Variable', monospace; }
+
+/* ── XAI Panel Animations ── */
+@keyframes xai-slide-in {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes xai-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+/* XAI Panel scrollbar styling */
+#xai-panel ::-webkit-scrollbar {
+  width: 4px;
+}
+#xai-panel ::-webkit-scrollbar-track {
+  background: transparent;
+}
+#xai-panel ::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+#xai-panel ::-webkit-scrollbar-thumb:hover {
+  background: var(--text-soft);
+}
+

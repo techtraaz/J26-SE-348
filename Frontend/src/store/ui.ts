@@ -9,12 +9,16 @@ type UIState = {
   generalSessionId: string; // this browser's general-questions chat
   draftCases: string[]; // started here, not audited yet
   staged: Record<string, AuditDocument[]>; // documents waiting to be sent, per case
+  xaiPanelOpen: boolean;
+  xaiActiveTab: "thinking" | "report";
   toggleTheme: () => void;
   setCase: (id: string | null) => void;
   newCase: () => string;
   stageDocs: (caseId: string, docs: AuditDocument[]) => void;
   unstage: (caseId: string, docId: string) => void;
   clearStaged: (caseId: string) => void;
+  toggleXaiPanel: () => void;
+  setXaiTab: (tab: "thinking" | "report") => void;
 };
 
 const stamp = () => {
@@ -31,6 +35,8 @@ export const useUI = create<UIState>()(
       generalSessionId: `GEN-${stamp()}-${random()}`,
       draftCases: [],
       staged: {},
+      xaiPanelOpen: false,
+      xaiActiveTab: "thinking",
       toggleTheme: () => set((s) => ({ theme: s.theme === "light" ? "dark" : "light" })),
       setCase: (id) => set({ selectedCase: id }),
       newCase: () => {
@@ -46,6 +52,8 @@ export const useUI = create<UIState>()(
       unstage: (caseId, docId) =>
         set((s) => ({ staged: { ...s.staged, [caseId]: (s.staged[caseId] ?? []).filter((d) => d.doc_id !== docId) } })),
       clearStaged: (caseId) => set((s) => ({ staged: { ...s.staged, [caseId]: [] } })),
+      toggleXaiPanel: () => set((s) => ({ xaiPanelOpen: !s.xaiPanelOpen })),
+      setXaiTab: (tab) => set({ xaiActiveTab: tab }),
     }),
     {
       name: "nomos-ui",
