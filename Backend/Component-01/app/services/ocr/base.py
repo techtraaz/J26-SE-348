@@ -1,10 +1,19 @@
 """Interface every recognition engine implements."""
 
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 
 import numpy as np
 
 from app.schemas.extraction import EngineInfo, PageResult
+
+
+@dataclass
+class PageRecognition:
+    """What an engine returns for one page."""
+
+    page: PageResult
+    ocr_image: np.ndarray
 
 
 class OCREngine(ABC):
@@ -13,5 +22,5 @@ class OCREngine(ABC):
         """Engine name, version and the exact settings in use."""
 
     @abstractmethod
-    def recognize_page(self, image: np.ndarray, page_number: int = 1) -> PageResult:
+    def recognize_page(self, image: np.ndarray, page_number: int = 1) -> PageRecognition:
         """Recognize one page image (BGR uint8, as returned by cv2)."""

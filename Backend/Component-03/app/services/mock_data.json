@@ -1,54 +1,102 @@
 {
-  "rules_by_doc_type": {
+  "_about": "Offline stand-in for Component-02. Same reply shapes as C2's /query API and the same rules as C2's seed (05_audit.yaml).",
+  "rules": {
     "invoice": [
-      {
-        "rule_id": "POL-07",
-        "text": "Purchases above Rs. 100,000 need dual approval.",
-        "limit": 100000
-      }
-    ],
-    "balance_sheet": []
-  },
-  "check_rules_by_doc_type": {
-    "balance_sheet": [
-      {
-        "rule_id": "CHK-001",
-        "name": "Accounting equation",
-        "expression": "assets == liabilities + capital",
-        "severity": "high"
-      }
-    ],
-    "invoice": []
-  },
-  "sample_case": {
-    "case_id": "CASE-TV",
-    "docs": [
-      {
-        "doc_id": "BS26",
-        "case_id": "CASE-TV",
-        "doc_type": "balance_sheet",
-        "period_year": 2026,
-        "parent_doc_id": null,
-        "fields": {
-          "assets": 40000,
-          "liabilities": 30000,
-          "capital": 20000
-        },
-        "confidences": {},
-        "methods": {}
-      },
-      {
-        "doc_id": "INV1",
-        "case_id": "CASE-TV",
-        "doc_type": "invoice",
-        "period_year": 2026,
-        "parent_doc_id": "BS26",
-        "fields": {
-          "amount": 250000
-        },
-        "confidences": {},
-        "methods": {}
-      }
+      {"rule_id": "POL-07", "text": "Purchases above Rs. 100,000 need dual approval.", "limit": 100000.0}
     ]
-  }
+  },
+  "check_rules": {
+    "balance_sheet": [
+      {"rule_id": "CHK-001", "name": "Accounting equation", "expression": "assets == liabilities + capital", "severity": "high",
+       "variables": [
+         {"name": "assets", "line_item": "total_assets", "aliases": ["assets"]},
+         {"name": "liabilities", "line_item": "total_liabilities", "aliases": ["liabilities"]},
+         {"name": "capital", "line_item": "total_equity", "aliases": ["capital", "equity"]}]},
+      {"rule_id": "CHK-004", "name": "Year on year change within limit", "expression": "abs(assets - prior.assets) / abs(prior.assets) <= 0.30", "severity": "medium",
+       "variables": [{"name": "assets", "line_item": "total_assets", "aliases": ["assets"]}]},
+      {"rule_id": "CHK-006", "name": "Required fields present", "expression": "required fields present and confidence >= 0.5", "severity": "medium", "variables": []},
+      {"rule_id": "CHK-007", "name": "Total assets equals current plus non-current", "expression": "total_assets == total_current_assets + total_non_current_assets", "severity": "medium",
+       "variables": [
+         {"name": "total_assets", "line_item": "total_assets", "aliases": ["assets"]},
+         {"name": "total_current_assets", "line_item": "total_current_assets", "aliases": ["current_assets"]},
+         {"name": "total_non_current_assets", "line_item": "total_non_current_assets", "aliases": []}]},
+      {"rule_id": "CHK-009", "name": "Cash flow closing cash ties to SFP", "expression": "closing_cash == cash_and_cash_equivalents", "severity": "high",
+       "variables": [
+         {"name": "closing_cash", "line_item": "closing_cash", "aliases": []},
+         {"name": "cash_and_cash_equivalents", "line_item": "cash_and_cash_equivalents", "aliases": ["cash"]}]},
+      {"rule_id": "CHK-010", "name": "Closing equity ties to SFP", "expression": "closing_equity == total_equity", "severity": "high",
+       "variables": [
+         {"name": "closing_equity", "line_item": "closing_equity", "aliases": []},
+         {"name": "total_equity", "line_item": "total_equity", "aliases": ["capital", "equity"]}]},
+      {"rule_id": "CHK-011", "name": "Inventory not above NRV", "expression": "inventories <= inventory_nrv", "severity": "medium",
+       "variables": [
+         {"name": "inventories", "line_item": "inventories", "aliases": ["inventory", "closing_inventory"]},
+         {"name": "inventory_nrv", "line_item": "inventory_nrv", "aliases": []}]}
+    ],
+    "trial_balance": [
+      {"rule_id": "CHK-002", "name": "Debit equals credit", "expression": "debit_total == credit_total", "severity": "high",
+       "variables": [
+         {"name": "debit_total", "line_item": "total_debits", "aliases": ["debit_total"]},
+         {"name": "credit_total", "line_item": "total_credits", "aliases": ["credit_total"]}]}
+    ],
+    "general_ledger": [
+      {"rule_id": "CHK-002", "name": "Debit equals credit", "expression": "debit_total == credit_total", "severity": "high",
+       "variables": [
+         {"name": "debit_total", "line_item": "total_debits", "aliases": ["debit_total"]},
+         {"name": "credit_total", "line_item": "total_credits", "aliases": ["credit_total"]}]}
+    ],
+    "invoice": [
+      {"rule_id": "CHK-003", "name": "Child amount matches parent", "expression": "child.amount == parent.amount", "severity": "high", "variables": []},
+      {"rule_id": "CHK-005", "name": "Cash out without asset in", "expression": "not (cash_out > 0 and purchase_basis == 'credit' and asset_in == 0)", "severity": "high", "variables": []},
+      {"rule_id": "CHK-006", "name": "Required fields present", "expression": "required fields present and confidence >= 0.5", "severity": "medium", "variables": []}
+    ],
+    "payment_voucher": [
+      {"rule_id": "CHK-005", "name": "Cash out without asset in", "expression": "not (cash_out > 0 and purchase_basis == 'credit' and asset_in == 0)", "severity": "high", "variables": []}
+    ],
+    "income_statement": [
+      {"rule_id": "CHK-008", "name": "Gross profit", "expression": "gross_profit == revenue - cost_of_sales", "severity": "medium",
+       "variables": [
+         {"name": "gross_profit", "line_item": "gross_profit", "aliases": []},
+         {"name": "revenue", "line_item": "revenue", "aliases": ["sales", "turnover"]},
+         {"name": "cost_of_sales", "line_item": "cost_of_sales", "aliases": ["cogs"]}]}
+    ],
+    "cash_flow_statement": [
+      {"rule_id": "CHK-009", "name": "Cash flow closing cash ties to SFP", "expression": "closing_cash == cash_and_cash_equivalents", "severity": "high",
+       "variables": [
+         {"name": "closing_cash", "line_item": "closing_cash", "aliases": []},
+         {"name": "cash_and_cash_equivalents", "line_item": "cash_and_cash_equivalents", "aliases": ["cash"]}]}
+    ],
+    "equity_statement": [
+      {"rule_id": "CHK-010", "name": "Closing equity ties to SFP", "expression": "closing_equity == total_equity", "severity": "high",
+       "variables": [
+         {"name": "closing_equity", "line_item": "closing_equity", "aliases": []},
+         {"name": "total_equity", "line_item": "total_equity", "aliases": ["capital", "equity"]}]}
+    ]
+  },
+  "evidence_chains": {},
+  "explanations": {
+    "CHK-001": {"explanation": "CHK-001 Accounting equation checks assets == liabilities + capital. Source: Conceptual Framework para 4.4.",
+                "citations": [{"standard": "CF", "section": "CF:4.4", "paragraph": "4.4"}]},
+    "CHK-004": {"explanation": "CHK-004 Year on year change within limit is an analytical procedure. Source: SLAuS 520.",
+                "citations": [{"standard": "SLAuS 520", "title": "Analytical Procedures"}]},
+    "CHK-005": {"explanation": "CHK-005 Cash out without asset in is a fraud risk indicator. Source: SLAuS 240.",
+                "citations": [{"standard": "SLAuS 240", "title": "The Auditor's Responsibilities Relating to Fraud in an Audit of Financial Statements"}]},
+    "CHK-006": {"explanation": "CHK-006 Required fields present tests completeness of audit evidence. Source: SLAuS 500.",
+                "citations": [{"standard": "SLAuS 500", "title": "Audit Evidence"}]},
+    "CHK-007": {"explanation": "CHK-007 checks total_assets == total_current_assets + total_non_current_assets. Source: LKAS 1 para 60.",
+                "citations": [{"standard": "LKAS 1", "section": "LKAS 1:60", "paragraph": "60"}]},
+    "CHK-008": {"explanation": "CHK-008 Gross profit checks gross_profit == revenue - cost_of_sales. Source: LKAS 1 para 103.",
+                "citations": [{"standard": "LKAS 1", "section": "LKAS 1:103", "paragraph": "103"}]},
+    "CHK-009": {"explanation": "CHK-009 checks closing cash ties to the statement of financial position. Source: LKAS 7 para 45.",
+                "citations": [{"standard": "LKAS 7", "section": "LKAS 7:45", "paragraph": "45"}]},
+    "CHK-010": {"explanation": "CHK-010 checks closing equity ties to the statement of financial position. Source: LKAS 1 para 106.",
+                "citations": [{"standard": "LKAS 1", "section": "LKAS 1:106", "paragraph": "106"}]},
+    "CHK-011": {"explanation": "CHK-011 Inventory not above NRV checks inventories <= inventory_nrv. Source: LKAS 2 para 9.",
+                "citations": [{"standard": "LKAS 2", "section": "LKAS 2:9", "paragraph": "9"}]},
+    "POL-07": {"explanation": "POL-07 Purchases above Rs. 100,000 need dual approval.", "citations": []}
+  },
+  "search": [
+    {"section": "LKAS 2:9", "standard": "LKAS 2", "text": "Inventories shall be measured at the lower of cost and net realisable value."},
+    {"section": "CF:4.4", "standard": "CF", "text": "Elements of financial statements: assets, liabilities and equity."}
+  ]
 }

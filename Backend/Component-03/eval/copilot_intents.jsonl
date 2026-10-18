@@ -1,0 +1,63 @@
+{"text": "How much can an invoice be before it needs two approvers?", "intent": "rule_lookup"}
+{"text": "list the checks you run on a trial balance", "intent": "rule_lookup"}
+{"text": "Is Rs 120,000 over the approval threshold for bills?", "intent": "rule_lookup"}
+{"text": "what controls apply to payment vouchers", "intent": "rule_lookup"}
+{"text": "which rules does the system use for income statements?", "intent": "rule_lookup"}
+{"text": "What does CHK-007 actually test?", "intent": "rule_explain"}
+{"text": "explain rule POL-07 to me", "intent": "rule_explain"}
+{"text": "where does CHK-011 come from", "intent": "rule_explain"}
+{"text": "meaning of REV-005?", "intent": "rule_explain"}
+{"text": "what is the basis of CHK-1", "intent": "rule_explain"}
+{"text": "What does LKAS 7 require for closing cash?", "intent": "standard_search"}
+{"text": "according to SLAuS 240 what is the auditor responsible for", "intent": "standard_search"}
+{"text": "define net realisable value", "intent": "standard_search"}
+{"text": "what does the standard say about inventories measurement", "intent": "standard_search"}
+{"text": "LKAS 1 paragraph on going concern", "intent": "standard_search"}
+{"text": "give me a summary of case ACME-2026", "intent": "case_status", "case_id": "ACME-2026"}
+{"text": "how did the audit of case C-14 go?", "intent": "case_status"}
+{"text": "what's the current result for this case", "intent": "case_status", "case_id": "C-1"}
+{"text": "overview of case Q3-SALES please", "intent": "case_status"}
+{"text": "is case B-77 auditable?", "intent": "case_status"}
+{"text": "show me all high findings for case C-14", "intent": "list_findings"}
+{"text": "list the possible fraud issues in this case", "intent": "list_findings", "case_id": "C-1"}
+{"text": "which findings still need review?", "intent": "list_findings", "case_id": "C-1"}
+{"text": "any problems with the invoices in case ACME-2026?", "intent": "list_findings"}
+{"text": "show medium severity violations in version 2 of case C-9", "intent": "list_findings"}
+{"text": "why was CHK-004 raised on case C-14?", "intent": "explain_finding"}
+{"text": "Explain the reasoning behind the POL-07 finding in this case", "intent": "explain_finding", "case_id": "C-1"}
+{"text": "why did BS-2026 get flagged", "intent": "explain_finding", "case_id": "C-1"}
+{"text": "what triggered the fraud flag on INV-9?", "intent": "explain_finding", "case_id": "C-1"}
+{"text": "why did the accounting equation check fail for case Z-3", "intent": "explain_finding"}
+{"text": "what evidence is still missing for case C-14?", "intent": "evidence_gaps"}
+{"text": "which documents got rejected in this case", "intent": "evidence_gaps", "case_id": "C-1"}
+{"text": "what else is needed to complete case ACME-2026", "intent": "evidence_gaps"}
+{"text": "list unverified citations in case C-9", "intent": "evidence_gaps"}
+{"text": "what changed between version 1 and version 3 of case C-9?", "intent": "compare_versions"}
+{"text": "compare this audit with the previous one", "intent": "compare_versions", "case_id": "C-1"}
+{"text": "difference since the last run of case ACME-2026", "intent": "compare_versions"}
+{"text": "show the audit history for case C-14", "intent": "list_versions"}
+{"text": "how many times has case B-77 been audited", "intent": "list_versions"}
+{"text": "list previous runs of this case", "intent": "list_versions", "case_id": "C-1"}
+{"text": "which cases have possible fraud?", "intent": "search_cases"}
+{"text": "list all cases that are not auditable", "intent": "search_cases"}
+{"text": "any cases with high severity findings across the system?", "intent": "search_cases"}
+{"text": "which cases failed CHK-002", "intent": "search_cases"}
+{"text": "please add these receipts to case C-14", "intent": "evidence_append", "has_docs": true}
+{"text": "attach the new bank statement to this case", "intent": "evidence_append", "has_docs": true, "case_id": "C-1"}
+{"text": "here is another invoice for case ACME-2026, include it", "intent": "evidence_append", "has_docs": true}
+{"text": "upload more evidence to the case", "intent": "evidence_append", "has_docs": true, "case_id": "C-1"}
+{"text": "audit these documents", "intent": "fresh_audit", "has_docs": true, "case_id": "NEW-1"}
+{"text": "start a new audit for case FY26 with the attached files", "intent": "fresh_audit", "has_docs": true}
+{"text": "check these books from scratch", "intent": "fresh_audit", "has_docs": true, "case_id": "NEW-2"}
+{"text": "analyse the attached statements for case P-1", "intent": "fresh_audit", "has_docs": true}
+{"text": "re-run case C-14", "intent": "rerun_audit"}
+{"text": "audit case ACME-2026 again, the rules were updated", "intent": "rerun_audit"}
+{"text": "run this case once more", "intent": "rerun_audit", "case_id": "C-1"}
+{"text": "I paid Rs 180,000 in cash for a printer but recorded it as a credit purchase, is that ok?", "intent": "whatif_check"}
+{"text": "what if an invoice for 250,000 has only one approval", "intent": "whatif_check"}
+{"text": "we bought a laptop for 95,000 on credit. fine?", "intent": "whatif_check"}
+{"text": "assets of 500,000, liabilities 300,000 and capital 150,000 - does that balance?", "intent": "whatif_check"}
+{"text": "cash out 40,000 with no asset recorded, should I worry?", "intent": "whatif_check"}
+{"text": "what can you do", "intent": "help"}
+{"text": "help me use this", "intent": "help"}
+{"text": "how do I ask you things?", "intent": "help"}

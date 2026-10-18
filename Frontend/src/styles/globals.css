@@ -3,6 +3,31 @@
 @import "@fontsource-variable/jetbrains-mono";
 @import "./tokens.css";
 
-body { background:var(--bg); color:var(--text); font-family:'Inter Variable',system-ui,sans-serif; }
+@font-face {
+  font-family: 'Instrument Serif';
+  font-style: normal;
+  font-weight: 400;
+  src: url('https://fonts.gstatic.com/s/instrumentserif/v4/jizBRFtNs2ka9fCWg0Q5dFoSBQ3FEQ.woff2') format('woff2');
+  font-display: swap;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Inter Variable', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+.heading-serif {
+  font-family: 'Instrument Serif', 'Georgia', serif;
+  font-weight: 400;
+  color: var(--text-h);
+  letter-spacing: -0.02em;
+}
+
 .num, td.amount { font-variant-numeric: tabular-nums; }
-code, .id { font-family:'JetBrains Mono Variable',monospace; }
+code, .id { font-family: 'JetBrains Mono Variable', monospace; }
