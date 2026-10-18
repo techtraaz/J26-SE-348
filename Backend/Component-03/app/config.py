@@ -62,6 +62,9 @@ ALLOW_FREE_CYPHER: bool = False
 KG_MODE: str = os.getenv("KG_MODE", "auto")
 KG_URL: str = os.getenv("KG_URL", "")  # C2 base URL, e.g. http://localhost:8002
 KG_TIMEOUT: float = float(os.getenv("KG_TIMEOUT", "5"))
+# How C2 searches the standards for the Copilot: keyword | semantic | hybrid.
+# hybrid uses C2's embeddings and falls back to keyword (with a note) when they are off.
+KG_SEARCH_MODE: str = os.getenv("KG_SEARCH_MODE", "hybrid").lower()
 
 # C2's DocumentType codes (Component-02 seed 05_audit.yaml) plus "unknown".
 ALLOWED_DOC_TYPES: frozenset[str] = frozenset({

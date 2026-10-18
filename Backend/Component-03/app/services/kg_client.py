@@ -45,6 +45,7 @@ _MOCK_PATH = Path(__file__).with_name("mock_data.json")
 _ID_RE = re.compile(r"^[A-Za-z0-9 _\-.]{1,64}$")
 
 Transport = Callable[[str, dict], object]
+_SEARCH_MODES = ("keyword", "semantic", "hybrid")  # what C2's /query/search accepts
 
 
 def validate_doc_type(doc_type: str) -> str:
@@ -252,7 +253,8 @@ class LiveKGClient(KGClient):
         return _field_map(self._get("/query/fields", {}) or {})
 
     def _fetch_search(self, text, limit):
-        raw = self._get("/query/search", {"q": text, "mode": "keyword", "limit": limit})
+        mode = config.KG_SEARCH_MODE if config.KG_SEARCH_MODE in _SEARCH_MODES else "hybrid"
+        raw = self._get("/query/search", {"q": text, "mode": mode, "limit": limit})
         if raw is None:
             return []
         if not isinstance(raw, dict) or not isinstance(raw.get("results", []), list):
