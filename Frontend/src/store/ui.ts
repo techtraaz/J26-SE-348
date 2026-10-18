@@ -1,19 +1,63 @@
 import { create } from "zustand";
+import { createJSONStorage, persist } from "zustand/middleware";
+import type { AuditDocument } from "@/types/audit";
 
+// Chat history is saved by Component-03 (/chat). The browser keeps only UI state.
 type UIState = {
   theme: "light" | "dark";
-  selectedCase: string;
-  copilotOpen: boolean;
+  selectedCase: string | null; // a case's chat (session_id = case_id); null = general chat
+  generalSessionId: string; // this browser's general-questions chat
+  draftCases: string[]; // started here, not audited yet
+  staged: Record<string, AuditDocument[]>; // documents waiting to be sent, per case
   toggleTheme: () => void;
-  setCase: (id: string) => void;
-  setCopilot: (open: boolean) => void;
+  setCase: (id: string | null) => void;
+  newCase: () => string;
+  stageDocs: (caseId: string, docs: AuditDocument[]) => void;
+  unstage: (caseId: string, docId: string) => void;
+  clearStaged: (caseId: string) => void;
 };
 
-export const useUI = create<UIState>((set) => ({
-  theme: "light",
-  selectedCase: "CASE-TV",
-  copilotOpen: true,
-  toggleTheme: () => set((s) => ({ theme: s.theme === "light" ? "dark" : "light" })),
-  setCase: (id) => set({ selectedCase: id }),
-  setCopilot: (open) => set({ copilotOpen: open }),
-}));
+const stamp = () => {
+  const d = new Date();
+  return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
+};
+const random = () => Math.random().toString(36).slice(2, 6).toUpperCase();
+
+export const useUI = create<UIState>()(
+  persist(
+    (set) => ({
+      theme: "light",
+      selectedCase: null,
+      generalSessionId: `GEN-${stamp()}-${random()}`,
+      draftCases: [],
+      staged: {},
+      toggleTheme: () => set((s) => ({ theme: s.theme === "light" ? "dark" : "light" })),
+      setCase: (id) => set({ selectedCase: id }),
+      newCase: () => {
+        const id = `CASE-${stamp()}-${random()}`;
+        set((s) => ({ selectedCase: id, draftCases: [id, ...s.draftCases] }));
+        return id;
+      },
+      stageDocs: (caseId, docs) =>
+        set((s) => {
+          const kept = (s.staged[caseId] ?? []).filter((d) => !docs.some((n) => n.doc_id === d.doc_id));
+          return { staged: { ...s.staged, [caseId]: [...kept, ...docs] } };
+        }),
+      unstage: (caseId, docId) =>
+        set((s) => ({ staged: { ...s.staged, [caseId]: (s.staged[caseId] ?? []).filter((d) => d.doc_id !== docId) } })),
+      clearStaged: (caseId) => set((s) => ({ staged: { ...s.staged, [caseId]: [] } })),
+    }),
+    {
+      name: "nomos-ui",
+      version: 2, // v1 kept chat messages here; they now live on the server
+      storage: createJSONStorage(() => localStorage),
+      partialize: (s) => ({ theme: s.theme, selectedCase: s.selectedCase, generalSessionId: s.generalSessionId,
+                            draftCases: s.draftCases, staged: s.staged }),
+      migrate: (old) => {
+        const { messages: _dropped, ...rest } = (old ?? {}) as Record<string, unknown>;
+        void _dropped;
+        return rest as unknown as UIState;
+      },
+    },
+  ),
+);

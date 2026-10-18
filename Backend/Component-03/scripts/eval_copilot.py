@@ -15,7 +15,7 @@ from pathlib import Path
 
 from app import config
 from app.services import llm
-from app.services.copilot import extract, understand
+from app.services.copilot import RequestContext, extract, understand
 from app.services.copilot.registry import REGISTRY
 
 DEFAULT_SET = Path(__file__).resolve().parents[1] / "eval" / "copilot_intents.jsonl"
@@ -36,7 +36,9 @@ def run(rows: list[dict], mode: str) -> dict:
     for r in rows:
         ent = extract(r["text"])
         start = time.perf_counter()
-        u = understand(r["text"], ent, r.get("has_docs", False), r.get("case_id"))
+        ctx = RequestContext(has_docs=r.get("has_docs", False), case_id=r.get("case_id"),
+                             case_audited=r.get("case_audited", False))
+        u = understand(r["text"], ent, ctx)
         times.append(time.perf_counter() - start)
         methods[u.method] += 1
         ok = u.intent == r["intent"]

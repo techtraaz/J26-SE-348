@@ -50,16 +50,32 @@ def is_confident(scores: dict[str, float]) -> bool:
             and top[0] - top[1] >= config.COPILOT_RULES_MARGIN)
 
 
-def _flags(entities: Entities, has_docs: bool, has_case: bool) -> dict[str, bool]:
+@dataclass(frozen=True)
+class RequestContext:
+    """What the request carries besides its text."""
+    has_docs: bool = False
+    case_id: str | None = None
+    case_audited: bool = False  # the case already has a saved audit
+    memory: str = ""  # one-line summary of the conversation so far
+
+    def describe(self) -> str:
+        return (f"Documents attached: {'yes' if self.has_docs else 'no'}. "
+                f"Current case: {self.case_id or 'none'}"
+                f"{' (already audited)' if self.case_audited else ''}. {self.memory}").strip()
+
+
+def _flags(entities: Entities, ctx: RequestContext) -> dict[str, bool]:
+    """Entity flags plus context flags the registry signals can use."""
     flags = {k: bool(v) for k, v in entities.__dict__.items()}
-    flags.update(docs=has_docs, case=has_case or bool(entities.case_ids))
+    flags.update(docs=ctx.has_docs, case=bool(ctx.case_id or entities.case_ids),
+                 docs_for_audited_case=ctx.has_docs and ctx.case_audited)
     return flags
 
 
-def rules_classify(text: str, entities: Entities, has_docs: bool,
-                   has_case: bool) -> tuple[str, dict[str, float]]:
+def rules_classify(text: str, entities: Entities,
+                   ctx: RequestContext) -> tuple[str, dict[str, float]]:
     """Highest score wins; ties go to the intent registered first."""
-    flags = _flags(entities, has_docs, has_case)
+    flags = _flags(entities, ctx)
     scores: dict[str, float] = {}
     for name, spec in REGISTRY.items():
         s = sum(w for p, w in spec.patterns.items() if re.search(p, text, re.IGNORECASE))
@@ -93,18 +109,15 @@ def candidates(scores: dict[str, float]) -> tuple[str, ...]:
     return tuple(dict.fromkeys([*picked, FALLBACK_INTENT]))
 
 
-def llm_classify(text: str, has_docs: bool, case_id: str | None,
-                 names: tuple[str, ...] | None = None) -> str:
+def llm_classify(text: str, ctx: RequestContext, names: tuple[str, ...] | None = None) -> str:
     """Raises llm.LLMError when no valid intent comes back."""
     names = names or tuple(REGISTRY)
-    context = (f"Documents attached: {'yes' if has_docs else 'no'}. "
-               f"Current case: {case_id or 'none'}.")
-    return llm.complete_json(_system_prompt(names), f"{context}\nRequest: {text}",
+    return llm.complete_json(_system_prompt(names), f"{ctx.describe()}\nRequest: {text}",
                              _choice_model(names)).intent
 
 
-def understand(text: str, entities: Entities, has_docs: bool, case_id: str | None) -> Understanding:
-    rules_intent, scores = rules_classify(text, entities, has_docs, bool(case_id))
+def understand(text: str, entities: Entities, ctx: RequestContext) -> Understanding:
+    rules_intent, scores = rules_classify(text, entities, ctx)
     confident = is_confident(scores)
     mode = config.COPILOT_NLU
 
@@ -117,7 +130,7 @@ def understand(text: str, entities: Entities, has_docs: bool, case_id: str | Non
         return by_rules("rules_fallback", "LLM unavailable")
     try:
         names = candidates(scores) if mode == "auto" else tuple(REGISTRY)
-        chosen = llm_classify(text, has_docs, case_id, names)
+        chosen = llm_classify(text, ctx, names)
     except llm.LLMError as exc:
         return by_rules("rules_fallback", str(exc))
     return Understanding(chosen, "llm", rules_intent, confident, scores, llm_intent=chosen)

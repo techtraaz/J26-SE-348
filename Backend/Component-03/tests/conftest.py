@@ -2,6 +2,7 @@
 import pytest
 
 from app import config
+from app.services import chat_store as chat_store_mod
 from app.services import store as store_mod
 from app.services.kg_client import FallbackKGClient, MockKGClient
 
@@ -15,6 +16,7 @@ def _offline(monkeypatch):
     monkeypatch.setattr(config, "MONGODB_URI", "")
     monkeypatch.setattr(config, "STORE_MODE", "memory")
     monkeypatch.setattr(store_mod, "_store", store_mod.MemoryStore())
+    monkeypatch.setattr(chat_store_mod, "_chats", chat_store_mod.MemoryChatStore())
 
 
 @pytest.fixture
@@ -25,6 +27,11 @@ def kg():
 @pytest.fixture
 def store():
     return store_mod.default_store()
+
+
+@pytest.fixture
+def chats():
+    return chat_store_mod.default_chat_store()
 
 
 class FakeRedis:
