@@ -43,7 +43,7 @@ PORT: int = int(os.getenv("C04_PORT", "8004"))
 # ---------------------------------------------------------------------------
 LLM_API_URL: str = os.getenv(
     "C04_LLM_API_URL",
-    "https://described-completing-classroom-fans.trycloudflare.com/api/chat",
+    "https://jacob-fascinating-liabilities-engines.trycloudflare.com/api/chat",
 )
 LLM_MODEL: str = os.getenv("C04_LLM_MODEL", "phi4")
 LLM_TIMEOUT: int = int(os.getenv("C04_LLM_TIMEOUT", "60"))
