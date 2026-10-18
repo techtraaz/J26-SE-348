@@ -1,5 +1,5 @@
-import re
 from collections import Counter
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass, field
 from typing import TypedDict
 
@@ -21,7 +21,6 @@ from app.ontology.seed import write as write_plan
 KG_KINDS = {"standard", "amendment", "legislation"}
 MIN_CHARS = 40
 EMBED_BATCH = 32
-_DELETED = re.compile(r"^\S+\s+\[deleted\]\s*$", re.IGNORECASE)
 
 
 class IngestState(TypedDict, total=False):
@@ -85,8 +84,7 @@ class IngestResult:
 
 
 def _worth_extracting(chunk: Chunk) -> bool:
-    return chunk.number is not None and len(chunk.text) >= MIN_CHARS \
-        and not _DELETED.match(chunk.text.strip())
+    return chunk.number is not None and len(chunk.text) >= MIN_CHARS
 
 
 class KGPipeline:
@@ -94,12 +92,13 @@ class KGPipeline:
     Without run_write nothing is written (dry run)."""
 
     def __init__(self, llm: LLM, reader: GraphReader, run_write=None,
-                 max_chunks: int | None = None, embed: bool = True):
+                 max_chunks: int | None = None, embed: bool = True, workers: int = 1):
         self.llm = llm
         self.reader = reader
         self.run_write = run_write
         self.embed = embed
         self.max_chunks = max_chunks
+        self.workers = max(1, workers)
         self.onto = load_ontology()
         self.graph = self._build()
 
@@ -136,15 +135,19 @@ class KGPipeline:
         if self.max_chunks is not None:
             skipped += [c.id for c in todo[self.max_chunks:]]
             todo = todo[:self.max_chunks]
-        extractions, errors = {}, {}
-        for chunk in todo:
+        def one(chunk: Chunk) -> ChunkExtraction | LLMError:
             ctx = ExtractionContext(base.line_items, base.account_classes, base.document_types,
                                     snap.known(chunk.id))
             try:
-                extractions[chunk.id] = self.llm.extract(
-                    SYSTEM, build_user_prompt(chunk, doc.code, ctx), ChunkExtraction)
+                return self.llm.extract(SYSTEM, build_user_prompt(chunk, doc.code, ctx),
+                                        ChunkExtraction)
             except LLMError as exc:
-                errors[chunk.id] = str(exc)
+                return exc
+
+        with ThreadPoolExecutor(max_workers=self.workers) as pool:
+            outs = list(pool.map(one, todo))
+        extractions = {c.id: o for c, o in zip(todo, outs, strict=True) if not isinstance(o, LLMError)}
+        errors = {c.id: str(o) for c, o in zip(todo, outs, strict=True) if isinstance(o, LLMError)}
         return {"extractions": extractions, "errors": errors, "skipped": skipped}
 
     def validate(self, state: IngestState) -> dict:

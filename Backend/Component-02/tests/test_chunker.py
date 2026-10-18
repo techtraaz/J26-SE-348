@@ -42,12 +42,33 @@ def test_paragraph_ids_headings_and_pages():
     assert chunks["LKAS 2:9"].heading == "Measurement of inventories"
     assert chunks["LKAS 2:9"].page == 2
     assert chunks["LKAS 2:1"].heading == "Objective"
-    assert chunks["LKAS 2:intro"].number is None
 
 
-def test_contents_page_is_skipped():
+def test_contents_page_and_standard_intro_are_skipped():
     ids = [c.id for c in chunk_paragraphs(_doc(PAGE_1, PAGE_2))]
-    assert ids == ["LKAS 2:intro", "LKAS 2:1", "LKAS 2:9"]
+    assert ids == ["LKAS 2:1", "LKAS 2:9"]
+
+
+def test_intro_kept_when_document_is_not_a_known_standard():
+    chunks = chunk_paragraphs(_doc(PAGE_2, code=None))
+    assert chunks[0].id == "LKAS_02_Inventories.pdf:intro" and chunks[0].number is None
+
+
+def test_deleted_paragraphs_dropped_and_placeholders_stripped():
+    page = """40A  [Deleted]
+
+40C  SLFRS 13 amended the definition of fair value in paragraph 6.
+
+40D–
+40G [These paragraphs refer to amendments that are not yet effective, and are
+therefore not included in this edition.]
+
+41  [Deleted]
+42 [This paragraph refers to amendments that are not yet effective, and is
+therefore not included in this edition.]"""
+    chunks = chunk_paragraphs(_doc(page))
+    assert [c.id for c in chunks] == ["LKAS 2:40C"]
+    assert "amendments" not in chunks[0].text and chunks[0].text.endswith("40G")
 
 
 def test_text_continues_across_pages():
@@ -60,7 +81,7 @@ def test_numbered_example_stays_inside_its_paragraph():
     assert "LKAS 2:1#dup2" not in chunks
     assert "A machine cost 100" in chunks["LKAS 2:11"].text
     assert "LKAS 2:12" in chunks
-    assert "LKAS 2:40A" in chunks
+    assert "LKAS 2:40A" not in chunks
 
 
 def test_three_level_numbers_and_numbered_headings():

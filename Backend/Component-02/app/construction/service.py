@@ -5,10 +5,11 @@ from app.construction.pipeline import KGPipeline
 from app.graph import neo4j_client
 
 
-def build_pipeline(write: bool = True, max_chunks: int | None = None) -> KGPipeline:
+def build_pipeline(write: bool = True, max_chunks: int | None = None,
+                   workers: int | None = None, embed: bool = True) -> KGPipeline:
     """Pipeline wired to the configured LLM and Neo4j."""
-    real_llm = get_settings().llm_provider != "fake"
+    s = get_settings()
     return KGPipeline(
         get_llm(), Neo4jReader(neo4j_client.run_read),
-        run_write=neo4j_client.run_write if write else None,
-        max_chunks=max_chunks, embed=real_llm)
+        run_write=neo4j_client.run_write if write else None, max_chunks=max_chunks,
+        embed=embed and s.llm_provider != "fake", workers=workers or s.llm_workers)
