@@ -17,7 +17,7 @@ from app.api.v1.router import api_router
 from app.core.config import Settings
 from app.db.session import create_db_engine, create_session_factory
 from app.jobs.worker import JobWorker
-from app.services.ocr.factory import create_engine
+from app.services.factory import create_engine
 from app.services.ocr.paddle import PaddleSettings
 from app.services.storage.local import LocalStorage
 
