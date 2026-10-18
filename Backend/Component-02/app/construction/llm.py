@@ -60,6 +60,8 @@ class OpenAICompatibleLLM:
         while True:
             fmt = self._response_format(schema)
             kwargs = {"response_format": fmt} if fmt else {}
+            if self.s.llm_reasoning_effort:
+                kwargs["reasoning_effort"] = self.s.llm_reasoning_effort
             try:
                 resp = self.client.chat.completions.create(
                     model=self.s.llm_model, messages=messages,

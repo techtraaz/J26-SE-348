@@ -62,6 +62,14 @@ def test_extract_sends_json_schema_and_parses():
     fmt = client.calls[0]["response_format"]
     assert fmt["type"] == "json_schema" and fmt["json_schema"]["name"] == "ChunkExtraction"
     assert client.calls[0]["temperature"] == 0.0
+    assert "reasoning_effort" not in client.calls[0]
+
+
+def test_reasoning_effort_is_sent_when_set():
+    client = StubClient([GOOD])
+    OpenAICompatibleLLM(_settings(llm_reasoning_effort="none"), client=client).extract(
+        "s", "u", ChunkExtraction)
+    assert client.calls[0]["reasoning_effort"] == "none"
 
 
 def test_invalid_reply_is_retried_with_feedback():
@@ -122,7 +130,7 @@ def test_prompt_contains_codes_text_and_ocr_warning():
     assert "Allowed document types: (none)" in prompt
     assert "OCR with low confidence" in prompt
     assert prompt.rstrip().endswith('"""') and chunk.text in prompt
-    assert "Return JSON only" in SYSTEM
+    assert "Return one JSON object only" in SYSTEM and '"is_normative"' in SYSTEM
 
 
 def test_schema_limits_requirement_types():
