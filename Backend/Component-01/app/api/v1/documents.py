@@ -148,6 +148,7 @@ def upload_document(
 def list_documents(
     db: Db,
     folder_id: uuid.UUID | None = None,
+    root_only: bool = False,  # only documents that are not in any folder
     status: DocumentStatus | None = None,
     q: Annotated[str | None, Query(max_length=100)] = None,
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
@@ -156,6 +157,8 @@ def list_documents(
     filters = []
     if folder_id is not None:
         filters.append(Document.folder_id == folder_id)
+    elif root_only:
+        filters.append(Document.folder_id.is_(None))
     if status is not None:
         filters.append(Document.status == status.value)
     if q:
