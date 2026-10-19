@@ -48,11 +48,15 @@ function mockApis() {
                     document_count: 1, breadcrumbs: [{ id: "f1", name: "Invoices 2025" }] });
     }
     if (url.pathname === "/api/v1/documents") {
+      // Like the real API: filtered by status, limited, with the full total.
       documentQueries.push(url.search);
-      const items = url.searchParams.get("folder_id") === "f1"
+      const status = url.searchParams.get("status");
+      const limit = Number(url.searchParams.get("limit") ?? 50);
+      const here = url.searchParams.get("folder_id") === "f1"
         ? [doc("c", "march.png", "verified", "f1")]
         : [doc("a", "complete.png", "verified"), doc("b", "no-year.png", "verified"), doc("x", "draft.png", "needs_review")];
-      return json({ items, total: items.length, limit: 200, offset: 0 });
+      const matching = status ? here.filter((d) => d.status === status) : here;
+      return json({ items: matching.slice(0, limit), total: matching.length, limit, offset: 0 });
     }
     const verified = url.pathname.match(/^\/api\/v1\/documents\/(\w+)\/verified$/);
     if (verified) return json(record(verified[1]));
@@ -85,13 +89,15 @@ afterEach(() => vi.unstubAllGlobals());
 
 describe("VerifiedDocumentPicker", () => {
   it("offers only verified documents, and says how many are not verified yet", async () => {
-    mockApis();
+    const { documentQueries } = mockApis();
     renderPicker();
 
     expect(await screen.findByText("complete.png")).toBeInTheDocument();
     expect(screen.getByText("no-year.png")).toBeInTheDocument();
     expect(screen.queryByText("draft.png")).not.toBeInTheDocument();
-    expect(screen.getByText(/1 document here is not verified yet/)).toBeInTheDocument();
+    expect(await screen.findByText(/1 document here is not verified yet/)).toBeInTheDocument();
+    // The server filters, so unverified uploads cannot use up the page of results.
+    expect(documentQueries.some((q) => q.includes("status=verified") && q.includes("limit=200"))).toBe(true);
   });
 
   it("browses into a folder", async () => {

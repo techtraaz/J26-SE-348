@@ -51,11 +51,15 @@ function Browser({ picked, onPickedChange }: {
   const q = query.trim();
   const folder = useFolder(folderId ?? undefined);
   const folders = useFolders(folderId, !q);
-  const documents = useDocuments({ folder: q ? "all" : (folderId ?? "root"), q });
+  const scope = { folder: q ? "all" : (folderId ?? "root"), q };
+  // Verified documents only, filtered by the server; the second query only
+  // counts everything here (limit 1) for the "not verified yet" note.
+  const documents = useDocuments({ ...scope, status: "verified" });
+  const everything = useDocuments({ ...scope, limit: 1 });
 
-  const all = documents.data?.items ?? [];
-  const verified = all.filter((d) => d.status === "verified");
-  const notVerified = all.length - verified.length;
+  const verified = documents.data?.items ?? [];
+  const verifiedTotal = documents.data?.total ?? 0;
+  const notVerified = Math.max(0, (everything.data?.total ?? verifiedTotal) - verifiedTotal);
   const toggle = (id: string, filename: string) => {
     const next = new Map(picked);
     if (!next.delete(id)) next.set(id, filename);
@@ -123,6 +127,11 @@ function Browser({ picked, onPickedChange }: {
           </li>
         )}
       </ul>
+      {verifiedTotal > verified.length && (
+        <p className="text-xs text-ink-soft">
+          Showing {verified.length} of {verifiedTotal} verified documents here: search by name to narrow them down.
+        </p>
+      )}
       {notVerified > 0 && (
         <p className="text-xs text-ink-soft">
           {pluralize(notVerified, "document")} here {notVerified === 1 ? "is" : "are"} not verified yet: review and

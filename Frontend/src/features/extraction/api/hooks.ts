@@ -3,6 +3,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tansta
 import { POLL_INTERVAL_MS } from '@/features/extraction/config'
 import { api, call, callVoid } from './client'
 import { isActiveStatus } from './types'
+import type { DocumentStatus } from './types'
 
 // Every Component-01 key starts with 'c1', so these queries never mix with the
 // rest of the app's and get their own defaults (see app/providers.tsx).
@@ -41,12 +42,15 @@ export interface DocumentScope {
   /** A folder id, 'root' for documents outside any folder, or 'all' (search). */
   folder: string
   q?: string
+  /** Filtered by the server, so a page of results is not used up by other statuses. */
+  status?: DocumentStatus
+  limit?: number
 }
 
 /** Documents in one place. Polls while any of them is still being processed. */
-export function useDocuments({ folder, q }: DocumentScope) {
+export function useDocuments({ folder, q, status, limit = 200 }: DocumentScope) {
   return useQuery({
-    queryKey: queryKeys.documents(`${folder}|${q ?? ''}`),
+    queryKey: queryKeys.documents(`${folder}|${q ?? ''}|${status ?? ''}|${limit}`),
     placeholderData: keepPreviousData,
     queryFn: () =>
       call(
@@ -56,7 +60,8 @@ export function useDocuments({ folder, q }: DocumentScope) {
               folder_id: folder !== 'root' && folder !== 'all' ? folder : undefined,
               root_only: folder === 'root' ? true : undefined,
               q: q || undefined,
-              limit: 200,
+              status,
+              limit,
             },
           },
         }),

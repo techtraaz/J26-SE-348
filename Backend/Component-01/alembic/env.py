@@ -1,5 +1,5 @@
 """Alembic environment. The URL comes from app settings, so migrations use
-the same AUDITMIND_DATABASE_URL / .env as the application."""
+the same NOMOS_DATABASE_URL / .env as the application."""
 
 from logging.config import fileConfig
 
