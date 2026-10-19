@@ -163,6 +163,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/documents/{document_id}/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Review
+         * @description The saved draft, or one seeded from the latest successful run (version 0).
+         */
+        get: operations["get_review_api_v1_documents__document_id__review_get"];
+        /**
+         * Save Review
+         * @description Replace the draft. `version` must be the version the edit was based on;
+         *     a stale version gets 409 draft_conflict.
+         */
+        put: operations["save_review_api_v1_documents__document_id__review_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -284,6 +309,62 @@ export interface components {
          * @enum {string}
          */
         DocumentStatus: "uploaded" | "processing" | "needs_review" | "verified" | "failed";
+        /** DraftLine */
+        DraftLine: {
+            /**
+             * Line Id
+             * Format: uuid
+             */
+            line_id: string;
+            /** Region Id */
+            region_id: string | null;
+            /** Page */
+            page: number;
+            /** Sequence */
+            sequence: number;
+            /** Text */
+            text: string;
+            /** Box */
+            box: number[];
+            /**
+             * Human Action
+             * @enum {string}
+             */
+            human_action: "untouched" | "accepted" | "edited" | "added" | "deleted";
+            /** Confidence */
+            confidence: number | null;
+            /** Provenance */
+            provenance: string;
+            /** Escalated */
+            escalated: boolean | null;
+        };
+        /**
+         * DraftLineIn
+         * @description What the reviewer controls. `region_id` links a line to the machine
+         *     region it came from; it is null for lines the reviewer added.
+         */
+        DraftLineIn: {
+            /**
+             * Line Id
+             * Format: uuid
+             */
+            line_id: string;
+            /** Region Id */
+            region_id: string | null;
+            /** Page */
+            page: number;
+            /** Sequence */
+            sequence: number;
+            /** Text */
+            text: string;
+            /** Box */
+            box: number[];
+            /**
+             * Human Action
+             * @enum {string}
+             */
+            human_action: "untouched" | "accepted" | "edited" | "added" | "deleted";
+        };
         /** ExtractionOut */
         ExtractionOut: {
             /**
@@ -401,6 +482,41 @@ export interface components {
             escalated: boolean | null;
             /** Field Key */
             field_key: string | null;
+        };
+        /**
+         * ReviewDraftIn
+         * @description Full replace. `version` is the version this edit was based on (0 for
+         *     the first save of a seeded draft).
+         */
+        ReviewDraftIn: {
+            /** Version */
+            version: number;
+            /**
+             * Based On Run Id
+             * Format: uuid
+             */
+            based_on_run_id: string;
+            /** Lines */
+            lines: components["schemas"]["DraftLineIn"][];
+        };
+        /** ReviewDraftOut */
+        ReviewDraftOut: {
+            /**
+             * Document Id
+             * Format: uuid
+             */
+            document_id: string;
+            /**
+             * Based On Run Id
+             * Format: uuid
+             */
+            based_on_run_id: string;
+            /** Version */
+            version: number;
+            /** Updated At */
+            updated_at: string | null;
+            /** Lines */
+            lines: components["schemas"]["DraftLine"][];
         };
         /** RunSummary */
         RunSummary: {
@@ -812,6 +928,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_review_api_v1_documents__document_id__review_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewDraftOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    save_review_api_v1_documents__document_id__review_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReviewDraftIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewDraftOut"];
                 };
             };
             /** @description Validation Error */
