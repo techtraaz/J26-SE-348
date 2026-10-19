@@ -1,10 +1,13 @@
 import clsx from 'clsx'
-import { CircleAlert, CloudCheck, LoaderCircle, Redo2, Undo2 } from 'lucide-react'
+import { BadgeCheck, CircleAlert, CloudCheck, LoaderCircle, Redo2, Undo2 } from 'lucide-react'
 import { useEffect, useReducer, useRef, useState } from 'react'
 
 import { pageImageUrl } from '@/features/extraction/api/client'
+import { errorMessage } from '@/features/extraction/api/errors'
+import { useConfirmDocument } from '@/features/extraction/api/hooks'
 import type { PageOut, ReviewDraft } from '@/features/extraction/api/types'
 import { Button } from '@/features/extraction/components/Button'
+import { ConfirmDialog } from './ConfirmDialog'
 import { LineList } from './LineList'
 import { PageViewer } from './PageViewer'
 import { initReview, neighbour, newLine, nextFlagged, reviewReducer } from './reviewState'
@@ -18,6 +21,7 @@ interface ReviewWorkspaceProps {
   draft: ReviewDraft // read once: the workspace owns the working copy afterwards
   readOnly: boolean
   onReload: () => void
+  onConfirmed: () => void // the document is now verified: the page reloads it
   autosaveDelayMs?: number
 }
 
@@ -29,6 +33,7 @@ export function ReviewWorkspace({
   draft,
   readOnly,
   onReload,
+  onConfirmed,
   autosaveDelayMs,
 }: ReviewWorkspaceProps) {
   const [state, dispatch] = useReducer(reviewReducer, draft.lines, initReview)
@@ -42,7 +47,7 @@ export function ReviewWorkspace({
   const page = pages.find((p) => p.page_number === pageNumber) ?? pages[0]
   const markedIds = lines.filter((l) => marked.has(l.line_id)).map((l) => l.line_id)
 
-  const status = useDraftAutosave({
+  const { status, version } = useDraftAutosave({
     documentId,
     basedOnRunId: draft.based_on_run_id,
     initialVersion: draft.version,
@@ -52,6 +57,18 @@ export function ReviewWorkspace({
     delayMs: autosaveDelayMs,
   })
   const locked = readOnly || status.kind === 'conflict'
+
+  // Confirmation is tied to a saved draft version, so it waits for autosave.
+  const [confirming, setConfirming] = useState(false)
+  const confirm = useConfirmDocument(documentId)
+  const canConfirm = !locked && status.kind === 'saved' && !editingId
+  const submitConfirm = () =>
+    confirm.mutate(version, {
+      onSuccess: () => {
+        setConfirming(false)
+        onConfirmed()
+      },
+    })
 
   const select = (lineId: string | null) => {
     const line = lines.find((l) => l.line_id === lineId)
@@ -146,6 +163,7 @@ export function ReviewWorkspace({
     keys.current = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null
       if (target?.closest('input, textarea, select, [contenteditable="true"]')) return
+      if (confirming) return // the dialog is open: no edits behind it
       if (handleKey(event)) event.preventDefault()
     }
   })
@@ -161,24 +179,53 @@ export function ReviewWorkspace({
   return (
     // On large screens the workspace fills the window below the page header,
     // and each pane scrolls inside itself.
-    <div className="flex flex-col gap-3 lg:h-[calc(100vh-23rem)] lg:min-h-128">
-      <div className="flex flex-wrap items-center justify-between gap-2">
+    // A verified document has the page's verified banner instead of this toolbar.
+    <div className={clsx('flex flex-col gap-3', readOnly ? 'lg:h-[calc(100vh-28rem)] lg:min-h-104' : 'lg:h-[calc(100vh-23rem)] lg:min-h-128')}>
+      <div className={clsx('flex flex-wrap items-center justify-between gap-2', readOnly && 'sr-only')}>
         {readOnly ? (
-          <p className="text-[13px] text-ink-muted">This document is verified. Reopening it for edits comes with confirmation.</p>
+          <p className="text-[13px] text-ink-muted">Read only. Reopen the document to make changes.</p>
         ) : (
           <SaveIndicator status={status} />
         )}
         {!readOnly && (
-          <div className="flex gap-1">
+          <div className="flex items-center gap-1">
             <Button variant="ghost" size="sm" disabled={locked || state.past.length === 0} onClick={() => dispatch({ type: 'undo' })}>
               <Undo2 size={14} aria-hidden /> Undo
             </Button>
             <Button variant="ghost" size="sm" disabled={locked || state.future.length === 0} onClick={() => dispatch({ type: 'redo' })}>
               <Redo2 size={14} aria-hidden /> Redo
             </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              className="ml-2"
+              disabled={!canConfirm}
+              title={canConfirm ? 'Save a verified version for auditing' : 'Waiting for your changes to be saved'}
+              onClick={() => {
+                confirm.reset()
+                setConfirming(true)
+              }}
+            >
+              <BadgeCheck size={15} aria-hidden /> Confirm document
+            </Button>
           </div>
         )}
       </div>
+
+      {confirming && (
+        <ConfirmDialog
+          lines={lines}
+          threshold={threshold}
+          pending={confirm.isPending}
+          error={confirm.error ? errorMessage(confirm.error) : null}
+          onConfirm={submitConfirm}
+          onCheckFirst={() => {
+            setConfirming(false)
+            select(nextFlagged(lines, selectedId, threshold))
+          }}
+          onClose={() => setConfirming(false)}
+        />
+      )}
 
       {status.kind === 'conflict' && (
         <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-danger/30 bg-danger/8 px-4 py-2.5 text-sm text-danger">

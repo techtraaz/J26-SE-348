@@ -12,6 +12,7 @@ export type RunSummary = Schemas['RunSummary']
 export type PageOut = Schemas['PageOut']
 export type ReviewDraft = Schemas['ReviewDraftOut']
 export type DraftLine = Schemas['DraftLine']
+export type VerifiedRecord = Schemas['VerifiedRecordOut']
 
 /** The API returns status as a plain string; these are its known values. */
 export type DocumentStatus = 'uploaded' | 'processing' | 'needs_review' | 'verified' | 'failed'

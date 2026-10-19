@@ -188,6 +188,108 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/documents/{document_id}/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm Review
+         * @description Freeze the draft at `version` as the next verified version. Lines nobody
+         *     acted on are accepted; every human action is logged in corrections.
+         */
+        post: operations["confirm_review_api_v1_documents__document_id__confirm_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/documents/{document_id}/reopen": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reopen Review
+         * @description Return a verified document to review; its verified versions stay as they are.
+         */
+        post: operations["reopen_review_api_v1_documents__document_id__reopen_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/documents/{document_id}/verified": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Verified
+         * @description The latest verified version (contract 0.x, read by Component 03).
+         */
+        get: operations["get_verified_api_v1_documents__document_id__verified_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/documents/{document_id}/verified/{version}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Verified Version
+         * @description One verified version, by number (1, 2, 3, ...).
+         */
+        get: operations["get_verified_version_api_v1_documents__document_id__verified__version__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/documents/{document_id}/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Record
+         * @description The latest (or a given) verified version as a file: JSON in the
+         *     contract shape with `schema_version`, or CSV with one row per line.
+         */
+        get: operations["export_record_api_v1_documents__document_id__export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -210,6 +312,14 @@ export interface components {
             id: string;
             /** Name */
             name: string;
+        };
+        /**
+         * ConfirmIn
+         * @description Confirm the draft at this version (0 = the seeded, never-saved draft).
+         */
+        ConfirmIn: {
+            /** Version */
+            version: number;
         };
         /** DocumentDetail */
         DocumentDetail: {
@@ -554,6 +664,64 @@ export interface components {
             input?: unknown;
             /** Context */
             ctx?: Record<string, never>;
+        };
+        /**
+         * VerifiedLine
+         * @description One line of a verified record, as C3's contract defines it. After
+         *     confirmation a line is accepted, edited or added; deleted lines are left out.
+         */
+        VerifiedLine: {
+            /**
+             * Line Id
+             * Format: uuid
+             */
+            line_id: string;
+            /** Page */
+            page: number;
+            /** Sequence */
+            sequence: number;
+            /** Text */
+            text: string;
+            /** Confidence */
+            confidence: number | null;
+            /** Box */
+            box: number[];
+            /** Provenance */
+            provenance: string;
+            /** Escalated */
+            escalated: boolean | null;
+            /**
+             * Human Action
+             * @enum {string}
+             */
+            human_action: "accepted" | "edited" | "added";
+        };
+        /**
+         * VerifiedRecordOut
+         * @description An immutable confirmed version: what downstream components read.
+         */
+        VerifiedRecordOut: {
+            /**
+             * Document Id
+             * Format: uuid
+             */
+            document_id: string;
+            /** Version */
+            version: number;
+            /**
+             * Based On Run Id
+             * Format: uuid
+             */
+            based_on_run_id: string;
+            /** Confirmed By */
+            confirmed_by: string | null;
+            /**
+             * Confirmed At
+             * Format: date-time
+             */
+            confirmed_at: string;
+            /** Lines */
+            lines: components["schemas"]["VerifiedLine"][];
         };
     };
     responses: never;
@@ -994,6 +1162,167 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ReviewDraftOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    confirm_review_api_v1_documents__document_id__confirm_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConfirmIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VerifiedRecordOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reopen_review_api_v1_documents__document_id__reopen_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_verified_api_v1_documents__document_id__verified_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VerifiedRecordOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_verified_version_api_v1_documents__document_id__verified__version__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_id: string;
+                version: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VerifiedRecordOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_record_api_v1_documents__document_id__export_get: {
+        parameters: {
+            query?: {
+                version?: number | null;
+                format?: "json" | "csv";
+            };
+            header?: never;
+            path: {
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */
