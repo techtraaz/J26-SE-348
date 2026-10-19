@@ -30,15 +30,25 @@ function draft(lines = LINES, version = 0): ReviewDraft {
 }
 
 /** Fake API: records each saved body; answers with the next version, or with `failWith`. */
+/** Confirm requests seen by the fake API (cleared before each test). */
+const confirms: { version: number }[] = []
+
+/** Fake API: records each saved body; answers with the next version, or with `failWith`. */
 function mockSaves(failWith?: { status: number; code: string; message: string }) {
   const saved: { version: number; lines: Partial<DraftLine>[] }[] = []
   vi.stubGlobal(
     'fetch',
     vi.fn(async (input: Request) => {
       const body = await input.json()
-      saved.push(body)
       const json = (data: unknown, status = 200) =>
         new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json' } })
+      if (new URL(input.url).pathname.endsWith('/confirm')) {
+        confirms.push(body)
+        if (failWith) return json({ error: { code: failWith.code, message: failWith.message } }, failWith.status)
+        return json({ document_id: 'doc-1', version: 1, based_on_run_id: 'run-1', confirmed_by: null,
+                      confirmed_at: '2026-10-20T09:00:00Z', lines: [] }, 201)
+      }
+      saved.push(body)
       if (failWith) return json({ error: { code: failWith.code, message: failWith.message } }, failWith.status)
       return json(draft(body.lines.map((l: DraftLine) => ({ ...LINES.find((x) => x.line_id === l.line_id)!, ...l })), body.version + 1))
     }),
@@ -49,19 +59,24 @@ function mockSaves(failWith?: { status: number; code: string; message: string })
 function renderWorkspace(props: Partial<Parameters<typeof ReviewWorkspace>[0]> = {}) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   const onReload = vi.fn()
+  const onConfirmed = vi.fn()
   render(
     <QueryClientProvider client={client}>
-      <ReviewWorkspace documentId="doc-1" pages={PAGES} draft={draft()} readOnly={false} onReload={onReload} autosaveDelayMs={0} {...props} />
+      <ReviewWorkspace documentId="doc-1" pages={PAGES} draft={draft()} readOnly={false} onReload={onReload}
+                       onConfirmed={onConfirmed} autosaveDelayMs={0} {...props} />
     </QueryClientProvider>,
   )
-  return { onReload }
+  return { onReload, onConfirmed }
 }
 
 const box = (text: string) => screen.getByRole('button', { name: `Line: ${text}` })
 const row = (text: string) => screen.getByText(text, { selector: 'span' }).closest('li')!
 const rowButton = (text: string) => within(row(text)).getAllByRole('button')[0]
 
-beforeEach(() => localStorage.clear())
+beforeEach(() => {
+  localStorage.clear()
+  confirms.length = 0
+})
 afterEach(() => vi.unstubAllGlobals())
 
 describe('viewer', () => {
@@ -202,7 +217,7 @@ describe('editing and autosave', () => {
 
     await userEvent.click(rowButton('TOTAL 42.00'))
 
-    expect(screen.getByText(/This document is verified/)).toBeInTheDocument()
+    expect(screen.getByText(/Reopen the document to make changes/)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /edit/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Undo' })).not.toBeInTheDocument()
   })
@@ -339,6 +354,78 @@ describe('bulk actions', () => {
 
     await userEvent.keyboard('{Escape}')
     expect(screen.getByRole('checkbox', { name: 'Mark TOTAL 42.00' })).not.toBeChecked()
+  })
+})
+
+describe('confirming', () => {
+  const confirmButton = () => screen.getByRole('button', { name: /confirm document/i })
+
+  it('waits for unsaved changes before it can confirm', async () => {
+    mockSaves()
+    renderWorkspace({ autosaveDelayMs: 50 })
+    expect(confirmButton()).toBeEnabled() // nothing to save yet
+
+    await userEvent.click(rowButton('TOTAL 42.00'))
+    await userEvent.keyboard('{Delete}')
+    expect(confirmButton()).toBeDisabled()
+
+    await waitFor(() => expect(confirmButton()).toBeEnabled())
+  })
+
+  it('says what confirming will do, then confirms the saved version', async () => {
+    mockSaves()
+    const { onConfirmed } = renderWorkspace()
+
+    await userEvent.click(confirmButton())
+    const dialog = screen.getByRole('dialog', { name: 'Confirm document' })
+    expect(dialog).toHaveTextContent('Your review: 1 deleted (left out).')
+    expect(dialog).toHaveTextContent('3 lines you have not reviewed will be marked accepted.')
+    expect(dialog).toHaveTextContent('1 of them is below the highlight threshold (0.90).')
+
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Accept 3 and confirm' }))
+
+    await waitFor(() => expect(onConfirmed).toHaveBeenCalled())
+    expect(confirms).toEqual([{ version: 0 }])
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('offers to check the low-confidence lines first', async () => {
+    renderWorkspace()
+
+    await userEvent.click(confirmButton())
+    await userEvent.click(screen.getByRole('button', { name: /check them first/i }))
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(rowButton('RÉPORTING')).toHaveAttribute('aria-current', 'true')
+  })
+
+  it('shows why a confirmation was refused and stays open', async () => {
+    mockSaves({ status: 409, code: 'draft_conflict', message: 'This draft changed since you opened it.' })
+    const { onConfirmed } = renderWorkspace()
+
+    await userEvent.click(confirmButton())
+    await userEvent.click(screen.getByRole('button', { name: /and confirm/i }))
+
+    expect(await screen.findByText('This draft changed since you opened it.')).toBeInTheDocument()
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(onConfirmed).not.toHaveBeenCalled()
+  })
+
+  it('ignores review shortcuts while the dialog is open', async () => {
+    renderWorkspace()
+    await userEvent.click(rowButton('TOTAL 42.00'))
+
+    await userEvent.click(confirmButton())
+    await userEvent.keyboard('{Delete}')
+
+    expect(screen.getByText('TOTAL 42.00', { selector: 'span' })).not.toHaveClass('line-through')
+  })
+
+  it('has no confirm button on a verified document', () => {
+    renderWorkspace({ readOnly: true })
+
+    expect(screen.queryByRole('button', { name: /confirm document/i })).not.toBeInTheDocument()
+    expect(screen.getByText(/Reopen the document to make changes/)).toBeInTheDocument()
   })
 })
 

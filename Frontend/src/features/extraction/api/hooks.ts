@@ -16,6 +16,7 @@ export const queryKeys = {
   document: (id: string) => ['c1', 'documents', 'detail', id] as const,
   extraction: (id: string) => ['c1', 'documents', 'extraction', id] as const,
   review: (id: string) => ['c1', 'documents', 'review', id] as const,
+  verified: (id: string) => ['c1', 'documents', 'verified', id] as const,
 }
 
 export function useFolders(parentId: string | null, enabled = true) {
@@ -101,6 +102,53 @@ export function useReviewDraft(documentId: string, enabled: boolean) {
           params: { path: { document_id: documentId } },
         }),
       ),
+  })
+}
+
+/** The latest verified version of a document. */
+export function useVerifiedRecord(documentId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: queryKeys.verified(documentId),
+    enabled,
+    queryFn: () =>
+      call(
+        api.GET('/api/v1/documents/{document_id}/verified', {
+          params: { path: { document_id: documentId } },
+        }),
+      ),
+  })
+}
+
+/** Freeze the draft at `version` as the next verified version. */
+export function useConfirmDocument(documentId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (version: number) =>
+      call(
+        api.POST('/api/v1/documents/{document_id}/confirm', {
+          params: { path: { document_id: documentId } },
+          body: { version },
+        }),
+      ),
+    onSuccess: (record) => {
+      // The response is the new verified version: show it at once, not a cached older one.
+      queryClient.setQueryData(queryKeys.verified(documentId), record)
+      return queryClient.invalidateQueries({ queryKey: queryKeys.allDocuments })
+    },
+  })
+}
+
+/** Return a verified document to review (the next confirm makes a new version). */
+export function useReopenDocument(documentId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: () =>
+      callVoid(
+        api.POST('/api/v1/documents/{document_id}/reopen', {
+          params: { path: { document_id: documentId } },
+        }),
+      ),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.allDocuments }),
   })
 }
 

@@ -11,6 +11,7 @@ import { formatDuration, pluralize } from '@/features/extraction/format'
 import { DocumentProgress } from '../library/DocumentProgress'
 import { StatusChip } from '../library/StatusChip'
 import { ReviewWorkspace } from './ReviewWorkspace'
+import { VerifiedBanner } from './VerifiedBanner'
 
 /** A document: its status while extraction runs, then the review workspace. */
 export function DocumentPage() {
@@ -20,6 +21,10 @@ export function DocumentPage() {
   const draft = useReviewDraft(documentId, ready)
   const retry = useRetryDocument()
   const [reloads, setReloads] = useState(0)
+  // After a conflict, a confirmation or a reopen: fetch the document and its
+  // draft again, then rebuild the workspace from them (fresh draft version).
+  const reload = () =>
+    void Promise.all([document.refetch(), draft.refetch()]).then(() => setReloads((n) => n + 1))
 
   if (document.isPending) return <p className="px-8 pb-12 text-sm text-ink-muted">Loading…</p>
   if (document.isError) {
@@ -90,6 +95,8 @@ export function DocumentPage() {
           action={<Button onClick={() => void draft.refetch()}>Try again</Button>}
         />
       )}
+      {doc.status === 'verified' && <VerifiedBanner documentId={doc.id} onReopened={reload} />}
+
       {ready && draft.isSuccess && (
         <ReviewWorkspace
           // A new key after a reload rebuilds the working copy from the server.
@@ -98,7 +105,8 @@ export function DocumentPage() {
           pages={doc.pages}
           draft={draft.data}
           readOnly={doc.status === 'verified'}
-          onReload={() => void draft.refetch().then(() => setReloads((n) => n + 1))}
+          onReload={reload}
+          onConfirmed={reload}
         />
       )}
     </div>
