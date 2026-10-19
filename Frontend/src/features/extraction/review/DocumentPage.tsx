@@ -1,4 +1,5 @@
 import { ArrowLeft, CircleAlert, RotateCw } from 'lucide-react'
+import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
 import { extractionPaths } from '@/features/extraction/paths'
@@ -18,6 +19,7 @@ export function DocumentPage() {
   const ready = document.data?.status === 'needs_review' || document.data?.status === 'verified'
   const draft = useReviewDraft(documentId, ready)
   const retry = useRetryDocument()
+  const [reloads, setReloads] = useState(0)
 
   if (document.isPending) return <p className="px-8 pb-12 text-sm text-ink-muted">Loading…</p>
   if (document.isError) {
@@ -89,7 +91,15 @@ export function DocumentPage() {
         />
       )}
       {ready && draft.isSuccess && (
-        <ReviewWorkspace documentId={doc.id} pages={doc.pages} lines={draft.data.lines} />
+        <ReviewWorkspace
+          // A new key after a reload rebuilds the working copy from the server.
+          key={`${doc.id}:${reloads}`}
+          documentId={doc.id}
+          pages={doc.pages}
+          draft={draft.data}
+          readOnly={doc.status === 'verified'}
+          onReload={() => void draft.refetch().then(() => setReloads((n) => n + 1))}
+        />
       )}
     </div>
   )

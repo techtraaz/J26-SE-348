@@ -6,8 +6,23 @@ import type { PointerEvent as ReactPointerEvent } from 'react'
 import type { DraftLine, PageOut } from '@/features/extraction/api/types'
 import { Button } from '@/features/extraction/components/Button'
 import { boxRect, fitWidthScale, scrollToShow, sizeMatches, stepScale } from './geometry'
+import { isFlagged, isReviewed } from './reviewState'
 
 const PADDING = 16 // around the page inside the viewport
+
+type BoxState = 'check' | 'reviewed' | 'untouched'
+
+// Amber: low confidence, nobody has looked yet. Green: reviewed. Blue: the rest.
+const BOX_STYLE: Record<BoxState, string> = {
+  check: 'fill-warning/15 stroke-warning [stroke-width:1.75] hover:fill-warning/25',
+  reviewed: 'fill-success/5 stroke-success/60 [stroke-width:1.25] hover:fill-success/15',
+  untouched: 'fill-info/5 stroke-info/70 [stroke-width:1.25] hover:fill-info/15',
+}
+
+function boxState(line: DraftLine, threshold: number): BoxState {
+  if (isReviewed(line)) return 'reviewed'
+  return isFlagged(line, threshold) ? 'check' : 'untouched'
+}
 
 interface PageViewerProps {
   page: PageOut
@@ -15,6 +30,7 @@ interface PageViewerProps {
   imageUrl: string
   lines: DraftLine[] // this page's lines
   selectedId: string | null
+  threshold: number // display only (D4)
   onSelect: (lineId: string) => void
   onPageChange: (pageNumber: number) => void
 }
@@ -28,6 +44,7 @@ export function PageViewer({
   imageUrl,
   lines,
   selectedId,
+  threshold,
   onSelect,
   onPageChange,
 }: PageViewerProps) {
@@ -197,11 +214,10 @@ export function PageViewer({
                   aria-pressed={selected}
                   vectorEffect="non-scaling-stroke"
                   onClick={() => onSelect(line.line_id)}
+                  data-state={boxState(line, threshold)}
                   className={clsx(
                     'cursor-pointer transition-[fill,stroke]',
-                    selected
-                      ? 'fill-primary/15 stroke-primary [stroke-width:2.5]'
-                      : 'fill-info/5 stroke-info/70 [stroke-width:1.25] hover:fill-info/15',
+                    selected ? 'fill-primary/15 stroke-primary [stroke-width:2.5]' : BOX_STYLE[boxState(line, threshold)],
                     line.human_action === 'deleted' && '[stroke-dasharray:4_3] opacity-50',
                   )}
                 />
