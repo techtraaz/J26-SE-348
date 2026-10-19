@@ -78,6 +78,13 @@ def _chain(raw: object, doc_id: str) -> list[str]:
     return list(raw) or [doc_id]
 
 
+def _field_map(raw: object) -> dict[str, str]:
+    if not isinstance(raw, dict) or not all(isinstance(k, str) and isinstance(v, str)
+                                            for k, v in raw.items()):
+        raise KGProtocolError("Field map must be an object of name -> line-item code.")
+    return dict(raw)
+
+
 def _explanation(raw: object) -> RuleExplanation | None:
     if raw is None:
         return None
@@ -125,6 +132,10 @@ class KGClient:
         validate_id(rule_id, "rule_id")
         return self._cached(("explain", rule_id), lambda: self._fetch_explain(rule_id))
 
+    def get_field_map(self) -> dict[str, str]:
+        """Every name a document field may use (line-item code or alias) -> line-item code."""
+        return self._cached(("fields",), self._fetch_field_map)
+
     def search(self, text: str, limit: int = 5) -> list[dict]:
         """Keyword search over the standards. Text goes as a query parameter only."""
         text = (text or "").strip()[:200]
@@ -137,6 +148,7 @@ class KGClient:
     def _fetch_chain(self, doc_id): raise NotImplementedError
     def _fetch_explain(self, rule_id): raise NotImplementedError
     def _fetch_search(self, text, limit): raise NotImplementedError
+    def _fetch_field_map(self): raise NotImplementedError
 
 
 class MockKGClient(KGClient):
@@ -174,6 +186,9 @@ class MockKGClient(KGClient):
 
     def _fetch_explain(self, rule_id):
         return _explanation(self._load().get("explanations", {}).get(rule_id))
+
+    def _fetch_field_map(self):
+        return _field_map(self._load().get("fields", {}))
 
     def _fetch_search(self, text, limit):
         words = [w for w in re.findall(r"[a-z0-9]+", text.lower()) if len(w) > 2]
@@ -233,6 +248,9 @@ class LiveKGClient(KGClient):
     def _fetch_explain(self, rule_id):
         return _explanation(self._get(f"/query/rules/{self._seg(rule_id)}/explain", {}))
 
+    def _fetch_field_map(self):
+        return _field_map(self._get("/query/fields", {}) or {})
+
     def _fetch_search(self, text, limit):
         raw = self._get("/query/search", {"q": text, "mode": "keyword", "limit": limit})
         if raw is None:
@@ -290,6 +308,9 @@ class FallbackKGClient(KGClient):
 
     def search(self, text, limit=5):
         return self._call("search", text, limit)
+
+    def get_field_map(self):
+        return self._call("get_field_map")
 
 
 def default_kg() -> KGClient:

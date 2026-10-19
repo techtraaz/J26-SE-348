@@ -70,7 +70,8 @@ def run():
 def test_plan_is_valid_and_written(run):
     result, _rec = run
     assert result.plan_errors == []
-    assert result.written["Section"] == 3 and result.written["SourceChunk"] == 3
+    # 40A [Deleted] is not written
+    assert result.written["Section"] == 2 and result.written["SourceChunk"] == 2
 
 
 def test_seeded_requirement_is_matched_not_duplicated(run):
@@ -124,6 +125,17 @@ def test_dry_run_writes_nothing():
     result = KGPipeline(FakeLLM(ANSWERS), SeedReader()).run(_doc())
     assert result.written == {} and result.plan_errors == []
     assert result.created["Requirement"] == 1
+
+
+def test_unseen_standard_is_created_and_linked():
+    rec = Recorder()
+    doc = LoadedDocument(file="LKAS_42_Some_New_Topic.pdf", code="LKAS 42", source="pdf",
+                         pages=[Page(1, PAGE)])
+    result = KGPipeline(FakeLLM(), SeedReader(), run_write=rec).run(doc)
+    assert result.plan_errors == [] and result.created["Standard"] == 1
+    std = next(r["props"] for r in rec.rows("Standard"))
+    assert std["title"] == "Some New Topic" and std["family"] == "LKAS"
+    assert ("LKAS 42", "LKAS 42:9") in rec.rels("HAS_SECTION")
 
 
 def test_helpers():

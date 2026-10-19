@@ -59,6 +59,12 @@ class _Plan:
             self.seed.rels.append(Rel(rel_type, source, target, props or {}))
 
 
+def _title(doc: LoadedDocument) -> str:
+    """LKAS_42_Some_Title.pdf -> Some Title, falling back to the code."""
+    stem = re.sub(r"^[A-Za-z]+_\d+_", "", doc.file.rsplit(".", 1)[0])
+    return " ".join(stem.replace("_", " ").split()) or doc.code
+
+
 def _confidence(chunk: Chunk, base: float) -> float:
     return round(base * (chunk.confidence if chunk.confidence is not None else 1.0), 3)
 
@@ -67,7 +73,12 @@ def resolve(doc: LoadedDocument, chunks: list[Chunk], results: list[ValidatedChu
             snap: GraphSnapshot) -> Resolution:
     plan = _Plan()
     res = Resolution(plan=plan.seed, existing=snap.existing_keys())
-    std = doc.code if doc.code in snap.standards else None
+    std = doc.code
+    if std and std not in snap.standards:
+        # a standard we have not seeded; a person fills in authority and dates later
+        plan.node("Standard", std, {"code": std, "title": _title(doc), "family": std.split()[0],
+                                    "status": "unreviewed", "file": doc.file})
+        res.created["Standard"] = 1
 
     # every paragraph becomes a Section with its verbatim text and a SourceChunk
     parts: dict[str, list[Chunk]] = {}

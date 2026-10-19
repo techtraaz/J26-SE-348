@@ -19,6 +19,9 @@ if __name__ == "__main__":
     ap.add_argument("--dry-run", action="store_true", help="extract but do not write to Neo4j")
     ap.add_argument("--force", action="store_true", help="redo files already marked done")
     ap.add_argument("--max-chunks", type=int, default=None, help="limit LLM calls per file")
+    ap.add_argument("--workers", type=int, default=None, help="parallel LLM calls (default LLM_WORKERS)")
+    ap.add_argument("--no-embed", action="store_true",
+                    help="skip embeddings, add them later with scripts.embed_chunks")
     args = ap.parse_args()
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -31,7 +34,8 @@ if __name__ == "__main__":
     s = get_settings()
     model = f"{s.llm_provider}:{s.llm_model}"
     paths = [RAW_DIR / f for f in args.files] or sorted(RAW_DIR.glob("*.pdf"))
-    pipeline = build_pipeline(write=not args.dry_run, max_chunks=args.max_chunks)
+    pipeline = build_pipeline(write=not args.dry_run, max_chunks=args.max_chunks,
+                              workers=args.workers, embed=not args.no_embed)
     try:
         out = ingest_files(paths, pipeline, load_pdf, MANIFEST, model, OUT_DIR, args.force)
     finally:

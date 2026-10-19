@@ -1,0 +1,29 @@
+[
+  {
+    "mode": "rules",
+    "documents": 4,
+    "precision": 1.0,
+    "recall": 0.9,
+    "doc_type_accuracy": 1.0,
+    "year_accuracy": 1.0,
+    "mean_latency_s": 0.001,
+    "errors": [
+      {
+        "sample": "receipt_unusual_label",
+        "field": "amount",
+        "expected": 4500.0,
+        "got": null
+      }
+    ]
+  },
+  {
+    "mode": "rules+llm",
+    "documents": 4,
+    "precision": 1.0,
+    "recall": 1.0,
+    "doc_type_accuracy": 1.0,
+    "year_accuracy": 1.0,
+    "mean_latency_s": 0.977,
+    "errors": []
+  }
+]

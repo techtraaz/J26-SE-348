@@ -1,0 +1,105 @@
+{
+  "name": "receipt_unusual_label",
+  "input": {
+    "extraction": {
+      "document_id": "c1-rc-001",
+      "run": {
+        "id": "run-c1-rc-001",
+        "status": "succeeded"
+      },
+      "regions": [
+        {
+          "sequence": 1,
+          "page_number": 1,
+          "text": "KANDY SUPER CENTER",
+          "confidence": 0.98,
+          "box": [
+            60,
+            10,
+            300,
+            30
+          ],
+          "provenance": "paddleocr"
+        },
+        {
+          "sequence": 2,
+          "page_number": 1,
+          "text": "RECEIPT",
+          "confidence": 0.99,
+          "box": [
+            120,
+            40,
+            220,
+            58
+          ],
+          "provenance": "paddleocr"
+        },
+        {
+          "sequence": 3,
+          "page_number": 1,
+          "text": "Ref: INV-00123",
+          "confidence": 0.97,
+          "box": [
+            20,
+            70,
+            200,
+            84
+          ],
+          "provenance": "paddleocr"
+        },
+        {
+          "sequence": 4,
+          "page_number": 1,
+          "text": "20/03/2026  10:42",
+          "confidence": 0.99,
+          "box": [
+            20,
+            90,
+            200,
+            104
+          ],
+          "provenance": "paddleocr"
+        },
+        {
+          "sequence": 5,
+          "page_number": 1,
+          "text": "Amt Rcvd   4,500.00",
+          "confidence": 0.88,
+          "box": [
+            20,
+            130,
+            280,
+            146
+          ],
+          "provenance": "paddleocr"
+        },
+        {
+          "sequence": 6,
+          "page_number": 1,
+          "text": "Thank you!",
+          "confidence": 0.99,
+          "box": [
+            80,
+            170,
+            220,
+            184
+          ],
+          "provenance": "paddleocr"
+        }
+      ]
+    }
+  },
+  "expected": {
+    "doc_type": "receipt",
+    "period_year": 2026,
+    "fields": {
+      "amount": 4500.0
+    }
+  },
+  "llm_picks": [
+    {
+      "field": "amount",
+      "line_id": "p1#5"
+    }
+  ]
+}

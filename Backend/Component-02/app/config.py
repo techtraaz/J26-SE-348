@@ -23,6 +23,10 @@ class Settings(BaseSettings):
     llm_temperature: float = 0.0
     llm_timeout: float = 120.0
     llm_max_retries: int = 2
+    # none turns off thinking on reasoning models (Qwen 3.5 on Ollama); empty = server default
+    llm_reasoning_effort: str | None = None
+    # paragraphs sent to the LLM at the same time; match the server's parallel slots
+    llm_workers: int = 1
 
     # embeddings can be served from a different pod than the chat model
     embedding_base_url: str | None = None

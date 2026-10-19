@@ -1,4 +1,9 @@
-from app.construction.loaders import clean_pages, code_from_filename, load_extraction
+from app.construction.loaders import (
+    clean_pages,
+    code_from_filename,
+    code_from_title,
+    load_extraction,
+)
 from app.schemas.extraction import EngineInfo, ExtractionResult, OCRLine, PageResult
 
 
@@ -9,11 +14,27 @@ def test_code_from_filename():
     assert code_from_filename("invoice_0042.pdf") is None
 
 
+def test_code_from_title():
+    assert code_from_title("Sri Lanka Accounting Standard – LKAS 18\n\nRevenue") == "LKAS 18"
+    assert code_from_title("Sri Lanka Accounting Standard - SLFRS 09 Financial Instruments") == "SLFRS 9"
+    assert code_from_title("! ! The Conceptual Framework for Financial Reporting") == "CF"
+    # a company policy that only cites a standard is not that standard
+    assert code_from_title("Procurement Policy\nAssets are recorded as per LKAS 16.") is None
+
+
 def test_running_headers_and_noise_removed():
     pages = [f"LKAS 2\n!\n{n}  Paragraph text {n}.\nLKAS 2" for n in range(1, 6)]
     cleaned = clean_pages(pages)
     assert all("LKAS 2" not in p and "!" not in p for p in cleaned)
     assert cleaned[2] == "3  Paragraph text 3."
+
+
+def test_footnote_blocks_removed():
+    page = ("9  Revenue shall be measured at fair value.1\n\n" + "!" * 40
+            + '1"!See also SIC-31 Revenue.\nsecond footnote line!\n\n10  Next paragraph.')
+    cleaned = clean_pages([page, "11  a", "12  b"])[0]
+    assert "SIC-31" not in cleaned and "!" not in cleaned
+    assert cleaned == "9  Revenue shall be measured at fair value.1\n\n10  Next paragraph."
 
 
 def test_hyphenated_words_joined():

@@ -7,11 +7,19 @@ item. KG lookups that fail are reported in the trace, never hidden. The LLM
 writes the one-line summary only.
 """
 from app import config
-from app.schemas.case import AuditCase
+from app.schemas.case import AuditCase, AuditDocument
 from app.schemas.findings import Finding, TraceEntry
 from app.schemas.kg import RuleExplanation
 from app.services import llm, rules
 from app.services.kg_client import KGClient, KGError
+
+
+def _source_step(doc: AuditDocument) -> str:
+    s = doc.source
+    if s.human_verified:
+        who = f" by {s.confirmed_by}" if s.confirmed_by else ""
+        return f"source {doc.doc_id}: {s.component.upper()} verified record v{s.verified_version}{who}"
+    return f"source {doc.doc_id}: {s.component.upper()} machine extraction, not human-verified"
 
 
 def _is_kg_rule(rule_id: str) -> bool:
@@ -22,6 +30,7 @@ def run(case: AuditCase, findings: list[Finding], kg: KGClient,
         narrate: bool = True) -> tuple[list[Finding], list[TraceEntry]]:
     out = [f.model_copy(deep=True) for f in findings]
     case_ids = {d.doc_id for d in case.docs}
+    sources = {d.doc_id: _source_step(d) for d in case.docs if d.source is not None}
     failures: list[str] = []
 
     explanations: dict[str, RuleExplanation | None] = {}
@@ -60,6 +69,7 @@ def run(case: AuditCase, findings: list[Finding], kg: KGClient,
         chain += [f"check {c.evidence_id}.{c.field} = {rules.fmt(c.claimed_value)}"
                   for c in f.claims]
         chain.append(f"evidence: {', '.join(f.evidence_ids) or 'none'}")
+        chain += [sources[e] for e in f.evidence_ids if e in sources]
         for e in f.evidence_ids:
             if links.get(e):
                 chain.append(f"kg links {e} -> {', '.join(links[e])}")
