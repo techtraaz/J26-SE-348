@@ -60,6 +60,12 @@
   --primary: #c9bfb3;
   --primary-hover: #f0ebe5;
 
+  /* Lighter status colours: the light-theme ones are unreadable on a dark background. */
+  --success: #7fb38a;
+  --warning: #d9a75a;
+  --danger: #e07a7a;
+  --info: #8fb3d1;
+
   --tab-active-bg: #2e2a22;
   --tab-active-border: #3a352c;
 
