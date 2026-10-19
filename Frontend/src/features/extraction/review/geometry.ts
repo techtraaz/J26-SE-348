@@ -97,6 +97,52 @@ export function scrollToShow(
   }
 }
 
+// ---- editing boxes (M4.4) --------------------------------------------------
+
+/** Smallest box a reviewer can draw or resize to, in page pixels. */
+export const MIN_BOX = 4
+
+export type Corner = 'nw' | 'ne' | 'sw' | 'se'
+
+const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v))
+
+/** The box spanned by two points (any order), as whole page pixels inside
+ * the page; null when it is too small to be a deliberate box. */
+export function boxFromPoints(
+  a: { x: number; y: number },
+  b: { x: number; y: number },
+  page: Size,
+): number[] | null {
+  const x1 = Math.round(clamp(Math.min(a.x, b.x), 0, page.width))
+  const y1 = Math.round(clamp(Math.min(a.y, b.y), 0, page.height))
+  const x2 = Math.round(clamp(Math.max(a.x, b.x), 0, page.width))
+  const y2 = Math.round(clamp(Math.max(a.y, b.y), 0, page.height))
+  return x2 - x1 >= MIN_BOX && y2 - y1 >= MIN_BOX ? [x1, y1, x2, y2] : null
+}
+
+/** A box shifted by (dx, dy) page pixels, kept whole and inside the page. */
+export function moveBox(box: Box, dx: number, dy: number, page: Size): number[] {
+  const r = boxRect(box)
+  const width = Math.min(r.width, page.width)
+  const height = Math.min(r.height, page.height)
+  const x = Math.round(clamp(r.x + dx, 0, page.width - width))
+  const y = Math.round(clamp(r.y + dy, 0, page.height - height))
+  return [x, y, x + Math.round(width), y + Math.round(height)]
+}
+
+/** A box with one corner dragged to `point`; the opposite corner stays put. */
+export function resizeBox(box: Box, corner: Corner, point: { x: number; y: number }, page: Size): number[] {
+  const r = boxRect(box)
+  const fixed = {
+    x: corner === 'nw' || corner === 'sw' ? r.x + r.width : r.x,
+    y: corner === 'nw' || corner === 'ne' ? r.y + r.height : r.y,
+  }
+  // Keep at least MIN_BOX on each axis, on the side the corner is dragged towards.
+  const x = corner === 'nw' || corner === 'sw' ? Math.min(point.x, fixed.x - MIN_BOX) : Math.max(point.x, fixed.x + MIN_BOX)
+  const y = corner === 'nw' || corner === 'ne' ? Math.min(point.y, fixed.y - MIN_BOX) : Math.max(point.y, fixed.y + MIN_BOX)
+  return boxFromPoints(fixed, { x, y }, page) ?? [...box]
+}
+
 /** True when the image the browser loaded is the size the boxes refer to.
  * A mismatch means the boxes would be misplaced (Risk 2). */
 export function sizeMatches(natural: Size, page: Size): boolean {

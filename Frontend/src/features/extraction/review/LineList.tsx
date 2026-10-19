@@ -1,5 +1,5 @@
 import clsx from 'clsx'
-import { Check, CircleCheck, Pencil, Plus, RotateCcw, Trash2 } from 'lucide-react'
+import { Check, CircleCheck, Pencil, Plus, RotateCcw, Trash2, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import type { Dispatch } from 'react'
 
@@ -15,14 +15,17 @@ interface LineListProps {
   editingId: string | null
   onEditingChange: (lineId: string | null) => void
   onEditDone: (lineId: string) => void // after Enter: move on
+  onEditCancel: (lineId: string) => void
   dispatch: Dispatch<ReviewAction>
   threshold: number
   onThresholdChange: (value: number) => void
   readOnly: boolean
+  marked: ReadonlySet<string> // lines picked for a bulk action
+  onMarkedChange: (marked: Set<string>) => void
 }
 
 /** The document's lines in reading order, grouped by page, with the review
- * actions on the selected line. */
+ * actions on the selected line and bulk actions on marked lines. */
 export function LineList({
   lines,
   selectedId,
@@ -30,12 +33,45 @@ export function LineList({
   editingId,
   onEditingChange,
   onEditDone,
+  onEditCancel,
   dispatch,
   threshold,
   onThresholdChange,
   readOnly,
+  marked,
+  onMarkedChange,
 }: LineListProps) {
   const listRef = useRef<HTMLDivElement>(null)
+  const anchor = useRef<string | null>(null) // where a Shift-click range starts
+
+  /** Ctrl/Cmd-click toggles a line; Shift-click marks the range from the last one. */
+  const mark = (lineId: string, range: boolean) => {
+    const next = new Set(marked)
+    const from = lines.findIndex((l) => l.line_id === anchor.current)
+    const to = lines.findIndex((l) => l.line_id === lineId)
+    if (range && from !== -1) {
+      for (const l of lines.slice(Math.min(from, to), Math.max(from, to) + 1)) next.add(l.line_id)
+    } else if (next.has(lineId)) {
+      next.delete(lineId)
+    } else {
+      next.add(lineId)
+    }
+    anchor.current = lineId
+    onMarkedChange(next)
+  }
+
+  const markedLines = lines.filter((l) => marked.has(l.line_id))
+  const ids = markedLines.map((l) => l.line_id)
+  const counts = {
+    accept: markedLines.filter((l) => l.human_action === 'untouched').length,
+    delete: markedLines.filter((l) => l.human_action !== 'deleted').length,
+    restore: markedLines.filter((l) => l.human_action === 'deleted').length,
+  }
+  const bulk = (type: 'accept' | 'delete' | 'restore') => {
+    dispatch({ type, ids })
+    onMarkedChange(new Set())
+  }
+  const allMarked = lines.length > 0 && markedLines.length === lines.length
 
   // Keep the selected line visible when it was picked on the page image. Only
   // the list scrolls: scrollIntoView would also scroll the window.
@@ -83,6 +119,53 @@ export function LineList({
         </p>
       </div>
 
+      {!readOnly && lines.length > 0 && (
+        <div className="flex min-h-12 items-center gap-2 border-b border-line-light bg-canvas/50 px-4 py-2">
+          <input
+            type="checkbox"
+            aria-label="Mark all lines"
+            checked={allMarked}
+            ref={(el) => {
+              if (el) el.indeterminate = markedLines.length > 0 && !allMarked
+            }}
+            onChange={() => onMarkedChange(allMarked ? new Set() : new Set(lines.map((l) => l.line_id)))}
+            className="size-3.5 accent-primary"
+          />
+          {markedLines.length === 0 ? (
+            <>
+              <span className="text-xs text-ink-muted">Mark lines for a bulk action</span>
+              <button
+                type="button"
+                onClick={() => onMarkedChange(new Set(lines.filter((l) => !isReviewed(l)).map((l) => l.line_id)))}
+                className="ml-auto text-xs font-medium text-ink underline-offset-2 hover:underline"
+              >
+                Mark unreviewed
+              </button>
+            </>
+          ) : (
+            <>
+            <span className="shrink-0 text-xs font-medium text-ink-h">{markedLines.length} marked</span>
+            <div role="toolbar" aria-label="Bulk actions" className="ml-auto flex shrink-0 items-center gap-1">
+              <Button size="sm" disabled={counts.accept === 0} onClick={() => bulk('accept')}>
+                <Check size={14} aria-hidden /> Accept{counts.accept ? ` ${counts.accept}` : ''}
+              </Button>
+              {counts.restore > 0 && (
+                <Button size="sm" onClick={() => bulk('restore')}>
+                  <RotateCcw size={13} aria-hidden /> Restore {counts.restore}
+                </Button>
+              )}
+              <Button size="sm" variant="ghost" disabled={counts.delete === 0} onClick={() => bulk('delete')}>
+                <Trash2 size={13} aria-hidden /> Delete{counts.delete ? ` ${counts.delete}` : ''}
+              </Button>
+              <Button size="sm" variant="ghost" aria-label="Clear marks" className="px-2" onClick={() => onMarkedChange(new Set())}>
+                <X size={14} aria-hidden />
+              </Button>
+            </div>
+            </>
+          )}
+        </div>
+      )}
+
       <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto">
         {lines.length === 0 && <p className="px-4 py-6 text-sm text-ink-muted">No text was found on this document.</p>}
         {pages.map((page) => (
@@ -103,14 +186,19 @@ export function LineList({
                     editing={line.line_id === editingId}
                     flagged={isFlagged(line, threshold)}
                     readOnly={readOnly}
-                    onSelect={() => onSelect(line.line_id)}
+                    marked={marked.has(line.line_id)}
+                    onMark={(range) => mark(line.line_id, range)}
+                    onSelect={() => {
+                      anchor.current = line.line_id
+                      onSelect(line.line_id)
+                    }}
                     onEdit={() => onEditingChange(line.line_id)}
                     onCommit={(text, moveOn) => {
                       dispatch({ type: 'editText', id: line.line_id, text })
                       onEditingChange(null)
                       if (moveOn) onEditDone(line.line_id)
                     }}
-                    onCancel={() => onEditingChange(null)}
+                    onCancel={() => onEditCancel(line.line_id)}
                     dispatch={dispatch}
                   />
                 ))}
@@ -122,7 +210,7 @@ export function LineList({
       {!readOnly && (
         <p className="border-t border-line-light px-4 py-2 text-[11px] leading-relaxed text-ink-soft">
           <Key>↑</Key> <Key>↓</Key> move · <Key>N</Key> next to check · <Key>A</Key> accept · <Key>Enter</Key> edit ·{' '}
-          <Key>Del</Key> delete · <Key>Ctrl</Key>+<Key>Z</Key> undo
+          <Key>Del</Key> delete · <Key>X</Key> mark (Shift/Ctrl+click) · <Key>B</Key> add box · <Key>Ctrl</Key>+<Key>Z</Key> undo
         </p>
       )}
     </div>
@@ -139,6 +227,8 @@ interface LineRowProps {
   editing: boolean
   flagged: boolean
   readOnly: boolean
+  marked: boolean
+  onMark: (range: boolean) => void
   onSelect: () => void
   onEdit: () => void
   onCommit: (text: string, moveOn: boolean) => void
@@ -146,27 +236,62 @@ interface LineRowProps {
   dispatch: Dispatch<ReviewAction>
 }
 
-function LineRow({ line, selected, editing, flagged, readOnly, onSelect, onEdit, onCommit, onCancel, dispatch }: LineRowProps) {
+function LineRow({
+  line,
+  selected,
+  editing,
+  flagged,
+  readOnly,
+  marked,
+  onMark,
+  onSelect,
+  onEdit,
+  onCommit,
+  onCancel,
+  dispatch,
+}: LineRowProps) {
   const deleted = line.human_action === 'deleted'
   const needsCheck = flagged && !isReviewed(line)
+  const ids = [line.line_id]
 
   return (
     <li
       data-line-id={line.line_id}
       className={clsx(
-        'border-l-2 transition-colors',
+        'flex flex-wrap border-l-2 transition-colors',
         selected ? 'border-primary bg-surface-muted' : needsCheck ? 'border-warning/70' : 'border-transparent',
+        marked && !selected && 'bg-info/8',
       )}
     >
+      {!readOnly && (
+        <input
+          type="checkbox"
+          aria-label={`Mark ${line.text || 'empty line'}`}
+          checked={marked}
+          // onClick, not onChange: only the click event says whether Shift was held.
+          onClick={(event) => onMark(event.shiftKey)}
+          onChange={() => {}}
+          className="ml-3 mt-2.5 size-3.5 shrink-0 accent-primary"
+        />
+      )}
       {editing ? (
-        <EditBox initial={line.text} onCommit={onCommit} onCancel={onCancel} />
+        <div className="min-w-0 flex-1">
+          <EditBox initial={line.text} onCommit={onCommit} onCancel={onCancel} />
+        </div>
       ) : (
         <button
           type="button"
           aria-current={selected || undefined}
-          onClick={onSelect}
+          onClick={(event) => {
+            if (!readOnly && (event.ctrlKey || event.metaKey || event.shiftKey)) onMark(event.shiftKey)
+            else onSelect()
+          }}
           onDoubleClick={readOnly ? undefined : onEdit}
-          className={clsx('flex w-full items-baseline gap-2.5 px-4 py-2 text-left text-sm', !selected && 'hover:bg-canvas/60')}
+          className={clsx(
+            'flex min-w-0 flex-1 items-baseline gap-2.5 py-2 pr-4 text-left text-sm',
+            readOnly ? 'pl-4' : 'pl-2.5',
+            !selected && 'hover:bg-canvas/60',
+          )}
         >
           <ActionIcon action={line.human_action} />
           <span
@@ -187,21 +312,21 @@ function LineRow({ line, selected, editing, flagged, readOnly, onSelect, onEdit,
       )}
 
       {selected && !editing && !readOnly && (
-        <div className="flex flex-wrap gap-1.5 px-4 pb-2.5 pl-10">
+        <div className="flex w-full flex-wrap gap-1.5 pb-2.5 pl-15 pr-4">
           <Button size="sm" onClick={onEdit} disabled={deleted}>
             <Pencil size={13} aria-hidden /> Edit
           </Button>
           {line.human_action === 'untouched' && (
-            <Button size="sm" onClick={() => dispatch({ type: 'accept', id: line.line_id })}>
+            <Button size="sm" onClick={() => dispatch({ type: 'accept', ids })}>
               <Check size={14} aria-hidden /> Accept
             </Button>
           )}
           {deleted ? (
-            <Button size="sm" onClick={() => dispatch({ type: 'restore', id: line.line_id })}>
+            <Button size="sm" onClick={() => dispatch({ type: 'restore', ids })}>
               <RotateCcw size={13} aria-hidden /> Restore
             </Button>
           ) : (
-            <Button size="sm" variant="ghost" onClick={() => dispatch({ type: 'delete', id: line.line_id })}>
+            <Button size="sm" variant="ghost" onClick={() => dispatch({ type: 'delete', ids })}>
               <Trash2 size={13} aria-hidden /> Delete
             </Button>
           )}

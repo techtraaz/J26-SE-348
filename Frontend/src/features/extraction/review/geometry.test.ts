@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  MIN_BOX,
+  boxFromPoints,
   boxRect,
   clampScale,
   fitWidthScale,
+  moveBox,
+  resizeBox,
   scrollToShow,
   sizeMatches,
   stepScale,
@@ -89,6 +93,50 @@ describe('scrollToShow', () => {
 
   it('accounts for the display scale', () => {
     expect(scrollToShow([100, 900, 300, 940], 0.5, viewport)).toEqual({ left: 0, top: 310 })
+  })
+})
+
+describe('boxFromPoints', () => {
+  it('spans two points in any order, as whole pixels', () => {
+    expect(boxFromPoints({ x: 110.4, y: 40.6 }, { x: 10.2, y: 20.1 }, PAGE)).toEqual([10, 20, 110, 41])
+  })
+
+  it('keeps the box inside the page', () => {
+    expect(boxFromPoints({ x: -20, y: 950 }, { x: 40, y: 1200 }, PAGE)).toEqual([0, 950, 40, 1000])
+  })
+
+  it('ignores a click or a tiny drag', () => {
+    expect(boxFromPoints({ x: 10, y: 10 }, { x: 12, y: 30 }, PAGE)).toBeNull()
+  })
+})
+
+describe('moveBox', () => {
+  it('shifts a box, rounding to whole pixels', () => {
+    expect(moveBox([10, 20, 110, 40], 5.4, -10.6, PAGE)).toEqual([15, 9, 115, 29])
+  })
+
+  it('stops at the page edges without changing the size', () => {
+    expect(moveBox([10, 20, 110, 40], -50, 5000, PAGE)).toEqual([0, 980, 100, 1000])
+    expect(moveBox([700, 20, 750, 40], 100, 0, PAGE)).toEqual([704, 20, 754, 40])
+  })
+})
+
+describe('resizeBox', () => {
+  const box = [100, 100, 200, 150]
+
+  it('drags one corner while the opposite corner stays', () => {
+    expect(resizeBox(box, 'se', { x: 260, y: 170 }, PAGE)).toEqual([100, 100, 260, 170])
+    expect(resizeBox(box, 'nw', { x: 90, y: 80 }, PAGE)).toEqual([90, 80, 200, 150])
+    expect(resizeBox(box, 'ne', { x: 230, y: 95 }, PAGE)).toEqual([100, 95, 230, 150])
+    expect(resizeBox(box, 'sw', { x: 80, y: 160 }, PAGE)).toEqual([80, 100, 200, 160])
+  })
+
+  it('cannot turn the box inside out or shrink it below the minimum', () => {
+    expect(resizeBox(box, 'se', { x: 0, y: 0 }, PAGE)).toEqual([100, 100, 100 + MIN_BOX, 100 + MIN_BOX])
+  })
+
+  it('stays inside the page', () => {
+    expect(resizeBox(box, 'se', { x: 9999, y: 9999 }, PAGE)).toEqual([100, 100, 754, 1000])
   })
 })
 

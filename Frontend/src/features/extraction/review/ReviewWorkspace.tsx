@@ -7,7 +7,7 @@ import type { PageOut, ReviewDraft } from '@/features/extraction/api/types'
 import { Button } from '@/features/extraction/components/Button'
 import { LineList } from './LineList'
 import { PageViewer } from './PageViewer'
-import { initReview, neighbour, nextFlagged, reviewReducer } from './reviewState'
+import { initReview, neighbour, newLine, nextFlagged, reviewReducer } from './reviewState'
 import { useDisplayThreshold } from './useDisplayThreshold'
 import { useDraftAutosave } from './useDraftAutosave'
 import type { SaveStatus } from './useDraftAutosave'
@@ -35,8 +35,12 @@ export function ReviewWorkspace({
   const [pageNumber, setPageNumber] = useState(pages[0]?.page_number ?? 1)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [marked, setMarked] = useState<Set<string>>(() => new Set())
+  const [drawing, setDrawing] = useState(false)
   const [threshold, setThreshold] = useDisplayThreshold()
   const { lines } = state
+  const page = pages.find((p) => p.page_number === pageNumber) ?? pages[0]
+  const markedIds = lines.filter((l) => marked.has(l.line_id)).map((l) => l.line_id)
 
   const status = useDraftAutosave({
     documentId,
@@ -56,6 +60,30 @@ export function ReviewWorkspace({
     setPageNumber(line.page) // a line on another page opens that page
   }
 
+  /** A box drawn on the page becomes a new line; type its text straight away. */
+  const addBox = (box: number[]) => {
+    if (!page) return
+    const line = newLine(page.page_number, box)
+    dispatch({ type: 'addLine', line })
+    setDrawing(false)
+    setSelectedId(line.line_id)
+    setEditingId(line.line_id)
+  }
+
+  /** Cancelling the text of a box just drawn removes it again. */
+  const cancelEdit = (lineId: string) => {
+    const line = lines.find((l) => l.line_id === lineId)
+    if (line && line.region_id === null && line.text === '') dispatch({ type: 'discardAdded', id: lineId })
+    setEditingId(null)
+  }
+
+  const toggleMark = (lineId: string) =>
+    setMarked((current) => {
+      const next = new Set(current)
+      if (!next.delete(lineId)) next.add(lineId)
+      return next
+    })
+
   /** Returns true when the key was a review shortcut. */
   function handleKey(event: KeyboardEvent): boolean {
     const key = event.key.toLowerCase()
@@ -71,7 +99,25 @@ export function ReviewWorkspace({
     if (key === 'arrowdown' || key === 'j') select(neighbour(lines, selectedId, 1))
     else if (key === 'arrowup' || key === 'k') select(neighbour(lines, selectedId, -1))
     else if (key === 'n') select(nextFlagged(lines, selectedId, threshold))
+    else if (key === 'escape' && drawing) setDrawing(false)
+    else if (key === 'escape' && markedIds.length > 0) setMarked(new Set())
+    else if (key === 'b' && !locked) setDrawing((d) => !d)
+    else if (markedIds.length > 0 && !locked) return handleBulkKey(key)
     else return handleLineKey(key)
+    return true
+  }
+
+  /** With lines marked, A and Del act on all of them (one undo step). */
+  function handleBulkKey(key: string): boolean {
+    if (key === 'a') {
+      dispatch({ type: 'accept', ids: markedIds })
+    } else if (key === 'delete' || key === 'backspace') {
+      const allDeleted = lines.filter((l) => marked.has(l.line_id)).every((l) => l.human_action === 'deleted')
+      dispatch({ type: allDeleted ? 'restore' : 'delete', ids: markedIds })
+    } else {
+      return handleLineKey(key) // other keys still work on the selected line
+    }
+    setMarked(new Set())
     return true
   }
 
@@ -79,13 +125,16 @@ export function ReviewWorkspace({
   function handleLineKey(key: string): boolean {
     const line = lines.find((l) => l.line_id === selectedId)
     if (!line || locked) return false
+    const ids = [line.line_id]
     if (key === 'a') {
-      dispatch({ type: 'accept', id: line.line_id })
+      dispatch({ type: 'accept', ids })
       select(neighbour(lines, line.line_id, 1)) // accept and move on
     } else if ((key === 'enter' || key === 'e') && line.human_action !== 'deleted') {
       setEditingId(line.line_id)
     } else if (key === 'delete' || key === 'backspace') {
-      dispatch({ type: line.human_action === 'deleted' ? 'restore' : 'delete', id: line.line_id })
+      dispatch({ type: line.human_action === 'deleted' ? 'restore' : 'delete', ids })
+    } else if (key === 'x') {
+      toggleMark(line.line_id)
     } else {
       return false
     }
@@ -107,7 +156,6 @@ export function ReviewWorkspace({
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
-  const page = pages.find((p) => p.page_number === pageNumber) ?? pages[0]
   if (!page) return <p className="text-sm text-ink-muted">This document has no pages.</p>
 
   return (
@@ -152,6 +200,11 @@ export function ReviewWorkspace({
             threshold={threshold}
             onSelect={select}
             onPageChange={setPageNumber}
+            editable={!locked}
+            drawing={drawing && !locked}
+            onDrawingChange={setDrawing}
+            onAddBox={addBox}
+            onMoveBox={(id, box) => dispatch({ type: 'moveBox', id, box })}
           />
         </div>
         <div className="h-[60vh] min-h-0 lg:h-auto">
@@ -162,10 +215,13 @@ export function ReviewWorkspace({
             editingId={locked ? null : editingId}
             onEditingChange={setEditingId}
             onEditDone={(id) => select(neighbour(lines, id, 1) ?? id)}
+            onEditCancel={cancelEdit}
             dispatch={dispatch}
             threshold={threshold}
             onThresholdChange={setThreshold}
             readOnly={locked}
+            marked={marked}
+            onMarkedChange={setMarked}
           />
         </div>
       </div>

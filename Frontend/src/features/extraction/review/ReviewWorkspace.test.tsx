@@ -208,6 +208,140 @@ describe('editing and autosave', () => {
   })
 })
 
+/** jsdom has no layout: put page 1 (200x100) on screen at (0, 0), scale 1. */
+function placePage() {
+  const svg = screen.getByLabelText('Line boxes')
+  svg.getBoundingClientRect = () => ({ left: 0, top: 0, width: 200, height: 100, right: 200, bottom: 100, x: 0, y: 0, toJSON: () => ({}) })
+  return svg
+}
+
+function drag(start: Element, from: [number, number], to: [number, number], over: Element = start) {
+  fireEvent.pointerDown(start, { button: 0, pointerId: 1, clientX: from[0], clientY: from[1] })
+  fireEvent.pointerMove(over, { pointerId: 1, clientX: to[0], clientY: to[1] })
+  fireEvent.pointerUp(over, { pointerId: 1, clientX: to[0], clientY: to[1] })
+}
+
+describe('box editing', () => {
+  it('draws a box for missed text, types its text, and places it in reading order', async () => {
+    const saved = mockSaves()
+    renderWorkspace()
+    const svg = placePage()
+
+    await userEvent.click(screen.getByRole('button', { name: /add box/i }))
+    drag(svg, [20, 42], [120, 48])
+    await userEvent.type(screen.getByRole('textbox', { name: 'Line text' }), 'Discount 1.00{Enter}')
+
+    await waitFor(() => expect(saved.at(-1)?.lines).toHaveLength(5))
+    const added = saved.at(-1)!.lines[1] // between TOTAL (y 20-40) and VAT (y 50-70)
+    expect(added).toMatchObject({ region_id: null, text: 'Discount 1.00', box: [20, 42, 120, 48], human_action: 'added', sequence: 1 })
+    expect(screen.getByRole('button', { name: 'Line: Discount 1.00' })).toBeInTheDocument()
+  })
+
+  it('removes a box again when its text is cancelled while empty', async () => {
+    const saved = mockSaves()
+    renderWorkspace()
+    const svg = placePage()
+
+    await userEvent.keyboard('b') // draw mode from the keyboard
+    drag(svg, [20, 42], [120, 48])
+    await userEvent.keyboard('{Escape}')
+
+    expect(screen.getAllByRole('button', { name: /^Line: / })).toHaveLength(2)
+    await waitFor(() => expect(saved.at(-1)?.lines ?? LINES).toHaveLength(4))
+  })
+
+  it('moves the selected box by dragging it', async () => {
+    const saved = mockSaves()
+    renderWorkspace()
+    placePage()
+    await userEvent.click(box('TOTAL 42.00'))
+
+    drag(box('TOTAL 42.00'), [50, 30], [60, 35], screen.getByLabelText('Line boxes'))
+
+    await waitFor(() => expect(saved.at(-1)?.lines[0]).toMatchObject({ box: [20, 25, 120, 45], human_action: 'edited' }))
+  })
+
+  it('resizes the selected box from a corner handle', async () => {
+    const saved = mockSaves()
+    renderWorkspace()
+    placePage()
+    await userEvent.click(box('TOTAL 42.00'))
+
+    drag(screen.getByLabelText('Resize from the se corner'), [110, 40], [130, 50], screen.getByLabelText('Line boxes'))
+
+    await waitFor(() => expect(saved.at(-1)?.lines[0].box).toEqual([10, 20, 130, 50]))
+  })
+
+  it('does not move a box on a plain click', async () => {
+    const saved = mockSaves()
+    renderWorkspace()
+    placePage()
+    await userEvent.click(box('TOTAL 42.00'))
+
+    drag(box('TOTAL 42.00'), [50, 30], [51, 31], screen.getByLabelText('Line boxes')) // under 3px
+
+    expect(box('TOTAL 42.00')).toHaveAttribute('x', '10')
+    expect(saved).toHaveLength(0)
+  })
+})
+
+describe('bulk actions', () => {
+  it('accepts marked lines together in one save and one undo step', async () => {
+    const saved = mockSaves()
+    renderWorkspace()
+
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Mark TOTAL 42.00' }))
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Mark Thank you' }))
+    expect(screen.getByText('2 marked')).toBeInTheDocument()
+    await userEvent.click(within(screen.getByRole('toolbar', { name: 'Bulk actions' })).getByRole('button', { name: /accept 2/i }))
+
+    await waitFor(() => expect(saved).toHaveLength(1))
+    expect(saved[0].lines.map((l) => l.human_action)).toEqual(['accepted', 'deleted', 'untouched', 'accepted'])
+    expect(screen.queryByText('2 marked')).not.toBeInTheDocument() // marks cleared
+
+    await userEvent.click(screen.getByRole('button', { name: 'Undo' }))
+    await waitFor(() => expect(saved.at(-1)?.lines.map((l) => l.human_action)).toEqual(['untouched', 'deleted', 'untouched', 'untouched']))
+  })
+
+  it('marks every unreviewed line and deletes them, counting only lines it will change', async () => {
+    const saved = mockSaves()
+    renderWorkspace()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Mark unreviewed' }))
+    const bar = screen.getByRole('toolbar', { name: 'Bulk actions' })
+    expect(screen.getByText('3 marked')).toBeInTheDocument() // VAT is already deleted
+    await userEvent.click(within(bar).getByRole('button', { name: /delete 3/i }))
+
+    await waitFor(() => expect(saved.at(-1)?.lines.every((l) => l.human_action === 'deleted')).toBe(true))
+  })
+
+  it('marks a range with Shift-click and acts on it from the keyboard', async () => {
+    const saved = mockSaves()
+    renderWorkspace()
+    const user = userEvent.setup() // one session, so the held Shift key carries into the click
+
+    await user.click(rowButton('TOTAL 42.00'))
+    await user.keyboard('{Shift>}')
+    await user.click(rowButton('RÉPORTING'))
+    await user.keyboard('{/Shift}')
+    expect(screen.getByText('3 marked')).toBeInTheDocument()
+
+    await user.keyboard('a') // accepts the marked lines, not just the selected one
+    await waitFor(() => expect(saved.at(-1)?.lines.map((l) => l.human_action)).toEqual(['accepted', 'deleted', 'accepted', 'untouched']))
+  })
+
+  it('marks the selected line with X, and clears marks with Escape', async () => {
+    renderWorkspace()
+    await userEvent.click(rowButton('TOTAL 42.00'))
+
+    await userEvent.keyboard('x')
+    expect(screen.getByRole('checkbox', { name: 'Mark TOTAL 42.00' })).toBeChecked()
+
+    await userEvent.keyboard('{Escape}')
+    expect(screen.getByRole('checkbox', { name: 'Mark TOTAL 42.00' })).not.toBeChecked()
+  })
+})
+
 describe('keyboard flow', () => {
   it('moves, jumps to the next line to check, accepts and moves on', async () => {
     const saved = mockSaves()
