@@ -46,7 +46,7 @@ def latest_successful_run(document: Document) -> ExtractionRun | None:
     )
 
 
-def _require_run(document: Document) -> ExtractionRun:
+def require_run(document: Document) -> ExtractionRun:
     run = latest_successful_run(document)
     if run is None:
         raise DraftError(
@@ -83,7 +83,7 @@ def _machine_line(region: Region, page_number: int, **changes) -> DraftLine:
 def get_draft(db: Session, document: Document) -> ReviewDraftOut:
     """The saved draft, or one seeded from the latest successful run
     (version 0, not stored until the first save)."""
-    run = _require_run(document)
+    run = require_run(document)
     draft = db.get(ReviewDraft, document.id)
     if draft is not None:
         # A draft based on an older run (only possible once re-extraction
@@ -205,22 +205,33 @@ def save_draft(db: Session, document: Document, payload: ReviewDraftIn) -> Revie
     """Full replace with optimistic concurrency; returns the stored draft."""
     if document.status == DocumentStatus.VERIFIED.value:
         raise DraftError("document_verified", "This document is verified; reopening it comes with confirmation (M5).")
-    run = _require_run(document)
+    run = require_run(document)
     if document.status != DocumentStatus.NEEDS_REVIEW.value:
         raise DraftError("extraction_not_ready", f"The document is not ready for review (status: {document.status}).")
     if payload.based_on_run_id != run.id:
         raise DraftError("run_changed", "The document was extracted again. Reload to review the new result.")
 
     lines = normalize_lines(payload.lines, _regions(db, run), list(document.pages))
+    write_draft(db, document, run, lines, payload.version)
+    db.commit()
+    db.expire_all()
+    return get_draft(db, document)
+
+
+def write_draft(
+    db: Session, document: Document, run: ExtractionRun, lines: list[DraftLine], based_on_version: int
+) -> None:
+    """Store `lines` as the next draft version, in the caller's transaction
+    (confirmation writes the draft together with the verified record)."""
     data = {"lines": [line.model_dump(mode="json") for line in lines]}
     conflict = DraftError("draft_conflict", "This draft was changed elsewhere. Reload to see the latest version.")
 
     if db.get(ReviewDraft, document.id) is None:
-        if payload.version != 0:
+        if based_on_version != 0:
             raise conflict
         db.add(ReviewDraft(document_id=document.id, based_on_run_id=run.id, data=data, version=1))
         try:
-            db.commit()
+            db.flush()
         except IntegrityError:  # another first save won the race
             db.rollback()
             raise conflict from None
@@ -228,13 +239,9 @@ def save_draft(db: Session, document: Document, payload: ReviewDraftIn) -> Revie
         # Conditional update: of two saves based on the same version, one wins.
         result = db.execute(
             update(ReviewDraft)
-            .where(ReviewDraft.document_id == document.id, ReviewDraft.version == payload.version)
-            .values(data=data, version=payload.version + 1, based_on_run_id=run.id, updated_at=utcnow())
+            .where(ReviewDraft.document_id == document.id, ReviewDraft.version == based_on_version)
+            .values(data=data, version=based_on_version + 1, based_on_run_id=run.id, updated_at=utcnow())
         )
         if result.rowcount != 1:
             db.rollback()
             raise conflict
-        db.commit()
-
-    db.expire_all()
-    return get_draft(db, document)
