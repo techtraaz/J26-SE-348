@@ -15,6 +15,7 @@ export const queryKeys = {
   documents: (scope: string) => ['c1', 'documents', 'list', scope] as const,
   document: (id: string) => ['c1', 'documents', 'detail', id] as const,
   extraction: (id: string) => ['c1', 'documents', 'extraction', id] as const,
+  review: (id: string) => ['c1', 'documents', 'review', id] as const,
 }
 
 export function useFolders(parentId: string | null, enabled = true) {
@@ -83,6 +84,20 @@ export function useExtraction(documentId: string, enabled: boolean) {
     queryFn: () =>
       call(
         api.GET('/api/v1/documents/{document_id}/extraction', {
+          params: { path: { document_id: documentId } },
+        }),
+      ),
+  })
+}
+
+/** The reviewer's draft (seeded from the latest run until the first save). */
+export function useReviewDraft(documentId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: queryKeys.review(documentId),
+    enabled,
+    queryFn: () =>
+      call(
+        api.GET('/api/v1/documents/{document_id}/review', {
           params: { path: { document_id: documentId } },
         }),
       ),
