@@ -47,6 +47,11 @@ COPILOT_MAX_ITEMS: int = 10  # findings / cases listed in one reply
 # Fields read from a sentence are less certain than extracted documents.
 WHATIF_FIELD_CONFIDENCE: float = 0.6
 
+# A C1 line matched to a field by the LLM and not confirmed by a person keeps at
+# most this confidence: below REVIEW_CONFIDENCE_LIMIT, so it becomes a REV-001
+# review item and every finding using it needs more evidence.
+UNCONFIRMED_MAPPING_CONFIDENCE: float = 0.4
+
 # NEVER let the LLM write free Cypher at run time. Locked.
 ALLOW_FREE_CYPHER: bool = False
 
@@ -75,6 +80,12 @@ REQUIRED_FIELDS: dict[str, dict[str, tuple[str, ...]]] = {
         "capital": ("capital", "equity", "total_equity"),
     },
     "invoice": {"amount": ("amount",)},
+    "receipt": {"amount": ("amount",)},
+    "payment_voucher": {"amount": ("amount",)},
+    "trial_balance": {"debit_total": ("debit_total", "total_debits"),
+                      "credit_total": ("credit_total", "total_credits")},
+    "general_ledger": {"debit_total": ("debit_total", "total_debits"),
+                       "credit_total": ("credit_total", "total_credits")},
 }
 
 # Fields the engine does maths on. Intake parses them to numbers; a value that

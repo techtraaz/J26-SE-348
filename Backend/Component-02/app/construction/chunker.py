@@ -8,6 +8,9 @@ _PARA = re.compile(r"^(?P<num>(?:[A-Z]{1,2})?\d{1,3}(?:\.\d{1,3}){0,2}[A-Z]{0,2}
 _NUM_PARTS = re.compile(r"^([A-Z]{0,2})(\d{1,3})(?:\.(\d{1,3}))?(?:\.(\d{1,3}))?([A-Z]{0,2})$")
 _HEADING_END = (".", ";", ":", ",")
 MAX_CHARS = 2500
+# "[Deleted]" and "[This paragraph refers to amendments that are not yet effective ...]"
+_PLACEHOLDER = re.compile(r"\[(?:deleted|th(?:is|ese) paragraphs? refers? to amendments[^\]]*)\]\.?",
+                          re.IGNORECASE)
 
 
 def _is_contents(text: str) -> bool:
@@ -42,6 +45,16 @@ def _is_numbered_heading(block: str, m: re.Match) -> bool:
             and not m.group("rest").startswith("[") and not block.endswith(_HEADING_END))
 
 
+def _strip_placeholders(text: str) -> str:
+    text = _PLACEHOLDER.sub("", text)
+    return re.sub(r"\n{3,}", "\n\n", text).strip()
+
+
+# what is left of "98C [Deleted] 98D–98G" is only paragraph numbers
+def _has_words(text: str) -> bool:
+    return any(len(w) > 2 for w in re.sub(r"[^A-Za-z]+", " ", text).split())
+
+
 def _split_long(text: str, limit: int = MAX_CHARS) -> list[str]:
     if len(text) <= limit:
         return [text]
@@ -67,7 +80,8 @@ def _blocks(doc: LoadedDocument):
 
 
 def chunk_paragraphs(doc: LoadedDocument) -> list[Chunk]:
-    """One chunk per numbered paragraph, keeping the heading it sits under."""
+    """One chunk per numbered paragraph, keeping the heading it sits under.
+    Deleted paragraphs are dropped, and so is the unnumbered intro of a known standard."""
     prefix = doc.code or doc.file
     paras: list[dict] = []
     heading = None
@@ -90,6 +104,11 @@ def chunk_paragraphs(doc: LoadedDocument) -> list[Chunk]:
 
     chunks, seen = [], {}
     for p in paras:
+        if p["num"] == "intro" and doc.code:
+            continue
+        p["text"] = _strip_placeholders(p["text"])
+        if not _has_words(p["text"].removeprefix(p["num"])):
+            continue
         base = f"{prefix}:{p['num']}"
         seen[base] = seen.get(base, 0) + 1
         if seen[base] > 1:
