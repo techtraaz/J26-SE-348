@@ -1,26 +1,44 @@
 import { PlugZap, Search, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
+import type { ReactNode } from 'react'
 import { Outlet, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 
 import { EmptyState } from '@/features/extraction/components/EmptyState'
 import { C1_CONFIGURED } from '@/features/extraction/config'
 import { extractionPaths, isLibraryPath } from '@/features/extraction/paths'
 
-/** Frame for the Component-01 pages inside the main app shell: a search bar
- * above the routed page. Navigation lives in the main shell's tabs. */
+/** Frame for the Component-01 pages inside the main app shell: the page title
+ * and search above the routed page. Navigation lives in the main shell's tabs. */
 export function ExtractionLayout({ configured = C1_CONFIGURED }: { configured?: boolean }) {
   if (!configured) {
     return (
-      <div className="min-w-0 flex-1 px-8 py-6">
-        <EmptyState
-          icon={<PlugZap size={22} />}
-          title="Component 01 is not configured"
-          description="Set VITE_C1_BASE in the frontend .env (for example http://127.0.0.1:8000) and restart the dev server."
-        />
+      <div className="flex min-w-0 flex-1 flex-col">
+        <PageHeader />
+        <div className="px-8 pb-12">
+          <EmptyState
+            icon={<PlugZap size={22} />}
+            title="Component 01 is not configured"
+            description="Set VITE_C1_BASE in the frontend .env (for example http://127.0.0.1:8000) and restart the dev server."
+          />
+        </div>
       </div>
     )
   }
   return <ConfiguredLayout />
+}
+
+function PageHeader({ children }: { children?: ReactNode }) {
+  return (
+    <header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4 px-8 pb-6 pt-10">
+      <div className="min-w-0">
+        <h1 className="heading-serif text-[40px] leading-[1.1]">Your Library</h1>
+        <p className="mt-1.5 text-[15px] text-ink-muted">
+          Upload documents, follow their extraction and review what was read.
+        </p>
+      </div>
+      {children}
+    </header>
+  )
 }
 
 function ConfiguredLayout() {
@@ -54,17 +72,17 @@ function ConfiguredLayout() {
   }
 
   return (
-    <div className="flex min-w-0 flex-1 flex-col bg-slate-50 text-slate-900">
-      <div className="flex h-14 shrink-0 items-center border-b border-slate-200 bg-white px-8">
-        <div className="relative w-full max-w-md">
-          <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden />
+    <div className="flex min-w-0 flex-1 flex-col">
+      <PageHeader>
+        <div className="relative w-full sm:w-72">
+          <Search size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-soft" aria-hidden />
           <input
             type="search"
             aria-label="Search documents"
             placeholder="Search documents by name"
             value={text}
             onChange={(event) => onChange(event.target.value)}
-            className="h-9 w-full rounded-md bg-slate-100 pl-9 pr-8 text-sm placeholder:text-slate-400 focus:bg-white focus:outline-2 focus:outline-indigo-600 [&::-webkit-search-cancel-button]:hidden"
+            className="h-10 w-full rounded-full border border-line bg-input pl-10 pr-9 text-sm text-ink-h placeholder:text-ink-soft focus:border-ink-muted focus:bg-surface focus:outline-none focus:ring-4 focus:ring-primary/10 [&::-webkit-search-cancel-button]:hidden"
           />
           {text && (
             <button
@@ -74,16 +92,18 @@ function ConfiguredLayout() {
                 clearTimeout(timer.current)
                 applySearch('')
               }}
-              className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-slate-400 hover:text-slate-600"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-ink-soft hover:text-ink-h"
             >
               <X size={14} />
             </button>
           )}
         </div>
-      </div>
+      </PageHeader>
       {/* A grid row stretches the page to the full height, so the library's
-          drop zone covers the whole area below the search bar. */}
-      <div className="grid flex-1">
+          drop zone covers the whole area below the search bar. grid-cols-1 is a
+          minmax(0, 1fr) track: wide content (the table) scrolls inside its own
+          box instead of widening the page. */}
+      <div className="grid min-w-0 flex-1 grid-cols-1">
         <Outlet />
       </div>
     </div>

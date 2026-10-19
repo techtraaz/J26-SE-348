@@ -14,13 +14,13 @@ interface UploadQueueProps {
 function Row({ item, onDismiss }: { item: UploadItem; onDismiss: (id: string) => void }) {
   return (
     <li className="flex items-start gap-3 px-4 py-2.5">
-      <FileText size={18} className="mt-0.5 shrink-0 text-slate-400" aria-hidden />
+      <FileText size={18} className="mt-0.5 shrink-0 text-ink-soft" aria-hidden />
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline justify-between gap-2">
-          <span className="truncate text-sm text-slate-800" title={item.name}>
+          <span className="truncate text-[13px] text-ink-h" title={item.name}>
             {item.name}
           </span>
-          <span className="shrink-0 text-xs text-slate-400">{formatBytes(item.size)}</span>
+          <span className="shrink-0 text-xs text-ink-soft">{formatBytes(item.size)}</span>
         </div>
         {item.status === 'uploading' && (
           <div className="mt-1.5">
@@ -28,12 +28,12 @@ function Row({ item, onDismiss }: { item: UploadItem; onDismiss: (id: string) =>
           </div>
         )}
         {item.status === 'done' && (
-          <p className="mt-0.5 flex items-center gap-1 text-xs text-green-700">
+          <p className="mt-0.5 flex items-center gap-1 text-xs text-success">
             <CircleCheck size={13} aria-hidden /> Uploaded. Extraction runs in the background.
           </p>
         )}
         {item.status === 'error' && (
-          <p className="mt-0.5 flex items-start gap-1 text-xs text-red-700">
+          <p className="mt-0.5 flex items-start gap-1 text-xs text-danger">
             <CircleAlert size={13} className="mt-px shrink-0" aria-hidden /> {item.error}
           </p>
         )}
@@ -43,7 +43,7 @@ function Row({ item, onDismiss }: { item: UploadItem; onDismiss: (id: string) =>
           type="button"
           aria-label={`Dismiss ${item.name}`}
           onClick={() => onDismiss(item.id)}
-          className="rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+          className="rounded-full p-0.5 text-ink-soft hover:bg-surface-muted hover:text-ink-h"
         >
           <X size={16} />
         </button>
@@ -65,17 +65,17 @@ export function UploadQueue({ items, onDismiss, onClearFinished }: UploadQueuePr
   return (
     <section
       aria-label="Uploads"
-      className="fixed bottom-4 right-4 z-40 w-96 max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl bg-white shadow-xl ring-1 ring-slate-200"
+      className="fixed bottom-4 right-4 z-40 w-96 max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl border border-line-light bg-surface shadow-(--shadow-lg)"
     >
-      <header className="flex items-center justify-between bg-slate-900 px-4 py-2.5 text-sm text-white">
+      <header className="flex items-center justify-between bg-primary px-4 py-2.5 text-[13px] text-canvas">
         <span className="font-medium">{title}</span>
         {counts.uploading === 0 && (
-          <button type="button" onClick={onClearFinished} className="text-xs text-slate-300 hover:text-white">
+          <button type="button" onClick={onClearFinished} className="text-xs opacity-75 hover:opacity-100">
             Clear all
           </button>
         )}
       </header>
-      <ul className="max-h-72 divide-y divide-slate-100 overflow-y-auto">
+      <ul className="max-h-72 divide-y divide-line-light overflow-y-auto">
         {items.map((item) => (
           <Row key={item.id} item={item} onDismiss={onDismiss} />
         ))}

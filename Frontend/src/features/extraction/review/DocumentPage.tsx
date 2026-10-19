@@ -20,16 +20,16 @@ export function DocumentPage() {
   const extraction = useExtraction(documentId, ready)
   const retry = useRetryDocument()
 
-  if (document.isPending) return <p className="px-8 py-6 text-sm text-slate-500">Loading…</p>
+  if (document.isPending) return <p className="px-8 pb-12 text-sm text-ink-muted">Loading…</p>
   if (document.isError) {
     return (
-      <div className="px-8 py-6">
+      <div className="px-8 pb-12">
         <EmptyState
           icon={<CircleAlert size={22} />}
           title="Document not found"
           description={errorMessage(document.error)}
           action={
-            <Link to={extractionPaths.library} className="text-sm font-medium text-indigo-600 hover:underline">
+            <Link to={extractionPaths.library} className="text-sm font-medium text-ink-h underline-offset-2 hover:underline">
               Back to documents
             </Link>
           }
@@ -43,42 +43,42 @@ export function DocumentPage() {
   const regions = extraction.data?.regions ?? []
 
   return (
-    <div className="mx-auto max-w-4xl px-8 py-6">
+    <div className="max-w-4xl px-8 pb-12">
       <Link
         to={doc.folder_id ? extractionPaths.folder(doc.folder_id) : extractionPaths.library}
-        className="mb-4 inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-900"
+        className="mb-4 inline-flex items-center gap-1 text-sm text-ink-muted hover:text-ink-h"
       >
         <ArrowLeft size={15} aria-hidden /> Back to library
       </Link>
 
       <div className="mb-6 flex flex-wrap items-center gap-3">
-        <h1 className="text-xl font-semibold text-slate-900">{doc.filename}</h1>
+        <h2 className="text-xl font-medium text-ink-h">{doc.filename}</h2>
         <StatusChip status={doc.status} />
       </div>
 
-      <dl className="mb-6 grid grid-cols-2 gap-4 rounded-xl bg-white p-4 text-sm ring-1 ring-slate-200 sm:grid-cols-4">
+      <dl className="mb-6 grid grid-cols-2 gap-4 rounded-lg border border-line-light bg-surface p-4 text-sm sm:grid-cols-4">
         <div>
-          <dt className="text-xs text-slate-500">Pages</dt>
-          <dd className="font-medium text-slate-900">{doc.page_count ?? '—'}</dd>
+          <dt className="text-xs text-ink-muted">Pages</dt>
+          <dd className="font-medium text-ink-h">{doc.page_count ?? '—'}</dd>
         </div>
         <div>
-          <dt className="text-xs text-slate-500">Engine</dt>
-          <dd className="font-medium text-slate-900">{run?.engine ?? '—'}</dd>
+          <dt className="text-xs text-ink-muted">Engine</dt>
+          <dd className="font-medium text-ink-h">{run?.engine ?? '—'}</dd>
         </div>
         <div>
-          <dt className="text-xs text-slate-500">Extraction time</dt>
-          <dd className="font-medium text-slate-900">{run?.elapsed_ms ? formatDuration(run.elapsed_ms) : '—'}</dd>
+          <dt className="text-xs text-ink-muted">Extraction time</dt>
+          <dd className="font-medium text-ink-h">{run?.elapsed_ms ? formatDuration(run.elapsed_ms) : '—'}</dd>
         </div>
         <div>
-          <dt className="text-xs text-slate-500">Data source</dt>
-          <dd className="font-medium capitalize text-slate-900">{doc.source}</dd>
+          <dt className="text-xs text-ink-muted">Data source</dt>
+          <dd className="font-medium capitalize text-ink-h">{doc.source}</dd>
         </div>
       </dl>
 
       <DocumentProgress document={doc} />
 
       {doc.status === 'failed' && (
-        <div role="alert" className="rounded-xl bg-red-50 p-4 text-sm text-red-800 ring-1 ring-red-200">
+        <div role="alert" className="rounded-lg border border-danger/30 bg-danger/8 p-4 text-sm text-danger">
           <p className="font-medium">Extraction failed</p>
           <p className="mt-1">{doc.error_message}</p>
           <Button className="mt-3" disabled={retry.isPending} onClick={() => retry.mutate(doc.id)}>
@@ -89,28 +89,28 @@ export function DocumentPage() {
 
       {ready && (
         <section aria-label="Extracted text">
-          <h2 className="mb-1 text-sm font-semibold text-slate-900">
+          <h3 className="mb-1 text-[15px] font-semibold text-ink-h">
             Extracted text ({pluralize(regions.length, 'region')})
-          </h2>
-          <p className="mb-3 text-sm text-slate-500">
+          </h3>
+          <p className="mb-3 text-sm text-ink-muted">
             The editable review workspace with the page image and boxes arrives in the next milestone.
             Confidence is the engine&apos;s raw score, shown as reported.
           </p>
-          <div className="overflow-hidden rounded-xl bg-white ring-1 ring-slate-200">
+          <div className="overflow-hidden rounded-lg border border-line-light bg-surface">
             <table className="w-full text-left text-sm">
-              <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+              <thead className="border-b border-line-light text-xs text-ink-muted">
                 <tr>
                   <th scope="col" className="w-14 px-4 py-2 font-medium">Page</th>
                   <th scope="col" className="px-4 py-2 font-medium">Text</th>
                   <th scope="col" className="w-28 px-4 py-2 font-medium">Confidence</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-line-light">
                 {regions.slice(0, 25).map((region) => (
                   <tr key={region.id}>
-                    <td className="px-4 py-2 text-slate-500">{region.page_number}</td>
-                    <td className="px-4 py-2 text-slate-900">{region.text}</td>
-                    <td className="px-4 py-2 tabular-nums text-slate-600">
+                    <td className="px-4 py-2 text-ink-muted">{region.page_number}</td>
+                    <td className="px-4 py-2 text-ink-h">{region.text}</td>
+                    <td className="px-4 py-2 tabular-nums text-ink">
                       {region.confidence === null ? '—' : region.confidence.toFixed(4)}
                     </td>
                   </tr>
@@ -118,7 +118,7 @@ export function DocumentPage() {
               </tbody>
             </table>
             {regions.length > 25 && (
-              <p className="border-t border-slate-100 px-4 py-2 text-xs text-slate-500">
+              <p className="border-t border-line-light px-4 py-2 text-xs text-ink-muted">
                 Showing the first 25 of {regions.length} regions.
               </p>
             )}

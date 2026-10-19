@@ -65,13 +65,13 @@ export function LibraryPage() {
 
   if (folderId && folder.isError) {
     return (
-      <div className="px-8 py-6">
+      <div className="px-8 pb-12">
         <EmptyState
           icon={<FileSearch size={22} />}
           title="Folder not found"
           description={errorMessage(folder.error)}
           action={
-            <Link to={extractionPaths.library} className="text-sm font-medium text-indigo-600 hover:underline">
+            <Link to={extractionPaths.library} className="text-sm font-medium text-ink-h underline-offset-2 hover:underline">
               Back to all documents
             </Link>
           }
@@ -86,15 +86,15 @@ export function LibraryPage() {
   const where = folder.data?.name ?? 'Documents'
 
   return (
-    <div {...dropzone.getRootProps({ className: 'relative min-h-full px-8 py-6 outline-none' })}>
+    <div {...dropzone.getRootProps({ className: 'relative min-h-full px-8 pb-12 outline-none' })}>
       <input {...dropzone.getInputProps()} />
       {dropzone.isDragActive && <DropOverlay folderName={searching ? 'Documents' : where} />}
 
-      <header className="mb-6 flex flex-wrap items-center justify-between gap-3">
+      <header className="mb-6 flex flex-wrap items-center justify-between gap-3 border-b border-line-light pb-4">
         {searching ? (
           <div className="flex items-center gap-3">
-            <h1 className="text-xl font-semibold text-slate-900">Results for “{query}”</h1>
-            <Link to={extractionPaths.library} className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-900">
+            <h2 className="text-[15px] font-medium text-ink-h">Results for “{query}”</h2>
+            <Link to={extractionPaths.library} className="inline-flex items-center gap-1 text-sm text-ink-muted hover:text-ink-h">
               <X size={14} aria-hidden /> Clear search
             </Link>
           </div>
@@ -102,7 +102,7 @@ export function LibraryPage() {
           <Breadcrumbs crumbs={folder.data?.breadcrumbs ?? []} />
         )}
         <div className="flex items-center gap-2">
-          <div role="group" aria-label="View" className="flex rounded-md ring-1 ring-inset ring-slate-300">
+          <div role="group" aria-label="View" className="flex rounded-full border border-line bg-surface p-0.5">
             {(['list', 'grid'] as const).map((mode) => (
               <button
                 key={mode}
@@ -111,8 +111,8 @@ export function LibraryPage() {
                 aria-pressed={view === mode}
                 onClick={() => setView(mode)}
                 className={clsx(
-                  'flex h-9 w-9 items-center justify-center first:rounded-l-md last:rounded-r-md',
-                  view === mode ? 'bg-slate-100 text-slate-900' : 'bg-white text-slate-500 hover:bg-slate-50',
+                  'flex size-8 items-center justify-center rounded-full transition-colors',
+                  view === mode ? 'bg-surface-muted text-ink-h' : 'text-ink-muted hover:text-ink-h',
                 )}
               >
                 {mode === 'list' ? <List size={17} /> : <LayoutGrid size={17} />}
@@ -132,7 +132,7 @@ export function LibraryPage() {
 
       {!searching && folders.length > 0 && (
         <section aria-label="Folders" className="mb-8">
-          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Folders</h2>
+          <h2 className="mb-3 text-[15px] font-semibold text-ink-h">Folders</h2>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {folders.map((f) => (
               <FolderCard
@@ -148,7 +148,7 @@ export function LibraryPage() {
 
       <section aria-label="Documents">
         <div className="mb-3 flex flex-wrap items-center gap-2">
-          <h2 className="mr-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Documents</h2>
+          <h2 className="mr-2 text-[15px] font-semibold text-ink-h">Documents</h2>
           {STATUS_FILTERS.map(({ id, label }) => {
             const count = allDocuments.filter((d) => matchesFilter(d.status, id)).length
             const active = filter === id
@@ -159,10 +159,10 @@ export function LibraryPage() {
                 aria-pressed={active}
                 onClick={() => setFilter(id)}
                 className={clsx(
-                  'rounded-full px-3 py-1 text-xs font-medium transition-colors',
+                  'rounded-full border px-3 py-1 text-xs font-medium transition-colors',
                   active
-                    ? 'bg-indigo-600 text-white'
-                    : 'bg-white text-slate-600 ring-1 ring-inset ring-slate-300 hover:bg-slate-50',
+                    ? 'border-transparent bg-primary text-canvas'
+                    : 'border-line bg-surface text-ink hover:bg-surface-muted',
                 )}
               >
                 {label}
@@ -255,7 +255,7 @@ function LoadingRows() {
   return (
     <div role="status" aria-label="Loading documents" className="space-y-2">
       {[0, 1, 2].map((i) => (
-        <div key={i} className="h-14 animate-pulse rounded-xl bg-white ring-1 ring-slate-200" />
+        <div key={i} className="h-14 animate-pulse rounded-lg border border-line-light bg-surface" />
       ))}
     </div>
   )

@@ -41,7 +41,7 @@ export function FolderNameDialog({ title, initialName = '', submitLabel, onSubmi
   return (
     <Modal title={title} onClose={onClose}>
       <form onSubmit={submit}>
-        <label htmlFor="folder-name" className="mb-1 block text-sm font-medium text-slate-700">
+        <label htmlFor="folder-name" className="mb-1.5 block text-[13px] font-medium text-ink">
           Folder name
         </label>
         <input
@@ -50,10 +50,10 @@ export function FolderNameDialog({ title, initialName = '', submitLabel, onSubmi
           value={name}
           maxLength={255}
           onChange={(event) => setName(event.target.value)}
-          className="h-9 w-full rounded-md px-3 text-sm ring-1 ring-inset ring-slate-300 focus:outline-2 focus:outline-indigo-600"
+          className="h-10 w-full rounded-(--radius) border border-line bg-input px-3 text-sm text-ink-h focus:border-ink-muted focus:bg-surface focus:outline-none focus:ring-4 focus:ring-primary/10"
         />
         {error && (
-          <p role="alert" className="mt-2 text-sm text-red-600">
+          <p role="alert" className="mt-2 text-sm text-danger">
             {error}
           </p>
         )}
@@ -92,12 +92,12 @@ export function DeleteFolderDialog({ folderName, onConfirm, onClose }: DeleteDia
 
   return (
     <Modal title="Delete folder" onClose={onClose}>
-      <p className="text-sm text-slate-600">
-        Delete the folder <span className="font-medium text-slate-900">“{folderName}”</span>? Only empty
+      <p className="text-sm text-ink">
+        Delete the folder <span className="font-medium text-ink-h">“{folderName}”</span>? Only empty
         folders can be deleted.
       </p>
       {error && (
-        <p role="alert" className="mt-2 text-sm text-red-600">
+        <p role="alert" className="mt-2 text-sm text-danger">
           {error}
         </p>
       )}

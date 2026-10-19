@@ -33,27 +33,27 @@ function Thumbnail({ document }: { document: DocumentOut }) {
 
 export function DocumentGrid({ documents }: { documents: DocumentOut[] }) {
   return (
-    <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+    <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
       {documents.map((doc) => (
         <li key={doc.id}>
           <Link
             to={extractionPaths.document(doc.id)}
-            className="block overflow-hidden rounded-xl bg-white ring-1 ring-slate-200 transition hover:ring-indigo-300 hover:shadow-sm"
+            className="block overflow-hidden rounded-lg border border-line-light bg-surface transition hover:border-line hover:shadow-(--shadow-md)"
           >
-            <div className="aspect-[4/3] overflow-hidden border-b border-slate-100 bg-slate-100">
+            <div className="aspect-4/3 overflow-hidden border-b border-line-light bg-surface-muted">
               <Thumbnail document={doc} />
             </div>
             <div className="space-y-1.5 p-3">
-              <p className="truncate text-sm font-medium text-slate-900" title={doc.filename}>
+              <p className="truncate text-sm font-medium text-ink-h" title={doc.filename}>
                 {doc.filename}
               </p>
               <div className="flex items-center justify-between gap-2">
                 <StatusChip status={doc.status} />
-                <span className="text-xs text-slate-400">{formatRelativeTime(doc.created_at)}</span>
+                <span className="text-xs text-ink-soft">{formatRelativeTime(doc.created_at)}</span>
               </div>
               <DocumentProgress document={doc} />
               {doc.status === 'failed' && doc.error_message && (
-                <p className="line-clamp-2 text-xs text-red-600">{doc.error_message}</p>
+                <p className="line-clamp-2 text-xs text-danger">{doc.error_message}</p>
               )}
             </div>
           </Link>

@@ -40,13 +40,13 @@ export function CasePanel() {
   }
 
   return (
-    <section aria-label="Case" style={{ padding: "24px 20px" }}>
+    <section aria-label="Case" style={{ padding: "44px 24px 24px" }}>
       <h2 className="heading-serif" style={{ fontSize: "26px", marginBottom: "4px" }}>Case</h2>
       <p style={{ color: "var(--text-muted)", fontSize: "13px", marginBottom: "16px" }}>
         Documents audited together.
       </p>
 
-      <div style={{ display: "flex", gap: "8px", alignItems: "center", marginBottom: "20px" }}>
+      <div style={{ display: "flex", gap: "8px", alignItems: "center", marginBottom: "24px" }}>
         <select aria-label="Case" value={selectedCase ?? ""} onChange={(e) => setCase(e.target.value || null)}
                 style={{ ...selectStyle, flex: 1, minWidth: 0 }}>
           <option value="">Choose a case…</option>
@@ -64,7 +64,7 @@ export function CasePanel() {
       )}
 
       {selectedCase && (
-        <div>
+        <div style={{ borderTop: "1px solid var(--border-light)", paddingTop: "20px" }}>
           <h3 style={{ fontWeight: 600, fontSize: "15px", color: "var(--text-h)", marginBottom: "8px" }}>Documents</h3>
           {docs.length === 0 && (
             <p style={{ fontSize: "13px", color: "var(--text-muted)" }}>
@@ -94,12 +94,12 @@ export function CasePanel() {
 }
 
 const selectStyle: React.CSSProperties = {
-  padding: "6px 10px", borderRadius: "var(--radius)", border: "1px solid var(--border)",
+  height: "36px", padding: "0 10px", borderRadius: "var(--radius)", border: "1px solid var(--border)",
   background: "var(--surface)", color: "var(--text-h)", fontSize: "13px", fontFamily: "inherit",
 };
 
 const pillButton: React.CSSProperties = {
-  padding: "8px 18px", borderRadius: "var(--radius-pill)", border: "1px solid var(--border)",
+  height: "36px", padding: "0 18px", borderRadius: "var(--radius-pill)", border: "1px solid var(--border)",
   background: "var(--surface)", color: "var(--text-h)", fontSize: "13px", fontWeight: 500,
   cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
 };

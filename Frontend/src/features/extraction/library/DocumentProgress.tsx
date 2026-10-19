@@ -5,7 +5,7 @@ import type { DocumentOut } from '@/features/extraction/api/types'
 export function DocumentProgress({ document }: { document: DocumentOut }) {
   const run = document.latest_run
   if (document.status === 'uploaded') {
-    return <span className="text-xs text-slate-500">Waiting in queue</span>
+    return <span className="mt-1 block text-xs text-ink-muted">Waiting in queue</span>
   }
   if (document.status !== 'processing') return null
 
@@ -17,7 +17,7 @@ export function DocumentProgress({ document }: { document: DocumentOut }) {
         value={total ? done / total : undefined}
         label={`Extraction progress for ${document.filename}`}
       />
-      <span className="mt-0.5 block text-xs text-slate-500">
+      <span className="mt-0.5 block text-xs text-ink-muted">
         {total ? `${done} of ${total} pages` : 'Preparing pages…'}
       </span>
     </div>

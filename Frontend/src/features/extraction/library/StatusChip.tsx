@@ -4,12 +4,13 @@ import { CircleAlert, CircleCheck, Clock, LoaderCircle, ScanSearch } from 'lucid
 import { statusMeta } from './status'
 import type { StatusTone } from './status'
 
+// Status colours from the app palette, as soft tints of the same token.
 const TONES: Record<StatusTone, string> = {
-  slate: 'bg-slate-100 text-slate-700',
-  blue: 'bg-blue-50 text-blue-700',
-  amber: 'bg-amber-50 text-amber-800',
-  green: 'bg-green-50 text-green-700',
-  red: 'bg-red-50 text-red-700',
+  slate: 'bg-surface-muted text-ink-muted',
+  blue: 'bg-info/12 text-info',
+  amber: 'bg-warning/14 text-warning',
+  green: 'bg-success/12 text-success',
+  red: 'bg-danger/12 text-danger',
 }
 
 function StatusIcon({ status }: { status: string }) {

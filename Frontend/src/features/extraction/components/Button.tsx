@@ -4,17 +4,17 @@ import type { ButtonHTMLAttributes } from 'react'
 type Variant = 'primary' | 'secondary' | 'ghost' | 'danger'
 type Size = 'sm' | 'md'
 
+// Pill buttons in the app's palette (tokens in styles/tokens.css).
 const VARIANTS: Record<Variant, string> = {
-  primary: 'bg-indigo-600 text-white hover:bg-indigo-700 focus-visible:outline-indigo-600',
-  secondary:
-    'bg-white text-slate-700 ring-1 ring-inset ring-slate-300 hover:bg-slate-50 focus-visible:outline-indigo-600',
-  ghost: 'text-slate-600 hover:bg-slate-100 focus-visible:outline-indigo-600',
-  danger: 'bg-red-600 text-white hover:bg-red-700 focus-visible:outline-red-600',
+  primary: 'bg-primary text-canvas hover:bg-primary-hover',
+  secondary: 'border border-line bg-surface text-ink-h hover:bg-surface-muted',
+  ghost: 'text-ink-muted hover:bg-surface-muted hover:text-ink-h',
+  danger: 'bg-danger text-white hover:opacity-90',
 }
 
 const SIZES: Record<Size, string> = {
-  sm: 'h-8 px-2.5 text-sm gap-1.5',
-  md: 'h-9 px-3.5 text-sm gap-2',
+  sm: 'h-8 px-3 text-xs gap-1.5',
+  md: 'h-9 px-4 text-[13px] gap-2',
 }
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -27,8 +27,9 @@ export function Button({ variant = 'secondary', size = 'md', className, type, ..
     <button
       type={type ?? 'button'}
       className={clsx(
-        'inline-flex shrink-0 items-center justify-center rounded-md font-medium transition-colors',
-        'focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-50',
+        'inline-flex shrink-0 items-center justify-center rounded-full font-medium transition-colors',
+        'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary',
+        'disabled:cursor-not-allowed disabled:opacity-50',
         VARIANTS[variant],
         SIZES[size],
         className,

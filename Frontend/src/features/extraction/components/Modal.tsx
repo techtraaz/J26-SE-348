@@ -21,7 +21,7 @@ export function Modal({ title, onClose, children }: ModalProps) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose()
       }}
@@ -30,17 +30,17 @@ export function Modal({ title, onClose, children }: ModalProps) {
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl"
+        className="w-full max-w-md rounded-2xl border border-line-light bg-surface p-6 text-ink shadow-(--shadow-lg)"
       >
         <div className="mb-4 flex items-center justify-between">
-          <h2 id={titleId} className="text-base font-semibold text-slate-900">
+          <h2 id={titleId} className="heading-serif text-2xl">
             {title}
           </h2>
           <button
             type="button"
             aria-label="Close"
             onClick={onClose}
-            className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+            className="rounded-full p-1 text-ink-soft hover:bg-surface-muted hover:text-ink-h"
           >
             <X size={18} />
           </button>
