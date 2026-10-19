@@ -38,6 +38,10 @@ export async function callVoid(request: Promise<Result<unknown>>): Promise<void>
 export const pageImageUrl = (documentId: string, pageNumber: number): string =>
   `${API_BASE_URL}/api/v1/documents/${documentId}/pages/${pageNumber}/image`
 
+/** Download link for a verified version (contract 0.1 JSON, or CSV). */
+export const exportUrl = (documentId: string, version: number, format: 'json' | 'csv'): string =>
+  `${API_BASE_URL}/api/v1/documents/${documentId}/export?version=${version}&format=${format}`
+
 interface UploadOptions {
   folderId?: string | null
   onProgress?: (fraction: number) => void

@@ -70,7 +70,9 @@ class Correction(Base):
     region_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("regions.id", ondelete="SET NULL")
     )
-    action: Mapped[str] = mapped_column(String(30))  # edit_text, accept, delete, add, move_box
+    action: Mapped[str] = mapped_column(String(30))  # add, delete, restore, edit_text, move_box, accept
+    # The verified version this action was confirmed in (M5).
+    verified_version: Mapped[int | None] = mapped_column(Integer)
     before: Mapped[dict | None] = mapped_column(JsonType)
     after: Mapped[dict | None] = mapped_column(JsonType)
     source: Mapped[str] = mapped_column(String(20), default="demo")

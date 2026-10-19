@@ -52,6 +52,38 @@ class ReviewDraftIn(BaseModel):
     lines: list[DraftLineIn] = Field(max_length=MAX_LINES)
 
 
+class ConfirmIn(BaseModel):
+    """Confirm the draft at this version (0 = the seeded, never-saved draft)."""
+
+    version: int = Field(ge=0)
+
+
+class VerifiedLine(BaseModel):
+    """One line of a verified record, as C3's contract defines it. After
+    confirmation a line is accepted, edited or added; deleted lines are left out."""
+
+    line_id: uuid.UUID
+    page: int
+    sequence: int
+    text: str
+    confidence: float | None  # the machine's raw score, kept for analysis; null for added lines
+    box: list[int]
+    provenance: str
+    escalated: bool | None
+    human_action: Literal["accepted", "edited", "added"]
+
+
+class VerifiedRecordOut(BaseModel):
+    """An immutable confirmed version: what downstream components read."""
+
+    document_id: uuid.UUID
+    version: int  # 1, 2, 3, ...
+    based_on_run_id: uuid.UUID
+    confirmed_by: str | None  # null until authentication exists (O3)
+    confirmed_at: datetime
+    lines: list[VerifiedLine]
+
+
 class ReviewDraftOut(BaseModel):
     document_id: uuid.UUID
     based_on_run_id: uuid.UUID

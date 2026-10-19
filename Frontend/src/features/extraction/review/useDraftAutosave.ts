@@ -41,9 +41,11 @@ export function useDraftAutosave({
   enabled,
   delayMs = 800,
   retryMs = 5000,
-}: Options): SaveStatus {
+}: Options): { status: SaveStatus; version: number } {
   const queryClient = useQueryClient()
   const [savedRevision, setSavedRevision] = useState(0)
+  // The server's draft version after the last save: what confirmation is based on.
+  const [savedVersion, setSavedVersion] = useState(initialVersion)
   const [saving, setSaving] = useState(false)
   const [problem, setProblem] = useState<SaveStatus | null>(null)
 
@@ -73,6 +75,7 @@ export function useDraftAutosave({
         }),
       )
       version.current = draft.version
+      setSavedVersion(draft.version)
       savedRef.current = target
       setSavedRevision(target)
       setProblem(null)
@@ -130,5 +133,5 @@ export function useDraftAutosave({
     return () => window.removeEventListener('beforeunload', warn)
   }, [pending])
 
-  return status
+  return { status, version: savedVersion }
 }

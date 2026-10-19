@@ -2,12 +2,23 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { c3 } from "@/lib/apiClient";
 import { useUI } from "@/store/ui";
 import type { AuditDocument, AuditResult } from "@/types/audit";
 import { CasePanel } from "./CasePanel";
+
+/** Component 01's library with nothing in it (the picker reads it). */
+function emptyLibrary() {
+  vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+    const url = new URL(input instanceof Request ? input.url : String(input));
+    const body = url.pathname === "/api/v1/documents" ? { items: [], total: 0, limit: 200, offset: 0 } : { items: [] };
+    return new Response(JSON.stringify(body), { headers: { "content-type": "application/json" } });
+  }));
+}
+
+afterEach(() => vi.unstubAllGlobals());
 
 vi.mock("@/lib/apiClient", () => ({
   c3: { cases: vi.fn(), run: vi.fn(), appendEvidence: vi.fn() },
@@ -45,7 +56,30 @@ describe("CasePanel", () => {
 
     expect(container.querySelector('input[type="file"]')).toBeNull();
     expect(screen.queryByRole("button", { name: /choose files/i })).not.toBeInTheDocument();
-    expect(screen.getByText(/Verified documents from the library will be added here/)).toBeInTheDocument();
+    expect(screen.getByText("No documents in this case yet.")).toBeInTheDocument();
+  });
+
+  it("picks verified documents for the selected case, as the chat does", async () => {
+    emptyLibrary();
+    renderPanel();
+
+    await userEvent.click(screen.getByRole("button", { name: /add verified/i }));
+
+    expect(screen.getByRole("dialog", { name: "Add verified documents to CASE-1" })).toBeInTheDocument();
+    expect(await screen.findByText("No verified documents here.")).toBeInTheDocument();
+  });
+
+  it("starts a new case when none is chosen", async () => {
+    emptyLibrary();
+    useUI.setState({ selectedCase: null });
+    renderPanel();
+    expect(screen.getByText(/Choose a case, or add verified documents to start a new one/)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: /add verified/i }));
+
+    const created = useUI.getState().selectedCase;
+    expect(created).toMatch(/^CASE-/);
+    expect(screen.getByRole("dialog", { name: `Add verified documents to ${created}` })).toBeInTheDocument();
   });
 
   it("audits the case's documents and shows the summary", async () => {
