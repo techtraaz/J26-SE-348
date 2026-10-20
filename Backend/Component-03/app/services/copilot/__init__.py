@@ -59,26 +59,13 @@ def _entities(q: CopilotQuery, store: ResultStore,
 
 
 # ── Copilot XAI tracing (fire-and-forget, same collection as orchestrator) ──
+# One RunTracer per turn: events are queued for the background writer, so a
+# slow or offline MongoDB never delays the reply.
 
-import logging
 import time
 from datetime import UTC, datetime
 
-_xai_log = logging.getLogger("c03.copilot.xai")
-_copilot_seq = 0
-
-
-def _copilot_emit(store: ResultStore, event: dict) -> None:
-    """Write one trace doc to c03_callback_traces. Swallows ALL errors."""
-    global _copilot_seq
-    _copilot_seq += 1
-    event["seq"] = _copilot_seq
-    try:
-        col = store.traces_collection()
-        if col is not None:
-            col.insert_one(event)
-    except Exception:  # noqa: BLE001
-        _xai_log.debug("Copilot trace write skipped (non-fatal)", exc_info=True)
+from app.services import xai_trace
 
 
 def answer(q: CopilotQuery, kg: KGClient | None = None, store: ResultStore | None = None,
@@ -91,12 +78,12 @@ def answer(q: CopilotQuery, kg: KGClient | None = None, store: ResultStore | Non
     ts = datetime.now(UTC).isoformat()
 
     entities, case_id = _entities(q, store, memory)
+    tracer = xai_trace.RunTracer(case_id or q.session_id or "general", 0,
+                                 store.trace_exporter(), kind="copilot")
 
     # ── XAI: copilot_start ──
-    _copilot_emit(store, {
+    tracer.emit({
         "event_type": "copilot_start",
-        "case_id": case_id or q.session_id or "general",
-        "version": 0,
         "agent": "copilot",
         "detail": q.text[:300],
         "ts": ts,
@@ -111,10 +98,8 @@ def answer(q: CopilotQuery, kg: KGClient | None = None, store: ResultStore | Non
     meta = {"nlu": nlu.as_dict(), "entities": entities.as_dict(), "case_id": case_id}
 
     # ── XAI: copilot_nlu ──
-    _copilot_emit(store, {
+    tracer.emit({
         "event_type": "copilot_nlu",
-        "case_id": case_id or q.session_id or "general",
-        "version": 0,
         "agent": "copilot_nlu",
         "detail": f"Intent: {nlu.intent} (method: {nlu.method})",
         "intent": nlu.intent,
@@ -125,10 +110,8 @@ def answer(q: CopilotQuery, kg: KGClient | None = None, store: ResultStore | Non
     def respond(reply: str, data: dict | None = None, needs: str | None = None) -> CopilotResponse:
         # ── XAI: copilot_end ──
         elapsed = (time.perf_counter() - t0) * 1000
-        _copilot_emit(store, {
+        tracer.emit({
             "event_type": "copilot_end",
-            "case_id": case_id or q.session_id or "general",
-            "version": 0,
             "agent": "copilot",
             "detail": reply[:300],
             "intent": spec.name,

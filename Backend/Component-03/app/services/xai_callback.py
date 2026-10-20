@@ -1,9 +1,12 @@
 """LangGraph BaseCallbackHandler for fire-and-forget XAI trace capture.
 
 Injected into the graph via ``config={"callbacks": [cb]}``.  Every hook
-writes one document to MongoDB ``c03_callback_traces``, wrapped in a
-blanket try/except so a failed write **never** blocks, slows, or crashes
-the audit pipeline.
+hands one event to the run's RunTracer, which queues it for a background
+writer (see xai_trace.py): the audit never waits on MongoDB, and a failed
+write never blocks, slows, or crashes the pipeline.
+
+Only the graph's agent nodes are reported. The root graph run and routing
+functions (e.g. route_after_dq) are LangGraph internals, not agents.
 
 This module is entirely self-contained inside C03.  It does not import
 anything from Component-04.
@@ -11,17 +14,18 @@ anything from Component-04.
 
 import logging
 import time
-from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
 from langchain_core.callbacks import BaseCallbackHandler
 
+from app.services.xai_trace import RunTracer, now_iso
+
 logger = logging.getLogger("c03.xai_callback")
 
 
 def _now() -> str:
-    return datetime.now(UTC).isoformat()
+    return now_iso()
 
 
 def _safe_summary(obj: Any, max_len: int = 800) -> dict:
@@ -35,6 +39,9 @@ def _safe_summary(obj: Any, max_len: int = 800) -> dict:
                 continue                    # never dump the full input case
             if isinstance(val, list):
                 summary[f"{key}_count"] = len(val)
+                # Trace entries: their human-readable lines are the agent's summary
+                if val and hasattr(val[0], "detail"):
+                    summary[f"{key}_details"] = [str(v.detail)[:300] for v in val[:5]]
                 # Grab first-item preview for trace / findings lists
                 if val and hasattr(val[0], "model_dump"):
                     first = val[0].model_dump()
@@ -57,42 +64,24 @@ class XAITracerCallback(BaseCallbackHandler):
 
     Parameters
     ----------
-    case_id : str
-        The audit case being run.
-    version : int
-        Result version number (from ``store.next_version``).
-    traces_col : pymongo.collection.Collection | None
-        The ``c03_callback_traces`` collection.  Pass ``None`` to disable
-        persistence entirely (e.g. MemoryStore / tests).
+    tracer : RunTracer
+        The run's tracer (case, version, trace_id, ordered seq).  A tracer
+        without an exporter (MemoryStore / tests) makes every hook a no-op.
     """
 
     raise_on_error = False   # required by BaseCallbackHandler contract
 
-    def __init__(self, case_id: str, version: int, traces_col: Any = None) -> None:
+    def __init__(self, tracer: RunTracer) -> None:
         super().__init__()
-        self.case_id = case_id
-        self.version = version
-        self._col = traces_col
-        self._seq = 0
+        self.tracer = tracer
         self._timers: dict[str, float] = {}
         self._agents: dict[str, str] = {}   # run_id -> node name, for end/error events
 
     # ── Core emit — fire-and-forget ───────────────────────────────────
 
     def _emit(self, event: dict) -> None:
-        """Persist one trace document.  Swallows ALL errors."""
-        self._seq += 1
-        event.update(
-            case_id=self.case_id,
-            version=self.version,
-            seq=self._seq,
-        )
-        if self._col is None:
-            return
-        try:
-            self._col.insert_one(event)
-        except Exception:                     # noqa: BLE001
-            logger.debug("Trace write skipped (non-fatal)", exc_info=True)
+        """Queue one trace event.  Never blocks, swallows ALL errors."""
+        self.tracer.emit(event)
 
     # ── Graph node lifecycle ──────────────────────────────────────────
 
@@ -105,13 +94,16 @@ class XAITracerCallback(BaseCallbackHandler):
         parent_run_id: UUID | None = None,
         **kwargs: Any,
     ) -> None:
-        rid = str(run_id)
-        self._timers[rid] = time.perf_counter()
         # LangGraph passes serialized=None; the node name arrives in kwargs instead.
-        agent = (kwargs.get("name")
-                 or (kwargs.get("metadata") or {}).get("langgraph_node")
-                 or (serialized or {}).get("name")
-                 or "unknown")
+        # Only agent nodes count: the root graph has no langgraph_node, and a
+        # routing function runs under its node with a different run name.
+        node = (kwargs.get("metadata") or {}).get("langgraph_node")
+        name = kwargs.get("name") or (serialized or {}).get("name")
+        if not node or (name and name != node):
+            return
+        rid = str(run_id)
+        agent = node
+        self._timers[rid] = time.perf_counter()
         self._agents[rid] = agent
         self._emit({
             "event_type": "chain_start",
@@ -130,11 +122,14 @@ class XAITracerCallback(BaseCallbackHandler):
         **kwargs: Any,
     ) -> None:
         rid = str(run_id)
+        agent = self._agents.pop(rid, None)
+        if agent is None:
+            return  # not an agent node (see on_chain_start)
         elapsed = self._timers.pop(rid, None)
         duration_ms = round((time.perf_counter() - elapsed) * 1000, 2) if elapsed else None
         self._emit({
             "event_type": "chain_end",
-            "agent": self._agents.pop(rid, None),
+            "agent": agent,
             "run_id": rid,
             "parent_run_id": str(parent_run_id) if parent_run_id else None,
             "duration_ms": duration_ms,
@@ -151,11 +146,14 @@ class XAITracerCallback(BaseCallbackHandler):
         **kwargs: Any,
     ) -> None:
         rid = str(run_id)
+        agent = self._agents.pop(rid, None)
+        if agent is None:
+            return  # not an agent node (see on_chain_start)
         elapsed = self._timers.pop(rid, None)
         duration_ms = round((time.perf_counter() - elapsed) * 1000, 2) if elapsed else None
         self._emit({
             "event_type": "chain_error",
-            "agent": self._agents.pop(rid, None),
+            "agent": agent,
             "run_id": rid,
             "parent_run_id": str(parent_run_id) if parent_run_id else None,
             "duration_ms": duration_ms,

@@ -34,6 +34,9 @@ class ResultStore:
         """Return the MongoDB collection for XAI callback traces, or None."""
         return None
 
+    def trace_exporter(self):
+        """The background writer for XAI trace events, or None (no tracing)."""
+
 
 def _record(case: AuditCase, result: AuditResult) -> dict:
     return {"_id": f"{result.case_id}:v{result.version}", **result.model_dump(),
@@ -150,6 +153,8 @@ class MongoStore(ResultStore):
     def __init__(self, uri: str | None = None, db_name: str | None = None,
                  client=None, conn: MongoConnection | None = None) -> None:
         self._conn = conn or MongoConnection(uri, db_name, client)
+        self._exporter = None
+        self._exporter_lock = threading.Lock()
 
     def _db(self):
         return self._conn.db()
@@ -178,6 +183,16 @@ class MongoStore(ResultStore):
             return self._conn.db()[config.CALLBACK_TRACES_COLLECTION]
         except Exception:  # noqa: BLE001 — never block the audit
             return None
+
+    def trace_exporter(self):
+        """One background writer per store. The collection (and its index) is
+        opened on the writer thread, never on the request path."""
+        if self._exporter is None:
+            from app.services.xai_trace import TraceExporter
+            with self._exporter_lock:
+                if self._exporter is None:
+                    self._exporter = TraceExporter(self.traces_collection)
+        return self._exporter
 
     def get(self, case_id, version):
         return self._run(lambda db: db[config.RESULTS_COLLECTION].find_one(

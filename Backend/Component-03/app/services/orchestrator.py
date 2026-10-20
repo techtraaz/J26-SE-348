@@ -7,13 +7,16 @@
 - Rejected documents are excluded from compliance and anomaly.
 - Per-run objects (KG client, seq counter) travel in the run config, so
   concurrent runs never share state.
-- An XAITracerCallback is injected into every graph run.  It writes granular
-  trace events to MongoDB (fire-and-forget) for Component-04 to observe.
+- An XAITracerCallback is injected into every graph run, and each agent node
+  runs inside an XAI scope with a traced KG client, so agents record granular
+  steps (documents read, KG lookups, rule checks). Events are queued for a
+  background writer (fire-and-forget) for Component-04 to observe.
 """
 import itertools
 import operator
 import time
 from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Annotated, Any, TypedDict
 
@@ -23,7 +26,7 @@ from langgraph.graph import END, START, StateGraph
 from app import config as settings
 from app.schemas.case import AuditCase
 from app.schemas.findings import AuditResult, Finding, TraceEntry, now_iso
-from app.services import intake
+from app.services import intake, xai_trace
 from app.services.agents import (
     anomaly,
     compliance,
@@ -34,6 +37,7 @@ from app.services.agents import (
 from app.services.kg_client import KGClient, default_kg
 from app.services.store import ResultStore, default_store
 from app.services.xai_callback import XAITracerCallback
+from app.services.xai_trace import RunTracer
 
 
 class OrchestratorConfigError(RuntimeError):
@@ -46,6 +50,13 @@ class RunContext:
     kg: KGClient
     narrate: bool = True  # one LLM trace line from Reasoning; off for what-if checks
     seq: Iterator[int] = field(default_factory=lambda: itertools.count(1))
+    tracer: RunTracer | None = None
+
+    @contextmanager
+    def agent(self, name: str) -> Iterator[KGClient]:
+        """Run one agent inside its XAI scope; yields the KG client it should use."""
+        with xai_trace.scope(self.tracer, name):
+            yield xai_trace.traced_kg(self.kg, self.tracer, name)
 
 
 class AuditState(TypedDict):
@@ -83,7 +94,8 @@ def _finish(ctx: RunContext, agent: str, findings: list, update: dict) -> dict:
 
 def n_data_quality(state: AuditState, config: RunnableConfig) -> dict:
     ctx = _ctx(config)
-    f, rejected, stop, t = data_quality.run(state["case"])
+    with ctx.agent("data_quality"):
+        f, rejected, stop, t = data_quality.run(state["case"])
     return _finish(ctx, "data_quality", f, {"findings": f, "trace": t,
                                             "rejected_records": rejected, "early_stop": stop})
 
@@ -94,25 +106,29 @@ def route_after_dq(state: AuditState):
 
 def n_compliance(state: AuditState, config: RunnableConfig) -> dict:
     ctx = _ctx(config)
-    f, t = compliance.run(_checkable(state), ctx.kg)
+    with ctx.agent("compliance") as kg:
+        f, t = compliance.run(_checkable(state), kg)
     return _finish(ctx, "compliance", f, {"findings": f, "trace": t})
 
 
 def n_anomaly(state: AuditState, config: RunnableConfig) -> dict:
     ctx = _ctx(config)
-    f, t = anomaly.run(_checkable(state), ctx.kg)
+    with ctx.agent("anomaly") as kg:
+        f, t = anomaly.run(_checkable(state), kg)
     return _finish(ctx, "anomaly", f, {"findings": f, "trace": t})
 
 
 def n_reasoning(state: AuditState, config: RunnableConfig) -> dict:
     ctx = _ctx(config)
-    merged, t = reasoning.run(state["case"], list(state["findings"]), ctx.kg, ctx.narrate)
+    with ctx.agent("reasoning") as kg:
+        merged, t = reasoning.run(state["case"], list(state["findings"]), kg, ctx.narrate)
     return _finish(ctx, "reasoning", merged, {"reasoned": merged, "trace": t})
 
 
 def n_evidence_validation(state: AuditState, config: RunnableConfig) -> dict:
     ctx = _ctx(config)
-    kept, rejected, bad_ids, t = evidence_validation.run(state["case"], list(state["reasoned"]))
+    with ctx.agent("evidence_validation"):
+        kept, rejected, bad_ids, t = evidence_validation.run(state["case"], list(state["reasoned"]))
     return _finish(ctx, "evidence_validation", kept, {
         "final_findings": kept, "rejected_findings": rejected,
         "rejected_citations": bad_ids, "trace": t})
@@ -172,12 +188,12 @@ def _execute(case: AuditCase, kg: KGClient | None,
     store = store or default_store()
     previous = store.latest(case.case_id)
     version = store.next_version(case.case_id)
-    ctx = RunContext(case_id=case.case_id, kg=kg, narrate=narrate)
-
-    # Fire-and-forget XAI callback — writes to MongoDB for C04 to observe.
-    xai_cb = XAITracerCallback(case.case_id, version, store.traces_collection())
-    xai_cb._emit({"event_type": "pipeline_start",
-                  "doc_count": len(case.docs), "ts": now_iso()})
+    # Fire-and-forget XAI tracing — queued for MongoDB for C04 to observe.
+    tracer = RunTracer(case.case_id, version, store.trace_exporter(), kind="audit")
+    ctx = RunContext(case_id=case.case_id, kg=kg, narrate=narrate, tracer=tracer)
+    xai_cb = XAITracerCallback(tracer)
+    tracer.emit({"event_type": "pipeline_start",
+                 "doc_count": len(case.docs), "ts": now_iso()})
 
     start = time.perf_counter()
     final: dict | None = None
@@ -196,9 +212,9 @@ def _execute(case: AuditCase, kg: KGClient | None,
                      kg, round((time.perf_counter() - start) * 1000, 3))
     store.save(case, result)
 
-    xai_cb._emit({"event_type": "pipeline_end",
-                  "total_findings": len(result.findings),
-                  "status": result.status, "ts": now_iso()})
+    tracer.emit({"event_type": "pipeline_end",
+                 "total_findings": len(result.findings),
+                 "status": result.status, "ts": now_iso()})
     yield "result", result
 
 
