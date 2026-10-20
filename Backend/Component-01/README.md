@@ -43,7 +43,7 @@ npm install
 npm run dev                               # http://localhost:5173 → Library tab
 ```
 
-Check it is up: `GET http://127.0.0.1:8000/api/v1/health` returns the engine in use and whether the worker runs.
+Check it is up: `GET http://127.0.0.1:8000/api/v1/health` returns the engine in use, the file store (`local` or `s3`) and whether the worker runs.
 
 ### Which OCR engine
 
@@ -51,6 +51,24 @@ Check it is up: `GET http://127.0.0.1:8000/api/v1/health` returns the engine in 
 |---|---|---|
 | `replay` | development, demos of the flow, frontend work | Instant. Returns one saved PaddleOCR result (`tests/fixtures/sample_invoice.default.json`) for **every** upload, so boxes line up only on that sample (`data/samples/sample_invoice.png`, not in git: ask for it). The Library says so on each document. |
 | `paddle` | real extraction | About a minute per page on a laptop CPU. The first run downloads PaddleOCR's models. |
+
+### Where files are kept
+
+| `NOMOS_STORAGE_BACKEND` | Files (uploads and page images) live in |
+|---|---|
+| `local` (default) | `data/store/` on this machine (`NOMOS_STORAGE_ROOT`) |
+| `s3` | an S3-compatible object store such as **Garage**: set `GARAGE_ENDPOINT`, `GARAGE_ACCESS_KEY`, `GARAGE_SECRET_KEY`, `GARAGE_BUCKET` (and `GARAGE_REGION`, default `garage`) |
+
+The API checks the bucket at startup and refuses to start if it is unreachable or the keys are wrong. Keys in the bucket are the same paths as on disk (`documents/<id>/original.pdf`, `documents/<id>/pages/1.original.png`).
+
+**Switching an existing installation from `local` to `s3`:** copy the files first, or older documents lose their page images:
+
+```powershell
+uv run python scripts/copy_store_to_s3.py --dry-run     # what would be copied
+uv run python scripts/copy_store_to_s3.py               # copy (safe to run again)
+```
+
+Then set `NOMOS_STORAGE_BACKEND=s3` and restart. Tests never use the real store: they run on local disk, and the S3 code is tested against an in-memory S3 (moto).
 
 All settings are listed in [.env.example](.env.example).
 
@@ -141,7 +159,8 @@ app/
     ocr/         engine interface, PaddleOCR wrapper; replay.py (dev engine)
     review/      drafts and confirmation (corrections log, verified versions)
     export/      verified record → contract (JSON/CSV)
-    storage/     files on disk
+    storage/     files: local disk (local.py) or S3 / Garage (s3.py), chosen in factory.py
 scripts/smoke_ocr.py   run one file through ingestion + OCR from the command line
+scripts/copy_store_to_s3.py   copy the local file store into the bucket before switching to s3
 tests/                 pytest (SQLite by default)
 ```
