@@ -116,6 +116,19 @@ It lists the rules per document type, which agent runs each and whether C3
 can evaluate it, the explanations and cited standards' status, and flags any
 reply C3 could not use (exit code 1) or an unreachable C2 (exit code 2).
 
+**Working without C2: a snapshot of the live KG.** While C2 is up, save its
+replies once, then run and tune C3 against them offline:
+
+```powershell
+.venv\Scripts\python.exe -m scripts.snapshot_kg             # saves data/kg_snapshot.json
+.venv\Scripts\python.exe -m scripts.snapshot_kg --compare   # how the committed mock differs
+```
+
+Then set `KG_MOCK_FILE=data/kg_snapshot.json` (and `KG_MODE=mock` to never
+call C2) in `.env`. The snapshot is gitignored; the audit trace says when it
+was taken. Tests always use the committed `mock_data.json`, which follows C2's
+seed rules; `--compare` shows what to update in it when the live KG changes.
+
 ## Materiality
 
 A case may carry `materiality` (an amount, SLAuS 320), set by the auditor in the

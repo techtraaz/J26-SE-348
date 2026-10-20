@@ -4,7 +4,8 @@ User text never becomes Cypher: every parameter is validated first (doc_type
 from a fixed list, IDs by a strict regex) and only C2's parameterised GET
 endpoints are called. C2's POST /query/cypher is never used.
 
-- MockKGClient      reads mock_data.json (same shapes as C2)
+- MockKGClient      reads mock_data.json, or a snapshot of the live KG (KG_MOCK_FILE),
+                    in C2's reply shapes
 - LiveKGClient      calls C2 over HTTP (standard library only)
 - FallbackKGClient  picks per KG_MODE; in auto mode switches to mock only when
                     C2 is unreachable, and says so (source "mock_fallback")
@@ -247,6 +248,14 @@ class MockKGClient(KGClient):
         self._path = path or _MOCK_PATH
         self._data: dict | None = None
 
+    @property
+    def note(self) -> str:
+        """Where the mock data comes from, for the audit trace."""
+        snap = self._load().get("_snapshot")
+        if isinstance(snap, dict):
+            return f"KG snapshot taken {snap.get('taken_at', '?')} from {snap.get('kg_url', '?')}"
+        return "committed mock data"
+
     def _load(self) -> dict:
         if self._data is None:
             if not self._path.exists():
@@ -384,7 +393,7 @@ class FallbackKGClient(KGClient):
         self.mode = (mode or config.KG_MODE).lower()
         if self.mode not in ("auto", "mock", "live"):
             raise KGError(f"Unknown KG_MODE {self.mode!r}; use auto|mock|live.")
-        self._mock = mock or MockKGClient()
+        self._mock = mock or MockKGClient(mock_path())
         self._live = live if live is not None else (LiveKGClient() if config.KG_URL else None)
         if self.mode == "live" and self._live is None:
             raise KGError("KG_MODE=live but no KG_URL is configured.")
@@ -405,6 +414,13 @@ class FallbackKGClient(KGClient):
             self.fallback_reason = str(exc)
             self.source = "mock_fallback"
             return getattr(self._mock, name)(*args)
+
+    @property
+    def mock_note(self) -> str | None:
+        """Where the mock data came from, when the mock answered."""
+        if self.source == "live" or not isinstance(self._mock, MockKGClient):
+            return None
+        return self._mock.note
 
     def get_rules(self, doc_type):
         return self._call("get_rules", doc_type)
@@ -435,6 +451,14 @@ class FallbackKGClient(KGClient):
 
     def get_line_item(self, code):
         return self._call("get_line_item", code)
+
+
+def mock_path() -> Path | None:
+    """The mock data file: KG_MOCK_FILE when set, else the committed mock."""
+    if not config.KG_MOCK_FILE:
+        return None
+    path = Path(config.KG_MOCK_FILE)
+    return path if path.is_absolute() else config.COMPONENT_ROOT / path
 
 
 def default_kg() -> KGClient:
