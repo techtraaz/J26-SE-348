@@ -99,7 +99,7 @@ function RunBlock({ run, latest }: { run: Run; latest: boolean }) {
         {failed > 0 && (
           <span style={{ color: "var(--danger)", fontSize: 12, whiteSpace: "nowrap" }}>· {failed} failed</span>
         )}
-        {!expanded && run.review?.verdict && <VerdictChip verdict={run.review.verdict} small />}
+        {!expanded && run.review?.verdict && <VerdictChip verdict={run.review.verdict} kind={run.kind} small />}
         {expanded ? <ChevronDown size={14} style={{ flexShrink: 0 }} /> : <ChevronRight size={14} style={{ flexShrink: 0 }} />}
       </button>
 
@@ -110,7 +110,7 @@ function RunBlock({ run, latest }: { run: Run; latest: boolean }) {
         }}>
           {run.stages.length === 0 && <Row muted>Starting…</Row>}
           {run.stages.map((stage) => <StageRow key={stage.id} stage={stage} />)}
-          {run.review && <ReviewCard review={run.review} />}
+          {run.review && <ReviewCard review={run.review} kind={run.kind} />}
           <RunFooter run={run} />
         </div>
       )}
@@ -151,8 +151,16 @@ const VERDICTS: Record<Verdict, { label: string; color: string; Icon: typeof Cir
   action_required: { label: "Action needed", color: "var(--danger)", Icon: CircleX },
 };
 
-function VerdictChip({ verdict, small }: { verdict: Verdict; small?: boolean }) {
-  const { label, color, Icon } = VERDICTS[verdict];
+// A chat turn is "answered" rather than "all clear".
+const CHAT_LABELS: Partial<Record<Verdict, string>> = { clear: "Answered", review: "Needs attention" };
+
+function verdictLabel(verdict: Verdict, kind: Run["kind"]): string {
+  return (kind === "copilot" && CHAT_LABELS[verdict]) || VERDICTS[verdict].label;
+}
+
+function VerdictChip({ verdict, kind, small }: { verdict: Verdict; kind: Run["kind"]; small?: boolean }) {
+  const { color, Icon } = VERDICTS[verdict];
+  const label = verdictLabel(verdict, kind);
   return (
     <span style={{
       display: "inline-flex", alignItems: "center", gap: 4, flexShrink: 0, whiteSpace: "nowrap",
@@ -164,7 +172,10 @@ function VerdictChip({ verdict, small }: { verdict: Verdict; small?: boolean }) 
   );
 }
 
-function ReviewCard({ review }: { review: Review }) {
+function ReviewCard({ review, kind }: { review: Review; kind: Run["kind"] }) {
+  const chat = kind === "copilot";
+  // the headline only adds something when it says more than the chip
+  const showHeadline = review.verdict ? review.headline !== verdictLabel(review.verdict, kind) : true;
   return (
     <div aria-label="Review agent" style={{
       borderTop: "1px solid var(--border-light)", padding: "12px 14px 12px",
@@ -176,17 +187,18 @@ function ReviewCard({ review }: { review: Review }) {
                        color: "var(--text-soft)", flex: 1 }}>
           Review agent
         </span>
-        {review.verdict && <VerdictChip verdict={review.verdict} />}
+        {review.verdict && <VerdictChip verdict={review.verdict} kind={kind} />}
       </div>
 
       {review.pending ? (
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, fontSize: 12.5,
                       color: "var(--text-muted)" }}>
-          <LoaderCircle size={13} className="xai-spin" /> Reading the trace and writing a summary…
+          <LoaderCircle size={13} className="xai-spin" />
+          {chat ? "Reading the trace and writing a wrap-up…" : "Reading the trace and writing a summary…"}
         </div>
       ) : (
         <>
-          {review.headline && (
+          {review.headline && showHeadline && (
             <p style={{ fontSize: 13.5, fontWeight: 600, color: "var(--text-h)", marginBottom: 4 }}>{review.headline}</p>
           )}
           {review.summary && (
@@ -210,7 +222,7 @@ function ReviewCard({ review }: { review: Review }) {
           <p style={{ fontSize: 11, color: "var(--text-soft)", marginTop: 10 }}>
             {review.source === "rules"
               ? "Written from the trace with fixed wording (language model unavailable)."
-              : `Summary written by the review agent from the trace above${review.model ? ` · ${review.model}` : ""}. Verdict and next steps come from the checks.`}
+              : `${chat ? "Wrap-up" : "Summary"} written by the review agent from the trace above${review.model ? ` · ${review.model}` : ""}. ${chat ? "The verdict comes from the trace." : "Verdict and next steps come from the checks."}`}
           </p>
         </>
       )}

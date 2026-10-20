@@ -73,6 +73,16 @@ describe("ThinkingTimeline", () => {
     expect(within(audit).getByLabelText("Review agent").textContent).toContain("Reading the trace");
   });
 
+  it("wraps up a Copilot chat turn with its own review card", () => {
+    renderStream(caseStream);
+    const chat = screen.getByRole("region", { name: /why did CHK-001 fail/ }); // latest run: open
+    const review = within(chat).getByLabelText("Review agent");
+    expect(review.textContent).toContain("Answered");
+    expect(review.textContent).toContain("assistant explained the finding");
+    expect(review.textContent).toContain("Wrap-up written by the review agent");
+    expect(review.textContent).not.toContain("Next steps");
+  });
+
   it("never uses placeholder wording", async () => {
     const { container } = renderStream(caseStream);
     for (const button of screen.getAllByRole("button")) {
