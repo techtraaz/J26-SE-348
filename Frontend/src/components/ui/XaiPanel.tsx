@@ -116,22 +116,20 @@ export function XaiPanel() {
   if (!xaiPanelOpen) return null;
 
   return (
-    // A floating card below the top bar (rounded, outlined, inset from the edges).
-    <aside id="xai-panel" aria-label="XAI Inspector" style={{
+    // A card beside the page, below the top bar, with an even gap on every side.
+    <aside id="xai-panel" aria-label="Explainability" style={{
       ...fontBase,
-      position: "fixed",
-      top: "72px",
-      right: "12px",
-      bottom: "12px",
+      position: "relative",
+      margin: "12px 12px 12px 0",
       width: "368px",
+      flexShrink: 0,
       background: "var(--surface)",
       border: "1px solid var(--border-strong)",
       borderRadius: "var(--radius-lg)",
       display: "flex",
       flexDirection: "column",
       overflow: "hidden",
-      zIndex: 1000,
-      boxShadow: "var(--shadow-lg)",
+      boxShadow: "var(--shadow-md)",
       animation: "xai-slide-in 0.25s ease-out",
     }}>
       {/* ── Header ── */}
@@ -147,7 +145,7 @@ export function XaiPanel() {
           <span style={{
             fontSize: "15px", fontWeight: 600, color: "var(--text-h)",
             letterSpacing: "-0.01em",
-          }}>XAI Inspector</span>
+          }}>Explainability</span>
           <span
             title={connected ? "Live" : "Connecting"}
             style={{
@@ -159,7 +157,7 @@ export function XaiPanel() {
         </div>
         <button
           onClick={toggleXaiPanel}
-          aria-label="Close XAI Inspector"
+          aria-label="Close explainability"
           style={{
             background: "none", border: "none", cursor: "pointer",
             color: "var(--text-muted)", padding: "4px",

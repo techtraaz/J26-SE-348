@@ -1,4 +1,5 @@
 import { NavLink, Outlet } from "react-router-dom";
+import { Sparkles } from "lucide-react";
 import { useUI } from "@/store/ui";
 import { routes } from "@/config/routes";
 import { XaiPanel } from "@/components/ui/XaiPanel";
@@ -47,90 +48,59 @@ export function AppShell() {
           ))}
         </nav>
 
-        {/* Right-side actions: XAI button + User Avatar */}
+        {/* Right-side action: the Explainability panel */}
         <div style={{
           position: "absolute",
           right: "24px",
           top: "50%",
           transform: "translateY(-50%)",
-          display: "flex",
-          alignItems: "center",
-          gap: "10px",
         }}>
-          {/* XAI Inspector Button */}
           <button
             id="xai-toggle-btn"
+            type="button"
+            className="icon-btn"
             onClick={toggleXaiPanel}
-            title="XAI Inspector"
+            aria-pressed={xaiPanelOpen}
+            aria-label={xaiPanelOpen ? "Hide explainability" : "Show explainability"}
+            data-tip={xaiPanelOpen ? "Hide explainability" : "Show explainability"}
+            data-tip-side="bottom-end"
             style={{
-              width: "32px",
-              height: "32px",
-              borderRadius: "50%",
-              border: xaiPanelOpen
-                ? "1.5px solid var(--primary)"
-                : "1.5px solid var(--border)",
-              background: xaiPanelOpen
-                ? "var(--accent-bg)"
-                : "transparent",
+              height: "34px",
+              padding: "0 12px",
+              borderRadius: "10px",
+              border: "1px solid " + (xaiPanelOpen ? "var(--border-strong)" : "transparent"),
+              background: xaiPanelOpen ? "var(--sidebar-active)" : "transparent",
+              color: xaiPanelOpen ? "var(--text-h)" : "var(--text-muted)",
               display: "flex",
               alignItems: "center",
-              justifyContent: "center",
+              gap: "7px",
               cursor: "pointer",
-              transition: "all 0.2s ease",
-              position: "relative",
-            }}
-            onMouseEnter={(e) => {
-              if (!xaiPanelOpen) e.currentTarget.style.borderColor = "var(--text-muted)";
-            }}
-            onMouseLeave={(e) => {
-              if (!xaiPanelOpen) e.currentTarget.style.borderColor = "var(--border)";
+              fontFamily: "inherit",
+              fontSize: "13px",
+              fontWeight: 500,
             }}
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
-              stroke={xaiPanelOpen ? "var(--primary)" : "var(--text-muted)"}
-              strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"
-            >
-              <path d="M12 2a4 4 0 0 1 4 4c0 1.95-1.4 3.26-2.13 3.76A1.87 1.87 0 0 0 13 11.4V12h-2v-.6a1.87 1.87 0 0 0-.87-1.64C9.4 9.26 8 7.95 8 6a4 4 0 0 1 4-4z" />
-              <path d="M10 15h4" />
-              <path d="M10 18h4" />
-              <path d="M11 21h2" />
-            </svg>
+            <Sparkles size={16} strokeWidth={1.6} />
+            Explain
           </button>
-
-          {/* User Avatar */}
-          <div style={{
-            width: "32px",
-            height: "32px",
-            borderRadius: "50%",
-            border: "1.5px solid var(--border)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            cursor: "pointer",
-          }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-              <circle cx="12" cy="7" r="4" />
-            </svg>
-          </div>
         </div>
       </header>
 
-      {/* ── Main Content (shrinks when XAI panel is open) ── */}
-      <main style={{
-        flex: 1,
-        minHeight: 0,
-        overflowY: "auto",
-        display: "flex",
-        flexDirection: "column",
-        marginRight: xaiPanelOpen ? "392px" : "0", // the floating XAI card + its gap
-        transition: "margin-right 0.25s ease",
-      }}>
-        <Outlet />
-      </main>
+      {/* ── Page + Explainability panel, side by side below the header ── */}
+      <div style={{ flex: 1, minHeight: 0, display: "flex" }}>
+        <main style={{
+          flex: 1,
+          minWidth: 0,
+          minHeight: 0,
+          overflowY: "auto",
+          display: "flex",
+          flexDirection: "column",
+        }}>
+          <Outlet />
+        </main>
 
-      {/* ── XAI Side Panel ── */}
-      <XaiPanel />
+        <XaiPanel />
+      </div>
     </div>
   );
 }

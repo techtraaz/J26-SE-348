@@ -4,7 +4,7 @@ import { c3, chat } from "@/lib/apiClient";
 import { VerifiedDocumentPicker } from "@/features/documents/VerifiedDocumentPicker";
 import { useUI } from "@/store/ui";
 import { FindingCard } from "@/components/audit/FindingCard";
-import { PanelLeft, Plus } from "lucide-react";
+import { PanelLeft, Plus, UserRound } from "lucide-react";
 import type { CaseSummary, ChatMessage, Finding } from "@/types/audit";
 
 const STARTERS = [
@@ -132,7 +132,7 @@ export function DashboardPage() {
       <aside aria-label="Cases" style={{
         width: sidebarOpen ? "240px" : "56px", flexShrink: 0, borderRight: "1px solid var(--border-light)",
         padding: sidebarOpen ? "14px 12px" : "14px 10px", display: "flex", flexDirection: "column", gap: "4px",
-        overflow: sidebarOpen ? "hidden auto" : "visible",
+        overflow: sidebarOpen ? "hidden" : "visible",
         transition: "width 0.2s ease, padding 0.2s ease",
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px",
@@ -148,7 +148,8 @@ export function DashboardPage() {
             <Plus size={18} strokeWidth={1.6} />
           </IconButton>
         </div>
-        {sidebarOpen && <>
+        {sidebarOpen && <div style={{ flex: 1, minHeight: 0, overflowY: "auto", display: "flex",
+                                      flexDirection: "column", gap: "4px", margin: "0 -4px", padding: "0 4px" }}>
 
         <SessionButton active={selectedCase === null} onClick={() => setCase(null)}
                        title="General questions" meta="rules, standards, what-ifs" />
@@ -162,7 +163,30 @@ export function DashboardPage() {
                          title={c.case_id} meta={c.summary ? caseMeta(c.summary) : "new · not audited"}
                          right={c.summary ? timeAgo(c.summary.created_at) : ""} />
         ))}
-        </>}
+        </div>}
+        {!sidebarOpen && <div style={{ flex: 1 }} />}
+
+        {/* ── Account, at the bottom like Claude's sidebar ── */}
+        <div style={{ borderTop: "1px solid var(--border-light)", paddingTop: "10px", marginTop: "6px",
+                      display: "flex", justifyContent: sidebarOpen ? "flex-start" : "center" }}>
+          <button type="button" className="icon-btn" aria-label="Account" data-tip="Account"
+                  data-tip-side={sidebarOpen ? "top" : "right"}
+                  style={{
+                    display: "flex", alignItems: "center", gap: "10px", width: sidebarOpen ? "100%" : "36px",
+                    height: "40px", padding: sidebarOpen ? "0 8px" : 0, justifyContent: sidebarOpen ? "flex-start" : "center",
+                    border: "none", borderRadius: "10px", background: "transparent", cursor: "pointer",
+                    color: "var(--text-muted)", fontFamily: "inherit", fontSize: "13px",
+                  }}>
+            <span style={{
+              width: "28px", height: "28px", borderRadius: "50%", flexShrink: 0,
+              border: "1px solid var(--border-strong)", background: "var(--surface)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}>
+              <UserRound size={15} strokeWidth={1.6} />
+            </span>
+            {sidebarOpen && <span style={{ color: "var(--text-h)", fontWeight: 500 }}>Auditor</span>}
+          </button>
+        </div>
       </aside>
 
       {/* ── Conversation ── */}
@@ -262,7 +286,7 @@ export function DashboardPage() {
             </div>
           </div>
           <p style={{ textAlign: "center", fontSize: "11px", color: "var(--text-soft)", marginTop: "8px" }}>
-            Enter to send · Shift+Enter for a new line
+            NOMOS can make mistakes. Verify important findings against the evidence.
           </p>
         </div>
       </div>
