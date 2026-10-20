@@ -1,7 +1,8 @@
 import pytest
 
 from app.schemas.findings import EvidenceClaim, Finding
-from app.services import intake
+from app.schemas.kg import RuleResponse
+from app.services import intake, rules
 from app.services.agents import (
     anomaly,
     compliance,
@@ -187,3 +188,33 @@ def test_materiality_is_validated_and_kept_on_append(kg, store):
     again = orchestrator.append_evidence("M1", [doc("I", "invoice", {"amount": 5})], kg, store=store)
     assert store.latest("M1")["case"]["materiality"] == 1000.0
     assert next(f for f in again.findings if f.rule_id == "CHK-001").severity == "low"
+
+
+@pytest.mark.parametrize("approvals,expect", [
+    (2, None),           # both approvals signed: POL-07 is met
+    (1, "high"),         # Director row blank: a real violation
+    (None, "medium"),    # stamp not read: ask the auditor to confirm
+])
+def test_policy_limit_checks_signed_approvals(kg, approvals, expect):
+    fields = {"amount": 636256.0, **({"approvals": approvals} if approvals is not None else {})}
+    f, _ = compliance.run(case(doc("I", "invoice", fields, confidences={"amount": 0.9, "approvals": 0.7})), kg)
+    pol = [x for x in f if x.rule_id == "POL-07"]
+    if expect is None:
+        assert pol == []
+        return
+    assert pol[0].severity == expect
+    if expect == "high":
+        assert "only 1 of 2 required approvals" in pol[0].message
+        assert pol[0].confidence == 0.7  # min of amount and approvals
+        assert {c.field for c in pol[0].claims} == {"amount", "approvals"}
+
+
+@pytest.mark.parametrize("text,need", [
+    ("Purchases above Rs. 100,000 need dual approval.", 2),
+    ("Payments over the limit require two approvals.", 2),
+    ("Needs a single manager approval.", 1),
+    ("Purchases above the limit are reviewed.", None),
+])
+def test_required_approvals_read_from_rule_text(text, need):
+    assert rules.required_approvals(RuleResponse(rule_id="POL-07", text=text, limit=1.0)) == need
+    assert rules.required_approvals(RuleResponse(rule_id="POL-07", text=text, required_approvals=3)) == 3

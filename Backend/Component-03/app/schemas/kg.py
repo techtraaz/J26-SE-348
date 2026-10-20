@@ -13,6 +13,7 @@ class RuleResponse(BaseModel):
     rule_id: str
     text: str = ""
     limit: float | None = None
+    required_approvals: int | None = None  # not sent by C2 yet; read from the text until then
 
 
 class RuleVariable(BaseModel):
