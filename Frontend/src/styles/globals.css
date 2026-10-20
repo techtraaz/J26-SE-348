@@ -184,3 +184,43 @@ code, .id { font-family: 'JetBrains Mono Variable', monospace; }
 .thin-scroll::-webkit-scrollbar-thumb:hover {
   background: var(--text-soft);
 }
+
+/* ── Sidebar chat options ("...") ── */
+.side-more {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease, background 0.15s ease;
+}
+.side-item:hover .side-more,
+.side-item-active .side-more,
+.side-item-menu .side-more,
+.side-more:focus-visible {
+  opacity: 1;
+}
+.side-more:hover,
+.side-item-menu .side-more {
+  background: var(--sidebar-active);
+  color: var(--text-h);
+}
+.side-item:hover .side-time,
+.side-item-active .side-time,
+.side-item-menu .side-time {
+  opacity: 0;
+}
+.menu-item:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--danger) 10%, transparent) !important;
+}
+

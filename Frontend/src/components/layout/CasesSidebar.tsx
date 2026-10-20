@@ -1,7 +1,7 @@
-import { useEffect, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { PanelLeft, Plus, UserRound } from "lucide-react";
-import { c3 } from "@/lib/apiClient";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Ellipsis, PanelLeft, Plus, Trash2, UserRound } from "lucide-react";
+import { c3, chat } from "@/lib/apiClient";
 import { useUI } from "@/store/ui";
 import { IconButton } from "@/components/ui/IconButton";
 import type { CaseSummary } from "@/types/audit";
@@ -26,7 +26,7 @@ function caseMeta(c: CaseSummary): string {
 }
 
 export function CasesSidebar() {
-  const { selectedCase, setCase, newCase, draftCases, sidebarOpen: open, toggleSidebar } = useUI();
+  const { selectedCase, setCase, newCase, draftCases, generalSessionId, sidebarOpen: open, toggleSidebar } = useUI();
   const cases = useQuery({ queryKey: ["c3-cases"], queryFn: c3.cases, retry: false });
 
   const sidebar = useMemo((): SidebarCase[] => {
@@ -95,7 +95,7 @@ export function CasesSidebar() {
       {/* ── Cases ── */}
       {open ? (
         <div className="thin-scroll" style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "4px 12px 12px" }}>
-          <SessionButton active={selectedCase === null} onClick={() => setCase(null)}
+          <SessionButton active={selectedCase === null} onClick={() => setCase(null)} sessionId={generalSessionId}
                          title="General questions" meta="rules, standards, what-ifs" />
           <div style={{ fontSize: "12px", color: "var(--text-soft)", padding: "16px 10px 6px", fontWeight: 500 }}>
             Cases
@@ -107,6 +107,7 @@ export function CasesSidebar() {
           )}
           {sidebar.map((c) => (
             <SessionButton key={c.case_id} active={selectedCase === c.case_id} onClick={() => setCase(c.case_id)}
+                           sessionId={c.case_id}
                            title={c.case_id} meta={c.summary ? caseMeta(c.summary) : "new · not audited"}
                            right={c.summary ? timeAgo(c.summary.created_at) : ""} />
           ))}
@@ -148,19 +149,83 @@ function rowStyle(active: boolean): React.CSSProperties {
   };
 }
 
-function SessionButton({ active, onClick, title, meta, right }: {
-  active: boolean; onClick: () => void; title: string; meta: string; right?: string;
+function SessionButton({ active, onClick, sessionId, title, meta, right }: {
+  active: boolean; onClick: () => void; sessionId: string; title: string; meta: string; right?: string;
 }) {
+  const [menu, setMenu] = useState(false);
   return (
-    <button type="button" className={active ? "side-row side-row-active" : "side-row"} onClick={onClick}
-            style={rowStyle(active)}>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: "13px", color: "var(--text-h)", fontWeight: active ? 500 : 400, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          {title}
+    <div className={`side-item${menu ? " side-item-menu" : ""}${active ? " side-item-active" : ""}`}
+         style={{ position: "relative" }}>
+      <button type="button" className={active ? "side-row side-row-active" : "side-row"} onClick={onClick}
+              style={{ ...rowStyle(active), paddingRight: "36px" }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: "13px", color: "var(--text-h)", fontWeight: active ? 500 : 400, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {title}
+          </div>
+          <div style={{ fontSize: "11px", color: "var(--text-soft)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{meta}</div>
         </div>
-        <div style={{ fontSize: "11px", color: "var(--text-soft)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{meta}</div>
-      </div>
-      {right && <span style={{ fontSize: "11px", color: "var(--text-soft)", flexShrink: 0 }}>{right}</span>}
-    </button>
+        {right && <span className="side-time" style={{ fontSize: "11px", color: "var(--text-soft)", flexShrink: 0 }}>{right}</span>}
+      </button>
+      <button type="button" className="side-more" aria-label={`Options for ${title}`} aria-haspopup="menu"
+              aria-expanded={menu} onClick={() => setMenu(!menu)}>
+        <Ellipsis size={16} strokeWidth={1.8} />
+      </button>
+      {menu && <ChatMenu sessionId={sessionId} title={title} onClose={() => setMenu(false)} />}
+    </div>
+  );
+}
+
+/** The "..." menu of one chat. Clearing asks once more, since it cannot be undone. */
+function ChatMenu({ sessionId, title, onClose }: { sessionId: string; title: string; onClose: () => void }) {
+  const qc = useQueryClient();
+  const ref = useRef<HTMLDivElement>(null);
+  const [confirm, setConfirm] = useState(false);
+  const [working, setWorking] = useState(false);
+
+  useEffect(() => {
+    const onDown = (e: MouseEvent) => {
+      if (!ref.current?.parentElement?.contains(e.target as Node)) onClose();
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [onClose]);
+
+  async function clear() {
+    setWorking(true);
+    try {
+      await chat.clear(sessionId);
+    } catch {
+      // nothing saved yet for this chat
+    }
+    await qc.invalidateQueries({ queryKey: ["chat", sessionId] });
+    setWorking(false);
+    onClose();
+  }
+
+  return (
+    <div ref={ref} role="menu" aria-label={`Options for ${title}`} style={{
+      position: "absolute", top: "calc(100% - 4px)", right: "6px", zIndex: 30, minWidth: "190px",
+      padding: "4px", borderRadius: "10px", background: "var(--surface)",
+      border: "1px solid var(--border-strong)", boxShadow: "var(--shadow-md)",
+    }}>
+      <button type="button" role="menuitem" className="menu-item" disabled={working}
+              onClick={() => (confirm ? void clear() : setConfirm(true))}
+              style={{
+                display: "flex", alignItems: "center", gap: "8px", width: "100%", padding: "7px 10px",
+                border: "none", borderRadius: "7px", background: "transparent", cursor: "pointer",
+                fontFamily: "inherit", fontSize: "13px", textAlign: "left", color: "var(--danger)",
+              }}>
+        <Trash2 size={15} strokeWidth={1.7} />
+        {working ? "Clearing…" : confirm ? "Click again to clear" : "Clear chat"}
+      </button>
+      <p style={{ fontSize: "11px", color: "var(--text-soft)", padding: "2px 10px 6px", lineHeight: 1.4 }}>
+        Deletes this chat's messages. Saved audits are kept.
+      </p>
+    </div>
   );
 }

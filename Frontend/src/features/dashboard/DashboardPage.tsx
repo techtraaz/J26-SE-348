@@ -4,7 +4,7 @@ import { c3, chat } from "@/lib/apiClient";
 import { VerifiedDocumentPicker } from "@/features/documents/VerifiedDocumentPicker";
 import { useUI } from "@/store/ui";
 import { FindingCard } from "@/components/audit/FindingCard";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus } from "lucide-react";
 import { IconButton } from "@/components/ui/IconButton";
 import type { ChatMessage, Finding } from "@/types/audit";
 
@@ -84,16 +84,6 @@ export function DashboardPage() {
     setBusy(false);
   }
 
-  async function clearChat() {
-    try {
-      await chat.clear(sessionId);
-    } catch {
-      // nothing saved yet for this chat
-    }
-    setLocal((s) => ({ ...s, [sessionId]: [] }));
-    await qc.invalidateQueries({ queryKey: ["chat", sessionId] });
-  }
-
   const empty = saved.length === 0 && pending.length === 0;
   const last = saved[saved.length - 1];
 
@@ -101,26 +91,6 @@ export function DashboardPage() {
     <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
       {/* ── Conversation ── */}
       <div style={{ flex: 1, display: "flex", flexDirection: "column", position: "relative", minWidth: 0 }}>
-        {/* ── Conversation header: which chat this is, and its actions ── */}
-        <div style={{
-          display: "flex", alignItems: "center", gap: "12px", padding: "10px 16px 10px 24px", minHeight: "52px",
-          borderBottom: "1px solid var(--border-light)", flexShrink: 0,
-        }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: "14px", fontWeight: 500, color: "var(--text-h)", overflow: "hidden",
-                          textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              {selectedCase ?? "General questions"}
-            </div>
-            <div style={{ fontSize: "11.5px", color: "var(--text-soft)" }}>
-              {selectedCase ? "Case chat · audits and follow-up questions" : "Rules, standards and what-if checks"}
-            </div>
-          </div>
-          {!empty && (
-            <IconButton tip="Clear chat (audits are kept)" tipSide="bottom-end" onClick={() => { if (!busy) void clearChat(); }}>
-              <Trash2 size={16} strokeWidth={1.6} />
-            </IconButton>
-          )}
-        </div>
         <div className="thin-scroll" style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column" }}>
           {empty ? (
             <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "48px 24px" }}>

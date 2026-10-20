@@ -6,6 +6,8 @@ import { XaiPanel } from "@/components/ui/XaiPanel";
 import { CasesSidebar } from "@/components/layout/CasesSidebar";
 
 const TOP_BAR_HEIGHT = 60; // CasesSidebar's brand row has the same height
+const SIDEBAR_OPEN = 260; // CasesSidebar widths
+const SIDEBAR_CLOSED = 56;
 
 const tabs = [
   { to: routes.documents, label: "Library" },
@@ -13,8 +15,11 @@ const tabs = [
 ];
 
 export function AppShell() {
-  const { theme, xaiPanelOpen, toggleXaiPanel } = useUI();
+  const { theme, xaiPanelOpen, toggleXaiPanel, sidebarOpen } = useUI();
   const onChat = useMatch(routes.dashboard) !== null;
+  // The top bar sits beside the sidebar on Chat; shift the tabs back by half its
+  // width so Library and Chat stay at the same place on every page.
+  const tabShift = onChat ? (sidebarOpen ? SIDEBAR_OPEN : SIDEBAR_CLOSED) / 2 : 0;
   return (
     // The shell fills the viewport and only <main> scrolls, so the header stays put on every page.
     // On Chat the Cases sidebar runs the full height on the left; the top bar spans the rest.
@@ -33,7 +38,8 @@ export function AppShell() {
         borderBottom: "1px solid var(--border-light)",
       }}>
         {/* Center Tabs */}
-        <nav style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+        <nav style={{ display: "flex", alignItems: "center", gap: "4px",
+                      transform: `translateX(-${tabShift}px)`, transition: "transform 0.2s ease" }}>
           {tabs.map((t) => (
             <NavLink
               key={t.to}
@@ -56,8 +62,8 @@ export function AppShell() {
           ))}
         </nav>
 
-        {/* Right-side action: the Explainability panel */}
-        <div style={{
+        {/* Right-side action: the Explainability panel (Chat only) */}
+        {onChat && <div style={{
           position: "absolute",
           right: "24px",
           top: "50%",
@@ -91,7 +97,7 @@ export function AppShell() {
             <Sparkles size={16} strokeWidth={1.6} />
             Explain
           </button>
-        </div>
+        </div>}
       </header>
 
       {/* ── Page + Explainability panel, side by side below the header ── */}
@@ -107,7 +113,7 @@ export function AppShell() {
           <Outlet />
         </main>
 
-        <XaiPanel />
+        {onChat && <XaiPanel />}
       </div>
       </div>
     </div>
