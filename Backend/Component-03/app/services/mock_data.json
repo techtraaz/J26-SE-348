@@ -319,6 +319,13 @@
           "section": "CF:4.4",
           "paragraph": "4.4"
         }
+      ],
+      "assertions": [
+        "Accuracy",
+        "Completeness"
+      ],
+      "risks": [
+        "Material misstatement due to error"
       ]
     },
     "CHK-004": {
@@ -328,6 +335,13 @@
           "standard": "SLAuS 520",
           "title": "Analytical Procedures"
         }
+      ],
+      "assertions": [
+        "Accuracy, valuation and allocation"
+      ],
+      "risks": [
+        "Material misstatement due to error",
+        "Going concern uncertainty"
       ]
     },
     "CHK-005": {
@@ -337,6 +351,14 @@
           "standard": "SLAuS 240",
           "title": "The Auditor's Responsibilities Relating to Fraud in an Audit of Financial Statements"
         }
+      ],
+      "assertions": [
+        "Occurrence",
+        "Existence"
+      ],
+      "risks": [
+        "Material misstatement due to fraud",
+        "Management override of controls"
       ]
     },
     "CHK-006": {
@@ -346,7 +368,11 @@
           "standard": "SLAuS 500",
           "title": "Audit Evidence"
         }
-      ]
+      ],
+      "assertions": [
+        "Completeness"
+      ],
+      "risks": []
     },
     "CHK-007": {
       "explanation": "CHK-007 checks total_assets == total_current_assets + total_non_current_assets. Source: LKAS 1 para 60.",
@@ -356,7 +382,11 @@
           "section": "LKAS 1:60",
           "paragraph": "60"
         }
-      ]
+      ],
+      "assertions": [
+        "Classification"
+      ],
+      "risks": []
     },
     "CHK-008": {
       "explanation": "CHK-008 Gross profit checks gross_profit == revenue - cost_of_sales. Source: LKAS 1 para 103.",
@@ -366,7 +396,11 @@
           "section": "LKAS 1:103",
           "paragraph": "103"
         }
-      ]
+      ],
+      "assertions": [
+        "Accuracy"
+      ],
+      "risks": []
     },
     "CHK-009": {
       "explanation": "CHK-009 checks closing cash ties to the statement of financial position. Source: LKAS 7 para 45.",
@@ -376,6 +410,13 @@
           "section": "LKAS 7:45",
           "paragraph": "45"
         }
+      ],
+      "assertions": [
+        "Existence",
+        "Presentation"
+      ],
+      "risks": [
+        "Material misstatement due to error"
       ]
     },
     "CHK-010": {
@@ -386,6 +427,12 @@
           "section": "LKAS 1:106",
           "paragraph": "106"
         }
+      ],
+      "assertions": [
+        "Presentation"
+      ],
+      "risks": [
+        "Material misstatement due to error"
       ]
     },
     "CHK-011": {
@@ -396,11 +443,42 @@
           "section": "LKAS 2:9",
           "paragraph": "9"
         }
+      ],
+      "assertions": [
+        "Accuracy, valuation and allocation"
+      ],
+      "risks": [
+        "Material misstatement due to error"
       ]
     },
     "POL-07": {
       "explanation": "POL-07 Purchases above Rs. 100,000 need dual approval.",
-      "citations": []
+      "citations": [],
+      "assertions": [],
+      "risks": []
+    },
+    "CHK-002": {
+      "explanation": "CHK-002 Debit equals credit checks debit_total == credit_total.",
+      "citations": [],
+      "assertions": [
+        "Accuracy",
+        "Classification"
+      ],
+      "risks": [
+        "Material misstatement due to error"
+      ]
+    },
+    "CHK-003": {
+      "explanation": "CHK-003 Child amount matches parent checks child.amount == parent.amount.",
+      "citations": [],
+      "assertions": [
+        "Accuracy",
+        "Occurrence"
+      ],
+      "risks": [
+        "Material misstatement due to error",
+        "Material misstatement due to fraud"
+      ]
     }
   },
   "search": [
@@ -511,5 +589,187 @@
     "trade_payables": "trade_payables",
     "trade_receivables": "trade_receivables",
     "turnover": "revenue"
+  },
+  "standards": {
+    "CF": {
+      "standard": {
+        "code": "CF",
+        "title": "Conceptual Framework for Financial Reporting",
+        "status": "active"
+      },
+      "superseded_by": []
+    },
+    "LKAS 1": {
+      "standard": {
+        "code": "LKAS 1",
+        "title": "Presentation of Financial Statements",
+        "status": "active"
+      },
+      "superseded_by": []
+    },
+    "LKAS 2": {
+      "standard": {
+        "code": "LKAS 2",
+        "title": "Inventories",
+        "status": "active"
+      },
+      "superseded_by": []
+    },
+    "LKAS 7": {
+      "standard": {
+        "code": "LKAS 7",
+        "title": "Statement of Cash Flows",
+        "status": "active"
+      },
+      "superseded_by": []
+    },
+    "LKAS 18": {
+      "standard": {
+        "code": "LKAS 18",
+        "title": "Revenue",
+        "status": "superseded"
+      },
+      "superseded_by": [
+        "SLFRS 15"
+      ]
+    },
+    "SLFRS 15": {
+      "standard": {
+        "code": "SLFRS 15",
+        "title": "Revenue from Contracts with Customers",
+        "status": "active"
+      },
+      "superseded_by": []
+    },
+    "SLAuS 240": {
+      "standard": {
+        "code": "SLAuS 240",
+        "title": "The Auditor's Responsibilities Relating to Fraud in an Audit of Financial Statements",
+        "status": "active"
+      },
+      "superseded_by": []
+    },
+    "SLAuS 500": {
+      "standard": {
+        "code": "SLAuS 500",
+        "title": "Audit Evidence",
+        "status": "active"
+      },
+      "superseded_by": []
+    },
+    "SLAuS 520": {
+      "standard": {
+        "code": "SLAuS 520",
+        "title": "Analytical Procedures",
+        "status": "active"
+      },
+      "superseded_by": []
+    }
+  },
+  "sections": {
+    "LKAS 2:9": {
+      "section": {
+        "id": "LKAS 2:9",
+        "number": "9",
+        "heading": "Measurement of inventories",
+        "text": "9 Inventories shall be measured at the lower of cost and net realisable value."
+      },
+      "standard": {
+        "code": "LKAS 2",
+        "title": "Inventories",
+        "status": "active"
+      },
+      "requirements": [
+        {
+          "id": "LKAS 2:9#R1",
+          "obligation": "shall",
+          "text": "Inventories shall be measured at the lower of cost and net realisable value."
+        }
+      ]
+    },
+    "CF:4.4": {
+      "section": {
+        "id": "CF:4.4",
+        "number": "4.4",
+        "heading": "Elements of financial position",
+        "text": "4.4 The elements directly related to the measurement of financial position are assets, liabilities and equity."
+      },
+      "standard": {
+        "code": "CF",
+        "title": "Conceptual Framework for Financial Reporting",
+        "status": "active"
+      },
+      "requirements": []
+    }
+  },
+  "definitions": {
+    "net realisable value": [
+      {
+        "id": "DEF:nrv",
+        "term": "Net realisable value",
+        "text": "Estimated selling price less estimated costs of completion and costs to sell",
+        "defined_in": [
+          "LKAS 2:6"
+        ]
+      }
+    ],
+    "cash": [
+      {
+        "id": "DEF:cash",
+        "term": "Cash",
+        "text": "Cash on hand and demand deposits",
+        "defined_in": [
+          "LKAS 7:6"
+        ]
+      }
+    ]
+  },
+  "line_items": {
+    "total_equity": {
+      "line_item": {
+        "code": "total_equity",
+        "name": "Total equity",
+        "aliases": [
+          "capital",
+          "equity"
+        ]
+      },
+      "presented_in": [
+        {
+          "statement": "SFP",
+          "name": "Statement of financial position"
+        }
+      ],
+      "equations": [
+        {
+          "code": "EQ-001",
+          "name": "Accounting equation",
+          "expression": "total_assets == total_liabilities + total_equity"
+        }
+      ]
+    },
+    "inventories": {
+      "line_item": {
+        "code": "inventories",
+        "name": "Inventories",
+        "aliases": [
+          "inventory",
+          "closing_inventory"
+        ]
+      },
+      "presented_in": [
+        {
+          "statement": "SFP",
+          "name": "Statement of financial position"
+        }
+      ],
+      "equations": [
+        {
+          "code": "EQ-017",
+          "name": "Inventory at lower of cost and NRV",
+          "expression": "inventories == min(inventory_cost, inventory_nrv)"
+        }
+      ]
+    }
   }
 }

@@ -1,3 +1,5 @@
+import pytest
+
 from app.schemas.findings import EvidenceClaim, Finding
 from app.services import intake
 from app.services.agents import (
@@ -139,3 +141,49 @@ def test_validation_statuses_and_failures_are_kept():
     assert {r.finding.finding_id for r in rejected} == {"wrong", "ghost"}
     assert all(f.citation_unverified for f in kept if f.evidence_validation == "failed")
     assert bad == ["I", "NOPE"]
+
+
+# --- materiality --------------------------------------------------------------------
+
+def test_amount_difference_only_for_plain_amount_comparisons():
+    from app.services.expression import amount_difference
+    assert amount_difference("assets == liabilities + capital",
+                             {"assets": 100, "liabilities": 60, "capital": 35}) == 5
+    assert amount_difference("inventories <= inventory_nrv", {"inventories": 120, "inventory_nrv": 100}) == 20
+    assert amount_difference("abs(a - prior.a) / abs(prior.a) <= 0.30", {"a": 2, "prior.a": 1}) is None
+    assert amount_difference("not (c > 0 and b == 'credit')", {"c": 1, "b": "credit"}) is None
+
+
+def test_below_materiality_is_kept_at_low_severity(kg):
+    small = case(doc("BS", "balance_sheet", {"assets": 100005, "liabilities": 60000, "capital": 40000}))
+    small.materiality = 1000
+    f, trace = compliance.run(small, kg)
+    chk = next(x for x in f if x.rule_id == "CHK-001")
+    assert chk.severity == "low" and "below the case materiality 1,000.00" in chk.message
+    assert "C2 rates this rule high" in chk.message
+    assert any(t.decision_type == "materiality" and "1 finding(s) below" in t.detail for t in trace)
+    big = case(doc("BS", "balance_sheet", {"assets": 105000, "liabilities": 60000, "capital": 40000}))
+    big.materiality = 1000
+    assert next(x for x in compliance.run(big, kg)[0] if x.rule_id == "CHK-001").severity == "high"
+
+
+def test_materiality_never_softens_fraud_ratios_or_policy(kg):
+    c = case(doc("INV", "invoice", {"amount": 150000, "cash_out": 10, "purchase_basis": "credit", "asset_in": 0}),
+             doc("B25", "balance_sheet", {"assets": 100}, year=2025), doc("B26", "balance_sheet", {"assets": 200}))
+    c.materiality = 1_000_000
+    found = anomaly.run(c, kg)[0] + compliance.run(c, kg)[0]
+    sev = {x.rule_id: x.severity for x in found}
+    assert sev["CHK-005"] == "high" and sev["CHK-004"] == "medium" and sev["POL-07"] == "medium"
+
+
+def test_materiality_is_validated_and_kept_on_append(kg, store):
+    from app.services import orchestrator
+    with pytest.raises(intake.IntakeError):
+        intake.normalize_case({"case_id": "C", "docs": [], "materiality": -5})
+    first = intake.normalize_case({"case_id": "M1", "materiality": "Rs. 1,000", "docs": [
+        doc("BS", "balance_sheet", {"assets": 100005, "liabilities": 60000, "capital": 40000})]})
+    assert first.materiality == 1000.0
+    orchestrator.run_case(first, kg, store=store)
+    again = orchestrator.append_evidence("M1", [doc("I", "invoice", {"amount": 5})], kg, store=store)
+    assert store.latest("M1")["case"]["materiality"] == 1000.0
+    assert next(f for f in again.findings if f.rule_id == "CHK-001").severity == "low"

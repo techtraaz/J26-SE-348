@@ -16,22 +16,36 @@ export function CasePanel() {
   const cases = useQuery({ queryKey: ["c3-cases"], queryFn: c3.cases, retry: false });
   const [notice, setNotice] = useState<{ text: string; error?: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [typedMateriality, setTypedMateriality] = useState<Record<string, string>>({});
   // The same picker as the case's chat: both read and write the case's staged documents.
   const [pickingFor, setPickingFor] = useState<string | null>(null);
 
   const audited = new Set((cases.data ?? []).map((c) => c.case_id));
   const caseOptions = [...draftCases.filter((id) => !audited.has(id)), ...audited];
   const docs = selectedCase ? staged[selectedCase] ?? [] : [];
+  const savedMateriality = cases.data?.find((c) => c.case_id === selectedCase)?.materiality ?? null;
+  // What the auditor typed for this case, else the case's saved materiality.
+  const materiality = (selectedCase && typedMateriality[selectedCase])
+    ?? (savedMateriality != null ? String(savedMateriality) : "");
+  const setMateriality = (value: string) =>
+    selectedCase && setTypedMateriality((m) => ({ ...m, [selectedCase]: value }));
 
   async function audit() {
     if (!selectedCase || !docs.length) return;
+    const typed = materiality.replace(/[,\s]/g, "").replace(/^(rs|lkr)\.?/i, "");
+    const amount = typed ? Number(typed) : undefined;
+    if (amount !== undefined && !(amount >= 0)) {
+      setNotice({ text: "Materiality must be an amount, e.g. 50000, or left empty.", error: true });
+      return;
+    }
     setBusy(true);
     setNotice(null);
     try {
       // The case's chat id is its case id; C3 writes the result into that chat.
       const result = audited.has(selectedCase)
-        ? await c3.appendEvidence(selectedCase, docs, selectedCase)
-        : await c3.run({ case_id: selectedCase, docs }, selectedCase);
+        ? await c3.appendEvidence(selectedCase, docs, selectedCase, amount)
+        : await c3.run({ case_id: selectedCase, docs, ...(amount !== undefined ? { materiality: amount } : {}) },
+                       selectedCase);
       clearStaged(selectedCase);
       await Promise.all([qc.invalidateQueries({ queryKey: ["c3-cases"] }),
                          qc.invalidateQueries({ queryKey: ["chat", selectedCase] })]);
@@ -57,6 +71,21 @@ export function CasePanel() {
         </select>
         <button onClick={() => newCase()} style={pillButton}>New case</button>
       </div>
+
+      {selectedCase && (
+        <label style={{ display: "flex", gap: "8px", alignItems: "center", marginBottom: "20px", fontSize: "13px",
+                        color: "var(--text-muted)" }}>
+          Materiality (Rs)
+          <input aria-label="Materiality" value={materiality} inputMode="decimal" placeholder="optional, e.g. 50,000"
+                 onChange={(e) => setMateriality(e.target.value)}
+                 style={{ ...selectStyle, flex: 1, minWidth: 0 }} />
+        </label>
+      )}
+      {selectedCase && materiality.trim() !== "" && (
+        <p style={{ fontSize: "12px", color: "var(--text-soft)", margin: "-12px 0 20px" }}>
+          Differences below this stay as findings, at low severity. Fraud patterns are never softened.
+        </p>
+      )}
 
       {notice && (
         <p style={{

@@ -22,7 +22,15 @@ from collections.abc import Callable
 from pathlib import Path
 
 from app import config
-from app.schemas.kg import CheckRuleResponse, RuleExplanation, RuleResponse
+from app.schemas.kg import (
+    CheckRuleResponse,
+    DefinitionInfo,
+    LineItemInfo,
+    RuleExplanation,
+    RuleResponse,
+    SectionInfo,
+    StandardInfo,
+)
 
 
 class KGError(Exception):
@@ -43,8 +51,11 @@ class KGDataError(KGError):
 
 _MOCK_PATH = Path(__file__).with_name("mock_data.json")
 _ID_RE = re.compile(r"^[A-Za-z0-9 _\-.]{1,64}$")
+_SECTION_RE = re.compile(r"^[A-Za-z0-9 _\-.:#]{1,64}$")  # "LKAS 2:9", "CF:4.4"
+_TERM_RE = re.compile(r"^[A-Za-z][A-Za-z0-9 '\-]{0,79}$")  # a defined term, e.g. "net realisable value"
 
 Transport = Callable[[str, dict], object]
+_SEARCH_MODES = ("keyword", "semantic", "hybrid")  # what C2's /query/search accepts
 
 
 def validate_doc_type(doc_type: str) -> str:
@@ -83,6 +94,55 @@ def _field_map(raw: object) -> dict[str, str]:
                                             for k, v in raw.items()):
         raise KGProtocolError("Field map must be an object of name -> line-item code.")
     return dict(raw)
+
+
+def _parsed(what: str, build: Callable[[], object]):
+    """Turn C2's nested reply into C3's flat model; a wrong shape is a protocol error."""
+    try:
+        return build()
+    except (KeyError, TypeError, AttributeError, ValueError) as exc:
+        raise KGProtocolError(f"Bad {what} reply: {exc}") from exc
+
+
+def _standard(raw: object) -> StandardInfo | None:
+    if raw is None:
+        return None
+    return _parsed("standard", lambda: StandardInfo(
+        **{k: raw["standard"][k] for k in ("code", "title", "status") if raw["standard"].get(k) is not None},
+        superseded_by=list(raw.get("superseded_by") or [])))
+
+
+def _section(raw: object) -> SectionInfo | None:
+    if raw is None:
+        return None
+
+    def build():
+        sec, std = raw["section"], raw.get("standard") or {}
+        return SectionInfo(id=sec["id"], number=str(sec.get("number") or ""), heading=sec.get("heading") or "",
+                           text=sec.get("text") or "", standard=std.get("code") or "",
+                           standard_title=std.get("title") or "", standard_status=std.get("status") or "active",
+                           requirements=[r["text"] for r in raw.get("requirements") or [] if r.get("text")])
+    return _parsed("section", build)
+
+
+def _definitions(raw: object) -> list[DefinitionInfo]:
+    if raw is None:
+        return []
+    return _parsed("definitions", lambda: [
+        DefinitionInfo(term=d["term"], text=d["text"], defined_in=list(d.get("defined_in") or []))
+        for d in raw])
+
+
+def _line_item(raw: object) -> LineItemInfo | None:
+    if raw is None:
+        return None
+
+    def build():
+        li = raw["line_item"]
+        return LineItemInfo(code=li["code"], name=li.get("name") or "", aliases=list(li.get("aliases") or []),
+                            statements=[p.get("name") or p.get("statement") for p in raw.get("presented_in") or []],
+                            equations=[f"{e['code']}: {e['expression']}" for e in raw.get("equations") or []])
+    return _parsed("line item", build)
 
 
 def _explanation(raw: object) -> RuleExplanation | None:
@@ -136,8 +196,30 @@ class KGClient:
         """Every name a document field may use (line-item code or alias) -> line-item code."""
         return self._cached(("fields",), self._fetch_field_map)
 
+    def get_standard(self, code: str) -> StandardInfo | None:
+        """A standard's status, e.g. LKAS 18 superseded by SLFRS 15."""
+        validate_id(code, "standard code")
+        return self._cached(("standard", code), lambda: self._fetch_standard(code))
+
+    def get_section(self, section_id: str) -> SectionInfo | None:
+        """One paragraph of a standard, e.g. 'LKAS 2:9'."""
+        if not isinstance(section_id, str) or _SECTION_RE.fullmatch(section_id) is None:
+            raise ValueError(f"Rejected section id {section_id!r}")
+        return self._cached(("section", section_id), lambda: self._fetch_section(section_id))
+
+    def get_definitions(self, term: str) -> list[DefinitionInfo]:
+        term = " ".join(str(term).split()).lower()
+        if _TERM_RE.fullmatch(term) is None:
+            raise ValueError(f"Rejected term {term!r}")
+        return self._cached(("definitions", term), lambda: self._fetch_definitions(term))
+
+    def get_line_item(self, code: str) -> LineItemInfo | None:
+        """A line item by its code or any alias, e.g. 'capital'."""
+        validate_id(code, "line item")
+        return self._cached(("line_item", code), lambda: self._fetch_line_item(code))
+
     def search(self, text: str, limit: int = 5) -> list[dict]:
-        """Keyword search over the standards. Text goes as a query parameter only."""
+        """Search over the standards. Text goes as a query parameter only."""
         text = (text or "").strip()[:200]
         if len(text) < 2:
             return []
@@ -149,6 +231,10 @@ class KGClient:
     def _fetch_explain(self, rule_id): raise NotImplementedError
     def _fetch_search(self, text, limit): raise NotImplementedError
     def _fetch_field_map(self): raise NotImplementedError
+    def _fetch_standard(self, code): raise NotImplementedError
+    def _fetch_section(self, section_id): raise NotImplementedError
+    def _fetch_definitions(self, term): raise NotImplementedError
+    def _fetch_line_item(self, code): raise NotImplementedError
 
 
 class MockKGClient(KGClient):
@@ -189,6 +275,19 @@ class MockKGClient(KGClient):
 
     def _fetch_field_map(self):
         return _field_map(self._load().get("fields", {}))
+
+    def _fetch_standard(self, code):
+        return _standard(self._load().get("standards", {}).get(code))
+
+    def _fetch_section(self, section_id):
+        return _section(self._load().get("sections", {}).get(section_id))
+
+    def _fetch_definitions(self, term):
+        return _definitions(self._load().get("definitions", {}).get(term))
+
+    def _fetch_line_item(self, code):
+        code = self._load().get("fields", {}).get(code, code)
+        return _line_item(self._load().get("line_items", {}).get(code))
 
     def _fetch_search(self, text, limit):
         words = [w for w in re.findall(r"[a-z0-9]+", text.lower()) if len(w) > 2]
@@ -251,8 +350,21 @@ class LiveKGClient(KGClient):
     def _fetch_field_map(self):
         return _field_map(self._get("/query/fields", {}) or {})
 
+    def _fetch_standard(self, code):
+        return _standard(self._get(f"/query/standards/{self._seg(code)}", {}))
+
+    def _fetch_section(self, section_id):
+        return _section(self._get(f"/query/sections/{self._seg(section_id)}", {}))
+
+    def _fetch_definitions(self, term):
+        return _definitions(self._get(f"/query/definitions/{self._seg(term)}", {}))
+
+    def _fetch_line_item(self, code):
+        return _line_item(self._get(f"/query/line-items/{self._seg(code)}", {}))
+
     def _fetch_search(self, text, limit):
-        raw = self._get("/query/search", {"q": text, "mode": "keyword", "limit": limit})
+        mode = config.KG_SEARCH_MODE if config.KG_SEARCH_MODE in _SEARCH_MODES else "hybrid"
+        raw = self._get("/query/search", {"q": text, "mode": mode, "limit": limit})
         if raw is None:
             return []
         if not isinstance(raw, dict) or not isinstance(raw.get("results", []), list):
@@ -311,6 +423,18 @@ class FallbackKGClient(KGClient):
 
     def get_field_map(self):
         return self._call("get_field_map")
+
+    def get_standard(self, code):
+        return self._call("get_standard", code)
+
+    def get_section(self, section_id):
+        return self._call("get_section", section_id)
+
+    def get_definitions(self, term):
+        return self._call("get_definitions", term)
+
+    def get_line_item(self, code):
+        return self._call("get_line_item", code)
 
 
 def default_kg() -> KGClient:

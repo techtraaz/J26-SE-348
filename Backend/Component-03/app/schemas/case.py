@@ -33,3 +33,6 @@ class AuditDocument(BaseModel):
 class AuditCase(BaseModel):
     case_id: str
     docs: list[AuditDocument] = Field(default_factory=list)
+    # Amount below which a misstatement is not material (SLAuS 320), set by the
+    # auditor per case. None = every difference counts at the rule's severity.
+    materiality: float | None = None

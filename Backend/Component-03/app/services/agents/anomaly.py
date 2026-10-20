@@ -34,7 +34,7 @@ def run(case: AuditCase, kg: KGClient) -> tuple[list[Finding], list[TraceEntry]]
         return loaded[doc.doc_type]
 
     def apply(rule, doc, scopes):
-        finding, skip = rules.evaluate_rule(rule, doc, scopes)
+        finding, skip = rules.evaluate_rule(rule, doc, scopes, materiality=case.materiality)
         if finding:
             findings.append(finding)
         if skip:
@@ -71,6 +71,7 @@ def run(case: AuditCase, kg: KGClient) -> tuple[list[Finding], list[TraceEntry]]
 
     trace = [TraceEntry(agent_name="anomaly", decision_type="check",
                         detail=f"Anomaly scan found {len(findings)} issue(s).")]
+    trace += rules.materiality_trace("anomaly", case.materiality, findings)
     if skipped:
         trace.append(TraceEntry(agent_name="anomaly", decision_type="skip",
                                 detail="Not applicable (inputs missing): " + "; ".join(skipped) + "."))
