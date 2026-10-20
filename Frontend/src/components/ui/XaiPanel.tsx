@@ -8,7 +8,7 @@ import type { XaiEvent } from "@/components/ui/xai/timeline";
 const XAI_EVENT_TYPES = [
   "pipeline_start", "pipeline_end", "run_start", "run_end",
   "agent_thinking", "agent_done", "agent_error", "step",
-  "llm_thinking", "llm_done", "insight_summary", "trace",
+  "llm_thinking", "llm_done", "insight_pending", "insight_summary", "trace",
 ];
 
 /* ── Shared inline style helpers ────────────────────────────────────── */

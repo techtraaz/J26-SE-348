@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
-import { Check, ChevronDown, ChevronRight, LoaderCircle, Sparkles, X } from "lucide-react";
+import { ArrowRight, Check, ChevronDown, ChevronRight, CircleAlert, CircleCheck, CircleX, LoaderCircle,
+         Sparkles, X } from "lucide-react";
 import {
   buildRuns,
   currentActivity,
@@ -9,11 +10,13 @@ import {
   runHeadline,
   runTitle,
   stageSummary,
+  type Review,
   type Run,
   type Stage,
   type Status,
   type Step,
   type Tone,
+  type Verdict,
   type XaiEvent,
 } from "./timeline";
 
@@ -96,6 +99,7 @@ function RunBlock({ run, latest }: { run: Run; latest: boolean }) {
         {failed > 0 && (
           <span style={{ color: "var(--danger)", fontSize: 12, whiteSpace: "nowrap" }}>· {failed} failed</span>
         )}
+        {!expanded && run.review?.verdict && <VerdictChip verdict={run.review.verdict} small />}
         {expanded ? <ChevronDown size={14} style={{ flexShrink: 0 }} /> : <ChevronRight size={14} style={{ flexShrink: 0 }} />}
       </button>
 
@@ -106,22 +110,11 @@ function RunBlock({ run, latest }: { run: Run; latest: boolean }) {
         }}>
           {run.stages.length === 0 && <Row muted>Starting…</Row>}
           {run.stages.map((stage) => <StageRow key={stage.id} stage={stage} />)}
+          {run.review && <ReviewCard review={run.review} />}
           <RunFooter run={run} />
         </div>
       )}
 
-      {run.insight && (
-        <div style={{
-          marginTop: 10, padding: "12px 14px", borderRadius: "var(--radius)",
-          border: "1px solid var(--border-strong)", background: "var(--surface)",
-        }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 600,
-                        textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--text-soft)", marginBottom: 6 }}>
-            <Sparkles size={12} /> AI summary
-          </div>
-          <p style={{ fontSize: 13, lineHeight: 1.55, color: "var(--text)" }}>{run.insight}</p>
-        </div>
-      )}
     </section>
   );
 }
@@ -145,6 +138,81 @@ function RunFooter({ run }: { run: Run }) {
                       whiteSpace: "nowrap" }}>
           {run.answer}
         </div>
+      )}
+    </div>
+  );
+}
+
+/* ── Review Agent: verdict, summary, next steps ────────────────────── */
+
+const VERDICTS: Record<Verdict, { label: string; color: string; Icon: typeof CircleCheck }> = {
+  clear: { label: "All clear", color: "var(--success)", Icon: CircleCheck },
+  review: { label: "Needs confirmation", color: "var(--warning)", Icon: CircleAlert },
+  action_required: { label: "Action needed", color: "var(--danger)", Icon: CircleX },
+};
+
+function VerdictChip({ verdict, small }: { verdict: Verdict; small?: boolean }) {
+  const { label, color, Icon } = VERDICTS[verdict];
+  return (
+    <span style={{
+      display: "inline-flex", alignItems: "center", gap: 4, flexShrink: 0, whiteSpace: "nowrap",
+      fontSize: small ? 11 : 11.5, fontWeight: 600, color, padding: small ? "1px 7px" : "2px 8px",
+      borderRadius: "var(--radius-pill)", background: `color-mix(in srgb, ${color} 12%, transparent)`,
+    }}>
+      <Icon size={small ? 11 : 12} strokeWidth={2} /> {label}
+    </span>
+  );
+}
+
+function ReviewCard({ review }: { review: Review }) {
+  return (
+    <div aria-label="Review agent" style={{
+      borderTop: "1px solid var(--border-light)", padding: "12px 14px 12px",
+      background: "color-mix(in srgb, var(--surface-muted) 45%, var(--surface))",
+    }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: review.pending ? 0 : 8 }}>
+        <Sparkles size={13} color="var(--text-muted)" />
+        <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.05em", textTransform: "uppercase",
+                       color: "var(--text-soft)", flex: 1 }}>
+          Review agent
+        </span>
+        {review.verdict && <VerdictChip verdict={review.verdict} />}
+      </div>
+
+      {review.pending ? (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, fontSize: 12.5,
+                      color: "var(--text-muted)" }}>
+          <LoaderCircle size={13} className="xai-spin" /> Reading the trace and writing a summary…
+        </div>
+      ) : (
+        <>
+          {review.headline && (
+            <p style={{ fontSize: 13.5, fontWeight: 600, color: "var(--text-h)", marginBottom: 4 }}>{review.headline}</p>
+          )}
+          {review.summary && (
+            <p style={{ fontSize: 13, lineHeight: 1.55, color: "var(--text)" }}>{review.summary}</p>
+          )}
+          {review.nextSteps.length > 0 && (
+            <>
+              <p style={{ fontSize: 11.5, fontWeight: 600, color: "var(--text-muted)", margin: "10px 0 4px" }}>
+                Next steps
+              </p>
+              <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 4 }}>
+                {review.nextSteps.map((step, i) => (
+                  <li key={i} style={{ display: "flex", gap: 6, fontSize: 12.5, lineHeight: 1.45, color: "var(--text)" }}>
+                    <ArrowRight size={12} style={{ marginTop: 3, flexShrink: 0 }} color="var(--text-soft)" />
+                    <span>{step}</span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+          <p style={{ fontSize: 11, color: "var(--text-soft)", marginTop: 10 }}>
+            {review.source === "rules"
+              ? "Written from the trace with fixed wording (language model unavailable)."
+              : `Summary written by the review agent from the trace above${review.model ? ` · ${review.model}` : ""}. Verdict and next steps come from the checks.`}
+          </p>
+        </>
       )}
     </div>
   );

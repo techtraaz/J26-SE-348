@@ -36,6 +36,25 @@ export interface XaiEvent {
   doc_count?: number;
   summary?: string;
   error?: string | null;
+  // Review Agent (insight_summary)
+  verdict?: Verdict;
+  headline?: string;
+  next_steps?: string[];
+  source?: "ai" | "rules";
+  model?: string | null;
+}
+
+export type Verdict = "clear" | "review" | "action_required";
+
+/** The Review Agent's verdict on one audit run. */
+export interface Review {
+  pending: boolean;
+  verdict: Verdict | null;
+  headline: string;
+  summary: string;
+  nextSteps: string[];
+  source: "ai" | "rules" | null;
+  model: string | null;
 }
 
 export interface Step {
@@ -69,11 +88,11 @@ export interface Run {
   version: number | null;
   status: Status;
   question: string; // Copilot: what was asked
-  answer: string; // Copilot: the reply (first line)
+  answer: string; // Copilot: the reply, as one short line
   docCount: number | null;
   totalFindings: number | null;
   durationMs: number | null;
-  insight: string | null;
+  review: Review | null;
   stages: Stage[];
 }
 
@@ -92,7 +111,7 @@ function newRun(e: XaiEvent, key: string): Run {
     docCount: null,
     totalFindings: null,
     durationMs: null,
-    insight: null,
+    review: null,
     stages: [],
   };
 }
@@ -115,10 +134,12 @@ export function buildRuns(events: XaiEvent[]): Run[] {
 
   for (const e of events) {
     n += 1;
-    if (e.event_type === "insight_summary") {
-      // An AI summary of a finished audit: it belongs to that case's latest audit run.
-      const target = [...runs.values()].reverse().find((r) => r.kind === "audit" && r.caseId === e.case_id);
-      if (target) target.insight = e.summary ?? e.detail ?? null;
+    if (e.event_type === "insight_pending" || e.event_type === "insight_summary") {
+      // The Review Agent's verdict on a finished audit (older events carry no run_key:
+      // they belong to that case's latest audit run).
+      const target = (e.run_key && runs.get(e.run_key))
+        || [...runs.values()].reverse().find((r) => r.kind === "audit" && r.caseId === e.case_id);
+      if (target) target.review = toReview(e);
       continue;
     }
     const key = e.run_key ?? `${e.case_id ?? "stream"}:${e.version ?? 0}`;
@@ -173,7 +194,7 @@ export function buildRuns(events: XaiEvent[]): Run[] {
         finish(run);
         break;
       case "run_end":
-        run.answer = (e.detail ?? "").split("\n")[0];
+        run.answer = oneLine(e.detail ?? "");
         run.durationMs = e.duration_ms ?? null;
         finish(run);
         break;
@@ -182,6 +203,30 @@ export function buildRuns(events: XaiEvent[]): Run[] {
     }
   }
   return [...runs.values()];
+}
+
+function toReview(e: XaiEvent): Review {
+  const pending = e.event_type === "insight_pending";
+  return {
+    pending,
+    verdict: e.verdict ?? null,
+    headline: e.headline ?? "",
+    summary: pending ? "" : (e.summary ?? e.detail ?? ""),
+    nextSteps: e.next_steps ?? [],
+    source: e.source ?? (pending ? null : "ai"),
+    model: e.model ?? null,
+  };
+}
+
+/** A reply as one readable line: list markers and a bare "I can:" lead-in are dropped. */
+export function oneLine(text: string, max = 140): string {
+  const flat = text
+    .split("\n")
+    .map((l) => l.replace(/^\s*[-*•]\s*/, "").trim())
+    .filter(Boolean)
+    .join(" · ")
+    .replace(/^[^·]{0,24}:\s*·\s*/, "");
+  return flat.length > max ? `${flat.slice(0, max - 1).trimEnd()}…` : flat;
 }
 
 function finish(run: Run) {
@@ -208,20 +253,39 @@ interface Counts {
   checks: number;
   failed: number;
   skipped: number;
+  understood: number; // the Copilot read the request
+  recognised: number; // the Copilot recognised the case / rules named
+  asked: number; // the language model answered
   other: number;
 }
 
 export function countSteps(steps: Step[]): Counts {
-  const c: Counts = { reads: 0, lookups: 0, checks: 0, failed: 0, skipped: 0, other: 0 };
+  const c: Counts = { reads: 0, lookups: 0, checks: 0, failed: 0, skipped: 0,
+                      understood: 0, recognised: 0, asked: 0, other: 0 };
   for (const s of steps) {
     if (READ_KINDS.has(s.kind)) c.reads += 1;
     else if (LOOKUP_KINDS.has(s.kind)) c.lookups += 1;
     else if (s.check || s.kind === "rule_check") c.checks += 1;
+    else if (s.kind === "intent") c.understood += 1;
+    else if (s.kind === "entities") c.recognised += 1;
+    else if (s.kind === "llm_call" && s.status === "ok") c.asked += 1;
     else c.other += 1;
     if (isFailure(s)) c.failed += 1;
-    if (s.status === "skipped") c.skipped += 1;
+    if (s.status === "skipped" && s.kind === "rule_check") c.skipped += 1;
   }
   return c;
+}
+
+/** What the steps did, most telling first, each with how many steps it covers. */
+function phrases(c: Counts): [string, number][] {
+  const out: [string, number][] = [];
+  if (c.reads) out.push([`read ${plural(c.reads, "document")}`, c.reads]);
+  if (c.checks) out.push([`ran ${plural(c.checks, "check")}`, c.checks]);
+  if (c.understood) out.push(["understood the request", c.understood]);
+  if (c.lookups) out.push([`made ${plural(c.lookups, "Knowledge Graph lookup")}`, c.lookups]);
+  if (c.recognised) out.push(["recognised the context", c.recognised]);
+  if (c.asked) out.push(["asked the language model", c.asked]);
+  return out;
 }
 
 /** "evaluated 12 checks, 2 failed" — the text after a stage's name. */
@@ -231,7 +295,11 @@ export function stageSummary(stage: Stage): string {
   if (c.reads) parts.push(`read ${plural(c.reads, "document")}`);
   if (c.checks) parts.push(`evaluated ${plural(c.checks, "check")}`);
   if (c.lookups && !c.checks) parts.push(plural(c.lookups, "Knowledge Graph lookup"));
-  if (!parts.length && c.other) parts.push(plural(c.other, "step"));
+  if (!parts.length) {
+    const p = phrases(c);
+    if (p.length) parts.push(p[0][0]);
+    else if (c.other) parts.push(plural(c.other, "step"));
+  }
   if (c.failed) parts.push(`${c.failed} failed`);
   if (c.skipped) parts.push(`${c.skipped} skipped`);
   return parts.join(", ");
@@ -240,25 +308,14 @@ export function stageSummary(stage: Stage): string {
 /** "Read 3 documents, ran 24 checks, and 14 more steps" — a run's collapsed headline. */
 export function runHeadline(run: Run): string {
   const steps = run.stages.flatMap((s) => s.steps);
-  const c = countSteps(steps);
-  const parts: string[] = [];
-  let shown = 0;
-  if (c.reads) {
-    parts.push(`read ${plural(c.reads, "document")}`);
-    shown += c.reads;
-  }
-  if (c.checks) {
-    parts.push(`ran ${plural(c.checks, "check")}`);
-    shown += c.checks;
-  }
-  if (parts.length < 2 && c.lookups) {
-    parts.push(`made ${plural(c.lookups, "Knowledge Graph lookup")}`);
-    shown += c.lookups;
-  }
-  const rest = steps.length - shown;
+  const shownPhrases = phrases(countSteps(steps)).slice(0, 2);
+  const parts = shownPhrases.map(([text]) => text);
+  const rest = steps.length - shownPhrases.reduce((n, [, k]) => n + k, 0);
   if (rest > 0) parts.push(parts.length ? `and ${plural(rest, "more step")}` : plural(rest, "step"));
   if (!parts.length) return run.status === "running" ? "Thinking…" : "No steps recorded";
-  const text = parts.length > 2 ? `${parts.slice(0, -1).join(", ")}, ${parts.at(-1)}` : parts.join(", ").replace(", and", " and");
+  const text = parts.length > 2
+    ? `${parts.slice(0, -1).join(", ")}, ${parts.at(-1)}`
+    : parts.join(parts[1]?.startsWith("and ") ? " " : " and ");
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 

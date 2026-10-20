@@ -54,6 +54,25 @@ describe("ThinkingTimeline", () => {
     expect(stageRow.getAttribute("aria-expanded")).toBe("true");
   });
 
+  it("shows the review agent's verdict, summary and next steps inside the run", async () => {
+    renderStream(caseStream);
+    const audit = screen.getByRole("region", { name: /Audit of ACME-1/ });
+    expect(within(audit).getByText(/Action needed/)).toBeTruthy(); // verdict chip while collapsed
+    await userEvent.click(within(audit).getByRole("button", { name: /Read 3 documents/ }));
+    const review = within(audit).getByLabelText("Review agent");
+    expect(review.textContent).toContain("Action needed");
+    expect(review.textContent).toContain("balance sheet does not balance");
+    expect(review.textContent).toContain("Re-run the audit after the fixes.");
+  });
+
+  it("shows the review as in progress until it arrives", async () => {
+    const pendingOnly = caseStream.filter((e) => e.event_type !== "insight_summary");
+    renderStream(pendingOnly);
+    const audit = screen.getByRole("region", { name: /Audit of ACME-1/ });
+    await userEvent.click(within(audit).getByRole("button", { name: /Read 3 documents/ }));
+    expect(within(audit).getByLabelText("Review agent").textContent).toContain("Reading the trace");
+  });
+
   it("never uses placeholder wording", async () => {
     const { container } = renderStream(caseStream);
     for (const button of screen.getAllByRole("button")) {

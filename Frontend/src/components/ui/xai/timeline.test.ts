@@ -4,6 +4,7 @@ import fixture from "./__fixtures__/sse_events.json";
 import {
   buildRuns,
   isFoldedPass,
+  oneLine,
   runHeadline,
   runTitle,
   stageSummary,
@@ -28,7 +29,9 @@ describe("buildRuns", () => {
     expect(ids.slice(3)).toEqual(["reasoning", "evidence_validation"]);
     expect(audit.stages.every((s) => s.status === "done")).toBe(true);
     expect(audit.totalFindings).toBeGreaterThan(0);
-    expect(audit.insight).toMatch(/balance sheet does not balance/);
+    expect(audit.review).toMatchObject({ pending: false, verdict: "action_required", source: "ai" });
+    expect(audit.review!.summary).toMatch(/balance sheet does not balance/);
+    expect(audit.review!.nextSteps.at(-1)).toBe("Re-run the audit after the fixes.");
     expect(turn.question).toMatch(/why did CHK-001 fail/);
     expect(turn.stages.map((s) => s.label)).toEqual(["Understanding the request", "Preparing the answer"]);
   });
@@ -43,8 +46,19 @@ describe("buildRuns", () => {
     expect(dq.steps.filter(isFoldedPass).length).toBe(3);
   });
 
-  it("shows an audit started from a chat on that chat's stream", () => {
+  it("describes a Copilot turn instead of counting its steps", () => {
+    const turn = buildRuns(caseStream)[1];
+    expect(runHeadline(turn)).toMatch(/^Understood the request/);
+    expect(runHeadline(turn)).not.toMatch(/^\d+ steps$/);
+  });
+
+  it("writes a reply as one readable line", () => {
+    expect(oneLine("I can:\n- Check a transaction\n- Explain a rule")).toBe("Check a transaction · Explain a rule");
+  });
+
+  it("shows an audit started from a chat on that chat's stream, with its review", () => {
     const runs = buildRuns(chatStream);
+    expect(runs[1].review).toMatchObject({ source: "rules", verdict: "action_required" });
     expect(runs.map((r) => [r.kind, r.caseId])).toEqual([
       ["copilot", "GEN-20261020-AB12"], ["audit", "NEW-1"],
     ]);
