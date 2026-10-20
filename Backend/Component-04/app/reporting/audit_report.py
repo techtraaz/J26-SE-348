@@ -14,7 +14,9 @@ Page flow:
   page 1   letterhead, title, verdict and score, key details,
            1 Executive summary (with key figures and the analyst commentary)
   page 2+  2 Scope and evidence, 3 Detailed findings, 4 Recommendations,
-           auditor sign-off — tables split across pages with their headers repeated
+           auditor sign-off — tables split across pages with their headers repeated.
+           Rule results show Rule, Result and Explanation only: real calculations
+           are too long for a table (the exceptions table keeps the full finding).
 """
 
 from __future__ import annotations
@@ -61,6 +63,7 @@ SIDE = 24 * mm
 TOP = 30 * mm      # below the letterhead
 BOTTOM = 24 * mm   # above the footer
 CONTENT_W = PAGE_W - 2 * SIDE
+SIGN_OFF_HEIGHT = 95  # pt: measured height of heading, signature lines and two-line disclaimer
 
 VERDICTS = {
     "clean": ("Clean", SUCCESS),
@@ -100,7 +103,8 @@ S = {
     "th": _style("th", fontName="Helvetica-Bold", fontSize=7, leading=9, textColor=MUTED),
     "title": _style("title", fontName="Times-Bold", fontSize=20, leading=24, textColor=INK),
     "subtitle": _style("subtitle", fontSize=9.6, leading=14, textColor=MUTED),
-    "h1": _style("h1", fontName="Times-Bold", fontSize=13.5, leading=17, textColor=INK, spaceAfter=2),
+    "h1": _style("h1", fontName="Times-Bold", fontSize=13.5, leading=17, textColor=INK,
+                 spaceBefore=30, spaceAfter=3),
     "h2": _style("h2", fontName="Helvetica-Bold", fontSize=9, leading=12, textColor=INK),
     "figure_n": _style("figure_n", fontName="Helvetica-Bold", fontSize=12, leading=14, textColor=INK),
     "figure_l": _style("figure_l", fontSize=7.4, leading=9.5, textColor=MUTED),
@@ -167,9 +171,10 @@ def _table(rows: list, widths: list[float]) -> Table:
 
 
 def _section(number: int, title: str) -> list:
-    return [CondPageBreak(36 * mm), Spacer(1, 4),
+    # the heading's spaceBefore gives the gap between sections; a frame drops it at a page top
+    return [CondPageBreak(40 * mm),
             Paragraph(f'<font color="{_hex(SOFT)}">{number}.</font>&nbsp; {escape(title)}', S["h1"]),
-            _Hair(), Spacer(1, 7)]
+            _Hair(), Spacer(1, 11)]
 
 
 def _hex(c: colors.Color) -> str:
@@ -260,7 +265,7 @@ def _overview(rec: dict, meta: dict, counts: dict) -> list:
     out = [_p("Audit Report", "title"), Spacer(1, 3),
            _p(f"Case {rec.get('case_id', '')}  ·  Version {rec.get('version')}  ·  "
               f"audited {_date(rec.get('created_at'))}", "subtitle"),
-           Spacer(1, 16)]
+           Spacer(1, 26)]
 
     # verdict and score: two quiet columns over a rule, colour only on the verdict
     head = Table(
@@ -275,7 +280,7 @@ def _overview(rec: dict, meta: dict, counts: dict) -> list:
         ("LINEABOVE", (0, 0), (-1, 0), 0.7, RULE), ("TOPPADDING", (0, 0), (-1, 0), 7),
         ("LINEBELOW", (0, -1), (-1, -1), 0.7, RULE), ("BOTTOMPADDING", (0, -1), (-1, -1), 8),
     ]))
-    out += [head, Spacer(1, 10)]
+    out += [head, Spacer(1, 16)]
 
     kg = "Live Knowledge Graph (C02)" if rec.get("kg_source") == "live" else "Offline rule set"
     status = str(rec.get("status") or "").replace("_", " ").capitalize() or "—"
@@ -305,8 +310,8 @@ def _overview(rec: dict, meta: dict, counts: dict) -> list:
 
 def _summary(rec: dict, counts: dict) -> list:
     out = _section(1, "Executive summary")
-    out += [_p(_verdict_statement(rec, counts["failed_rules"], counts["reviews"]), "lead"), Spacer(1, 6),
-            _p(rec.get("summary") or "", "body"), Spacer(1, 14)]
+    out += [_p(_verdict_statement(rec, counts["failed_rules"], counts["reviews"]), "lead"), Spacer(1, 8),
+            _p(rec.get("summary") or "", "body"), Spacer(1, 20)]
 
     figures = [("Documents", counts["documents"], INK), ("Rules evaluated", counts["rules"], INK),
                ("Passed", counts["passed"], SUCCESS if counts["passed"] else INK),
@@ -332,7 +337,7 @@ def _summary(rec: dict, counts: dict) -> list:
         out += [Spacer(1, 6), _p(text + ".", "small")]
 
     if rec.get("narrative"):
-        out += [Spacer(1, 18), _p("Analyst commentary", "h2"), Spacer(1, 6),
+        out += [Spacer(1, 30), _p("Analyst commentary", "h2"), Spacer(1, 9),
                 _p(rec["narrative"], "commentary"), Spacer(1, 7),
                 _p("Written by the AI assistant from the audit facts. The verdict, score, findings and "
                    "recommendations come from rule evaluation, not from this commentary.", "small")]
@@ -394,7 +399,7 @@ def _findings(rec: dict, names: dict) -> list:
         out.append(_table(rows, [18 * mm, 22 * mm, CONTENT_W - 18 * mm - 22 * mm - 24 * mm, 24 * mm]))
 
     applied = rec.get("rules_applied") or []
-    out += [Spacer(1, 12), _p("Rule-by-rule results", "h2"), Spacer(1, 3),
+    out += [Spacer(1, 24), _p("Rule-by-rule results", "h2"), Spacer(1, 4),
             _p("Every rule evaluated on every document, including those that passed. Rules marked "
                "“Not run” lacked an input value and could not be checked.", "small")]
     if not applied:
@@ -405,17 +410,16 @@ def _findings(rec: dict, names: dict) -> list:
         by_doc.setdefault(r.get("doc_id") or "", []).append(r)
     for doc_id, rules in by_doc.items():
         rules.sort(key=lambda r: (OUTCOMES.get(r.get("outcome"), ("", MUTED, 9))[2], r.get("rule_id", "")))
-        rows = [[_p("RULE", "th"), _p("RESULT", "th"), _p("CALCULATION", "th"), _p("EXPLANATION", "th")]]
+        rows = [[_p("RULE", "th"), _p("RESULT", "th"), _p("EXPLANATION", "th")]]
         for r in rules:
             label, color, _ = OUTCOMES.get(r.get("outcome"), (str(r.get("outcome")), MUTED, 9))
             rule = [_p(r.get("rule_id"), "cell_b")]
             if r.get("rule_name"):
                 rule.append(_p(r["rule_name"], "cell_muted"))
-            rows.append([rule, _word(label, color), _p(r.get("detail") or r.get("expression") or "—", "cell"),
-                         _p(_explain(r), "cell")])
+            rows.append([rule, _word(label, color), _p(_explain(r), "cell")])
         title = names.get(doc_id) or doc_id or "Case-level rules"
-        block = [Spacer(1, 10), _p(title, "cell_b"), Spacer(1, 5),
-                 _table(rows, [36 * mm, 22 * mm, (CONTENT_W - 58 * mm) * 0.52, (CONTENT_W - 58 * mm) * 0.48])]
+        block = [Spacer(1, 14), _p(title, "cell_b"), Spacer(1, 6),
+                 _table(rows, [44 * mm, 24 * mm, CONTENT_W - 68 * mm])]
         # a short table stays on one page with its document name; a long one splits, header repeated
         out += [KeepTogether(block)] if len(rules) <= 8 else block
     return out
@@ -460,22 +464,26 @@ def _recommendations(rec: dict, findings_by_id: dict, names: dict) -> list:
 
 
 def _sign_off(meta: dict) -> list:
-    lines = Table([[_p("Reviewed by", "label"), "", _p("Date", "label"), "", _p("Signature", "label")],
-                   [Spacer(1, 16), "", Spacer(1, 16), "", Spacer(1, 16)]],
+    # signature lines with their labels underneath, the usual form for a sign-off block
+    lines = Table([[Spacer(1, 16), "", Spacer(1, 16), "", Spacer(1, 16)],
+                   [_p("Reviewed by", "label"), "", _p("Date", "label"), "", _p("Signature", "label")]],
                   colWidths=[CONTENT_W * 0.38, CONTENT_W * 0.05, CONTENT_W * 0.2, CONTENT_W * 0.05,
                              CONTENT_W * 0.32])
     lines.setStyle(TableStyle([
-        ("LINEBELOW", (0, 1), (0, 1), 0.6, MUTED), ("LINEBELOW", (2, 1), (2, 1), 0.6, MUTED),
-        ("LINEBELOW", (4, 1), (4, 1), 0.6, MUTED),
+        ("LINEBELOW", (0, 0), (0, 0), 0.6, MUTED), ("LINEBELOW", (2, 0), (2, 0), 0.6, MUTED),
+        ("LINEBELOW", (4, 0), (4, 0), 0.6, MUTED),
         ("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+        ("TOPPADDING", (0, 0), (-1, -1), 0), ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+        ("TOPPADDING", (0, 1), (-1, 1), 3),
     ]))
-    disclaimer = (f"This report was generated by NOMOS on {meta['generated']} from the saved audit "
-                  f"record {meta['audit_id']}. The verdict, score, findings and recommendations are "
-                  "determined by rule evaluation in code and are reproducible from that record; the "
-                  "analyst commentary is AI-written from the same facts. The report supports, and does "
-                  "not replace, the judgement of a qualified auditor, and must be reviewed before reliance.")
-    return [Spacer(1, 16), KeepTogether([_p("Auditor sign-off", "h2"), Spacer(1, 8), lines,
-                                         Spacer(1, 12), _p(disclaimer, "small")])]
+    disclaimer = (f"Generated by NOMOS on {meta['generated']} from audit record {meta['audit_id']}. "
+                  "Verdict, score, findings and recommendations come from rule evaluation; the commentary "
+                  "is AI-written. A qualified auditor must review this report before reliance.")
+    # the gap above is the heading's spaceBefore, so it disappears at the top of a page;
+    # the block moves to a new page as a whole only when less than its height is left
+    heading = ParagraphStyle("signoff", parent=S["h2"], spaceBefore=12)
+    return [CondPageBreak(SIGN_OFF_HEIGHT), Paragraph("Auditor sign-off", heading), Spacer(1, 4), lines,
+            Spacer(1, 9), KeepTogether([_p(disclaimer, "small")])]
 
 
 # ── Public API ─────────────────────────────────────────────────────────
