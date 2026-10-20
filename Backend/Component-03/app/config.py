@@ -85,6 +85,9 @@ KG_URL: str = os.getenv("KG_URL", "")  # C2 base URL, e.g. http://localhost:8002
 # Component-01, for POST /audit/run/c1 (C3 fetches verified records itself).
 C1_URL: str = os.getenv("C1_URL", "http://127.0.0.1:8000")
 C1_TIMEOUT: float = float(os.getenv("C1_TIMEOUT", "30"))
+# Component-04, for "generate the report" (C3 asks C4 for the PDF of one saved audit).
+C4_URL: str = os.getenv("C4_URL", "http://localhost:8004")
+C4_TIMEOUT: float = float(os.getenv("C4_TIMEOUT", "120"))  # making a PDF can take a while
 KG_TIMEOUT: float = float(os.getenv("KG_TIMEOUT", "5"))
 # How C2 searches the standards for the Copilot: keyword | semantic | hybrid.
 # hybrid uses C2's embeddings and falls back to keyword (with a note) when they are off.

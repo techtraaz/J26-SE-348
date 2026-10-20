@@ -19,6 +19,8 @@ type UIState = {
   newCase: () => string;
   stageDocs: (caseId: string, docs: AuditDocument[]) => void;
   unstage: (caseId: string, docId: string) => void;
+  // Which staged document this one supports (e.g. a PO or GRN supports an invoice); null = none.
+  setParent: (caseId: string, docId: string, parentId: string | null) => void;
   clearStaged: (caseId: string) => void;
   toggleXaiPanel: () => void;
   toggleSidebar: () => void;
@@ -58,6 +60,9 @@ export const useUI = create<UIState>()(
         }),
       unstage: (caseId, docId) =>
         set((s) => ({ staged: { ...s.staged, [caseId]: (s.staged[caseId] ?? []).filter((d) => d.doc_id !== docId) } })),
+      setParent: (caseId, docId, parentId) =>
+        set((s) => ({ staged: { ...s.staged, [caseId]: (s.staged[caseId] ?? []).map((d) =>
+          d.doc_id === docId ? { ...d, parent_doc_id: parentId } : d) } })),
       clearStaged: (caseId) => set((s) => ({ staged: { ...s.staged, [caseId]: [] } })),
       toggleXaiPanel: () => set((s) => ({ xaiPanelOpen: !s.xaiPanelOpen })),
       toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),

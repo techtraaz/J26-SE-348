@@ -23,7 +23,7 @@ def run(case: AuditCase, kg: KGClient) -> tuple[list[Finding], list[TraceEntry],
         except (ValueError, KGError) as exc:
             findings.append(rules.review(
                 f"{d.doc_id}-REV007-compliance", "REV-007",
-                f"Compliance rules for {d.doc_id} ({d.doc_type}) could not be loaded "
+                f"Compliance rules for {rules.label(d)} ({d.doc_type}) could not be loaded "
                 f"from the knowledge graph: {exc}. These checks did not run.",
                 [d.doc_id], severity="medium"))
             continue
