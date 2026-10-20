@@ -13,6 +13,7 @@ actually did, so it can be shown to an auditor as an explanation.
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 # ── Stages ─────────────────────────────────────────────────────────────
@@ -183,6 +184,13 @@ def _side_text(sides: dict, op_map: dict[str, str]) -> str:
             f"{humanize(sides['right'])} {fmt_value(sides.get('right_value'))}")
 
 
+def _plain_reason(reason: str) -> str:
+    """"missing current_liabilities" -> "missing current liabilities";
+    "missing prior.amount" -> "missing prior amount"."""
+    return re.sub(r"[a-z]+(?:[._][a-z0-9]+)+", lambda m: m.group(0).replace("_", " ").replace(".", " "),
+                  reason)
+
+
 def _rule_check(f: dict, status: str) -> dict:
     rule_id, doc_id = f.get("rule_id", "rule"), f.get("doc_id", "")
     name = f.get("rule_name") or rule_id
@@ -216,8 +224,8 @@ def _rule_check(f: dict, status: str) -> dict:
                                              "kept at low severity")))
         return _row("Failed", target, detail, facts)
     if status == "skipped":
-        return _row("Skipped", target, f"{name}: {f.get('reason') or 'not applicable'}",
-                    facts + _facts(("Reason", f.get("reason"))))
+        why = _plain_reason(f.get("reason") or "not applicable")
+        return _row("Skipped", target, f"{name}: {why}", facts + _facts(("Reason", why)))
     return _row("Could not evaluate", target, f.get("reason") or name,
                 facts + _facts(("Reason", f.get("reason"))))
 
@@ -286,16 +294,49 @@ def _citation_check(f: dict, status: str) -> dict:
     return _row("Verified", target, "claimed values match the documents", facts)
 
 
+def _llm_purpose(purpose: str) -> str:
+    """What the model was asked to do, in the reader's words."""
+    p = purpose.lower()
+    if "intent" in p or "understanding" in p:
+        return "read the request"
+    if "summary" in p:
+        return "write the summary line"
+    if p.startswith("structured"):
+        return "read the request"
+    return purpose or "help"
+
+
+def _llm_problem(reason: str) -> str:
+    """A short, human reason for a failed call; the raw error stays in the facts."""
+    r = reason.lower()
+    if any(code in r for code in ("530", "502", "503", "504", "connection", "refused", "unreachable",
+                                  "name or service", "getaddrinfo")):
+        return "the model server could not be reached"
+    if "timed out" in r or "timeout" in r:
+        return "the model took too long to answer"
+    if "schema" in r or "json" in r:
+        return "the model's answer could not be used"
+    if "recent failure" in r:
+        return "it failed a moment ago, so it is paused briefly"
+    if "turned off" in r:
+        return "it is turned off"
+    return "it did not answer"
+
+
 def _llm_call(f: dict, status: str) -> dict:
-    purpose = f.get("purpose") or "request"
+    task = _llm_purpose(f.get("purpose") or "")
     model = f.get("model")
-    facts = _facts(("Purpose", purpose), ("Model", model), ("Prompt", f.get("prompt")),
-                   ("Reply", f.get("reply")), ("Reason", f.get("reason")))
+    facts = _facts(("Task", task), ("Model", model), ("Prompt", f.get("prompt")),
+                   ("Reply", f.get("reply")), ("Technical detail", f.get("reason")))
     if status == "ok":
-        return _row("Asked", "language model", f"{purpose}{f' · {model}' if model else ''}", facts)
+        return _row("Asked", "the language model", f"to {task}{f' · {model}' if model else ''}", facts)
+    fallback = ("keyword rules were used instead" if task == "read the request"
+                else "a fixed wording was used instead")
     if status == "error":
-        return _row("Language model failed", purpose, f.get("reason", ""), facts)
-    return _row("Skipped", "language model", f.get("reason") or "not used", facts)
+        return _row("Couldn't use", "the language model",
+                    f"{_llm_problem(f.get('reason') or '')} · {fallback}", facts)
+    return _row("Used", "keyword rules" if task == "read the request" else "fixed wording",
+                f"language model not used: {_llm_problem(f.get('reason') or '')}", facts)
 
 
 def _entities(f: dict, status: str) -> dict:
@@ -347,17 +388,39 @@ def render_step(kind: str, status: str, facts: dict | None) -> dict:
             row = renderer(facts, status)
         except Exception:  # noqa: BLE001 - a malformed step must never break the stream
             row = _row(humanize(kind), "", "", [])
-    row.update(kind=kind, status=status, tone=_TONES.get(status, "neutral"),
-               check=kind in CHECK_KINDS)
+    tone = _TONES.get(status, "neutral")
+    if kind == "llm_call" and status in ("error", "skipped"):
+        tone = "warning" if status == "error" else "muted"  # a fallback, not a failed check
+    row.update(kind=kind, status=status, tone=tone, check=kind in CHECK_KINDS)
     return row
+
+
+_INTENTS = {
+    "whatif_check": "check a described transaction against the rules",
+    "evidence_append": "add documents to the case and re-run it",
+    "fresh_audit": "audit the attached documents",
+    "rerun_audit": "re-run the case's audit",
+    "explain_finding": "explain why a finding was raised",
+    "list_findings": "list the case's findings",
+    "evidence_gaps": "find missing or unverified evidence",
+    "compare_versions": "compare two audit versions",
+    "list_versions": "show the case's audit history",
+    "case_status": "summarise the case's latest audit",
+    "search_cases": "find cases matching a condition",
+    "rule_explain": "explain a rule and its standard",
+    "rule_lookup": "look up the rules for a document type",
+    "standard_search": "look up an accounting or auditing standard",
+    "help": "know what the assistant can do",
+}
 
 
 def render_intent(intent: str | None, method: str | None) -> dict:
     """The Copilot's reading of the request, as a step row."""
-    how = {"llm": "language model", "rules": "keyword rules",
+    how = {"llm": "the language model", "rules": "keyword rules",
            "rules_fallback": "keyword rules (language model unavailable)"}.get(
         method or "", humanize(method or "").lower())
-    row = _row("Understood", humanize(intent or "request").lower(),
-               f"read by {how}" if how else "", _facts(("Intent", intent), ("Method", how)))
+    goal = _INTENTS.get(intent or "", humanize(intent or "request").lower())
+    row = _row("Understood", "the request", f"you want to {goal}" + (f" · read by {how}" if how else ""),
+               _facts(("Request type", humanize(intent or "")), ("Read by", how)))
     row.update(kind="intent", status="ok", tone="neutral", check=False)
     return row

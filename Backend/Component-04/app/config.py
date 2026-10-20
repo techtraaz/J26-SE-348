@@ -47,9 +47,3 @@ LLM_API_URL: str = os.getenv(
 )
 LLM_MODEL: str = os.getenv("C04_LLM_MODEL", "phi4")
 LLM_TIMEOUT: int = int(os.getenv("C04_LLM_TIMEOUT", "60"))
-
-# ---------------------------------------------------------------------------
-# Insight Generator (Smart Filter Thresholds)
-# ---------------------------------------------------------------------------
-INSIGHT_MIN_AGENTS: int = int(os.getenv("C04_INSIGHT_MIN_AGENTS", "2"))
-INSIGHT_MIN_FINDINGS: int = int(os.getenv("C04_INSIGHT_MIN_FINDINGS", "1"))

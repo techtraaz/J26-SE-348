@@ -30,7 +30,7 @@ from pymongo import MongoClient
 from app import config
 from app.schemas.callback_events import CallbackEvent, parse_callback_event
 from app.services import database as db
-from app.services import insight_generator
+from app.services import review_agent
 from app.services import sse_manager
 from app.services import step_renderer
 
@@ -251,9 +251,9 @@ async def _handle_pipeline_end(evt: CallbackEvent) -> None:
     logger.info("■ Pipeline ended  case=%s  findings=%s  status=%s",
                 evt.case_id, evt.total_findings, evt.status)
 
-    # Fire-and-forget: let the Insight Generator decide if an AI summary is needed
-    asyncio.create_task(
-        insight_generator.maybe_generate_insight(evt.case_id, evt.total_findings or 0))
+    # Fire-and-forget: the Review Agent writes the run's verdict and summary
+    asyncio.create_task(review_agent.review_run(
+        evt.case_id, evt.run_key, evt.total_findings or 0, evt.status, evt.stream_id))
 
 
 # ── Granular step handler ──────────────────────────────────────────────
@@ -282,11 +282,16 @@ async def _handle_step(evt: CallbackEvent) -> None:
 
 
 async def flush_pending() -> None:
-    """Write queued step rows in one transaction. Non-fatal on failure."""
+    """Write queued step rows in one transaction. Non-fatal on failure.
+
+    Steps outside an audit run (Copilot turns) have no audit_runs row to point
+    to; they are streamed live only, so one of them never fails the batch."""
     if not _pending_rows:
         return
-    rows = _pending_rows[:]
+    rows = [r for r in _pending_rows if r["run_id"]]
     _pending_rows.clear()
+    if not rows:
+        return
     try:
         await db.insert_traces(rows)
     except Exception:

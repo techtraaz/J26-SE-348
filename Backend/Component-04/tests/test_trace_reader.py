@@ -26,7 +26,7 @@ async def _fresh_state():
                   trace_reader._run_ids, sse_manager._history):
         state.clear()
     trace_reader._pending_rows.clear()
-    with patch.object(trace_reader.insight_generator, "maybe_generate_insight", AsyncMock()):
+    with patch.object(trace_reader.review_agent, "review_run", AsyncMock()):
         yield
 
 
@@ -97,3 +97,15 @@ async def test_replay_reaches_a_client_that_connects_late():
         if len(got) == len(sse_manager.history("ACME-1")):
             break
     assert got == sse_manager.history("ACME-1")
+
+
+async def test_copilot_steps_in_the_same_batch_do_not_drop_audit_steps():
+    events = _events()
+    chat = [e for e in events if e["case_id"] == GENERAL_CHAT and e["event_type"] == "step"]
+    audit = [e for e in events if e["case_id"] == "ACME-1" and e["run_kind"] == "audit"]
+    end = next(i for i, e in enumerate(audit) if e["event_type"] == "pipeline_end")
+    # one poll that mixes a Copilot step (no audit run) into an audit's steps
+    await trace_reader.process_batch(audit[:end] + chat[:1] + audit[end:])
+    rows = await db.get_traces_for_case("ACME-1")
+    assert sum(r["event_type"] == "step" for r in rows) == sum(
+        e["event_type"] == "step" for e in audit)
