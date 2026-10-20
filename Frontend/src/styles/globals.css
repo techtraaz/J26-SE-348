@@ -74,6 +74,32 @@ code, .id { font-family: 'JetBrains Mono Variable', monospace; }
   50% { opacity: 0.3; }
 }
 
+@keyframes xai-spin {
+  to { transform: rotate(360deg); }
+}
+
+#xai-panel .xai-spin {
+  animation: xai-spin 0.9s linear infinite;
+  flex-shrink: 0;
+}
+
+/* Thinking timeline rows (Claude-style dropdown) */
+#xai-panel .xai-row {
+  transition: background 0.15s ease;
+}
+#xai-panel .xai-row:not(:disabled):hover {
+  background: var(--sidebar-hover);
+}
+#xai-panel .xai-headline:hover {
+  color: var(--text-h);
+}
+#xai-panel .xai-step-failed {
+  background: color-mix(in srgb, var(--danger) 9%, transparent);
+}
+#xai-panel .xai-step-failed .xai-row:not(:disabled):hover {
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+}
+
 /* XAI Panel scrollbar styling */
 #xai-panel ::-webkit-scrollbar {
   width: 4px;

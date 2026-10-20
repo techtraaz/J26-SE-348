@@ -1,33 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import { useUI } from "@/store/ui";
 import { env } from "@/config/env";
+import { ThinkingTimeline } from "@/components/ui/xai/ThinkingTimeline";
+import type { XaiEvent } from "@/components/ui/xai/timeline";
 
-/* ── Types ──────────────────────────────────────────────────────────── */
-
-interface TraceEvent {
-  event_type: string;
-  case_id?: string;
-  agent_name?: string;
-  detail?: string;
-  duration_ms?: number;
-  findings_count?: number;
-  total_findings?: number;
-  status?: string;
-  step_index?: number;
-  source_timestamp?: string;
-  received_at?: string;
-  error?: string;
-}
-
-/* ── Agent label mapping ────────────────────────────────────────────── */
-
-const agentLabels: Record<string, string> = {
-  data_quality: "Data Quality",
-  compliance: "Compliance",
-  anomaly: "Anomaly Detection",
-  reasoning: "Reasoning",
-  evidence_validation: "Evidence Validation",
-};
+// Every event name Component-04 sends on /xai/stream/{id}.
+const XAI_EVENT_TYPES = [
+  "pipeline_start", "pipeline_end", "run_start", "run_end",
+  "agent_thinking", "agent_done", "agent_error", "step",
+  "llm_thinking", "llm_done", "insight_summary", "trace",
+];
 
 /* ── Shared inline style helpers ────────────────────────────────────── */
 
@@ -44,56 +26,67 @@ const monoFont: React.CSSProperties = {
 
 export function XaiPanel() {
   const { xaiPanelOpen, xaiActiveTab, selectedCase, toggleXaiPanel, setXaiTab } = useUI();
-  const [events, setEvents] = useState<TraceEvent[]>([]);
-  const [insight, setInsight] = useState<string | null>(null);
+  // Events of one stream; switching case shows nothing until the new stream replays.
+  const [feed, setFeed] = useState<{ stream: string; events: XaiEvent[] }>({ stream: "", events: [] });
   const [connected, setConnected] = useState(false);
   const [reportHtml, setReportHtml] = useState<string | null>(null);
   const [reportLoading, setReportLoading] = useState(false);
   const evtSourceRef = useRef<EventSource | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  // Follow new steps only while the reader is at the bottom (not while they look back).
+  const pinned = useRef(true);
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [events]);
+    const el = scrollRef.current;
+    if (el && pinned.current) el.scrollTop = el.scrollHeight;
+  }, [feed]);
 
   // The SSE stream ID: selected case, or the general session for copilot chats
   const { generalSessionId } = useUI();
   const streamId = selectedCase || generalSessionId;
+  const events = feed.stream === streamId ? feed.events : [];
 
-  // SSE connection for live XAI traces
+  // SSE connection for live XAI traces. On every (re)connect C04 first replays
+  // the stream's recent history, so the list is rebuilt from scratch on open.
   useEffect(() => {
     if (!xaiPanelOpen || !streamId || !env.c4Base) return;
-    setEvents([]);
-    setInsight(null);
 
-    const url = `${env.c4Base}/xai/stream/${streamId}`;
-    const es = new EventSource(url);
+    const es = new EventSource(`${env.c4Base}/xai/stream/${encodeURIComponent(streamId)}`);
     evtSourceRef.current = es;
 
-    es.onopen = () => setConnected(true);
-    es.onerror = () => setConnected(false);
+    // Events arrive in bursts (a few hundred steps per audit): batch them per frame.
+    let pending: XaiEvent[] = [];
+    let frame = 0;
 
+    es.onopen = () => {
+      setConnected(true);
+      pending = []; // anything left from a dropped connection is replayed again
+      setFeed({ stream: streamId, events: [] });
+    };
+    es.onerror = () => setConnected(false);
     const handleEvent = (e: MessageEvent) => {
       try {
-        const data: TraceEvent = JSON.parse(e.data);
-        if (data.event_type === "insight_summary") {
-          setInsight(data.detail || "");
-        } else {
-          setEvents((prev) => [...prev, data]);
-        }
-      } catch { /* ignore */ }
+        pending.push(JSON.parse(e.data) as XaiEvent);
+      } catch {
+        return;
+      }
+      if (!frame) {
+        frame = requestAnimationFrame(() => {
+          const batch = pending;
+          pending = [];
+          frame = 0;
+          setFeed((prev) => ({
+            stream: streamId,
+            events: prev.stream === streamId ? [...prev.events, ...batch] : batch,
+          }));
+        });
+      }
     };
-
-    const eventTypes = [
-      "pipeline_start", "agent_thinking", "agent_done", "agent_error",
-      "llm_thinking", "llm_done", "pipeline_end", "insight_summary", "trace",
-    ];
-    eventTypes.forEach((t) => es.addEventListener(t, handleEvent));
+    XAI_EVENT_TYPES.forEach((t) => es.addEventListener(t, handleEvent));
     es.onmessage = handleEvent;
 
     return () => {
+      if (frame) cancelAnimationFrame(frame);
       es.close();
       evtSourceRef.current = null;
       setConnected(false);
@@ -212,7 +205,10 @@ export function XaiPanel() {
       </div>
 
       {/* ── Content ── */}
-      <div ref={scrollRef} style={{
+      <div ref={scrollRef} onScroll={(e) => {
+        const el = e.currentTarget;
+        pinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+      }} style={{
         flex: 1,
         overflowY: "auto",
         padding: "16px 20px",
@@ -220,7 +216,6 @@ export function XaiPanel() {
         {xaiActiveTab === "thinking" ? (
           <ThinkingTimeline
             events={events}
-            insight={insight}
             streamId={streamId}
             connected={connected}
           />
@@ -231,164 +226,6 @@ export function XaiPanel() {
             reportLoading={reportLoading}
             onGenerate={handleGenerateReport}
           />
-        )}
-      </div>
-    </div>
-  );
-}
-
-
-/* ── Thinking Timeline ──────────────────────────────────────────────── */
-
-function ThinkingTimeline({ events, insight, streamId, connected }: {
-  events: TraceEvent[];
-  insight: string | null;
-  streamId: string;
-  connected: boolean;
-}) {
-  if (events.length === 0 && !insight) {
-    return (
-      <div style={{ textAlign: "center", padding: "48px 20px", color: "var(--text-soft)" }}>
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--border)" strokeWidth="1.2" style={{ marginBottom: "14px" }}>
-          <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
-        </svg>
-        <p style={{ fontSize: "13px", lineHeight: 1.6, ...fontBase }}>
-          {connected ? "Waiting for events…" : "Connecting to XAI stream…"}
-        </p>
-        <p style={{ fontSize: "11px", marginTop: "8px", color: "var(--text-soft)", ...monoFont }}>
-          {streamId}
-        </p>
-      </div>
-    );
-  }
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "1px" }}>
-      {events.map((evt, i) => (
-        <TimelineEntry key={i} event={evt} />
-      ))}
-
-      {insight && (
-        <div style={{
-          marginTop: "14px",
-          padding: "14px 16px",
-          borderRadius: "var(--radius)",
-          background: "var(--surface)",
-          border: "1px solid var(--border-light)",
-        }}>
-          <div style={{
-            fontSize: "11px", fontWeight: 600, textTransform: "uppercase" as const,
-            letterSpacing: "0.05em", color: "var(--text-soft)", marginBottom: "8px",
-            ...fontBase,
-          }}>
-            AI Insight
-          </div>
-          <p style={{ fontSize: "13px", lineHeight: 1.6, color: "var(--text)", ...fontBase }}>
-            {insight}
-          </p>
-        </div>
-      )}
-    </div>
-  );
-}
-
-
-
-/* ── Single Timeline Entry ──────────────────────────────────────────── */
-
-function TimelineEntry({ event: evt }: { event: TraceEvent }) {
-  const agent = evt.agent_name || "";
-  const label = agentLabels[agent] || agent || "Pipeline";
-
-  const isStart = evt.event_type === "agent_thinking" || evt.event_type === "pipeline_start";
-  const isDone = evt.event_type === "agent_done" || evt.event_type === "pipeline_end";
-  const isError = evt.event_type === "agent_error";
-
-  let statusColor = "var(--text-soft)";
-  let statusText = "";
-
-  if (isStart) {
-    statusColor = "var(--text-muted)";
-    statusText = "thinking…";
-  } else if (isDone) {
-    statusColor = "var(--success)";
-    statusText = evt.duration_ms ? `${evt.duration_ms.toFixed(0)}ms` : "done";
-  } else if (isError) {
-    statusColor = "var(--danger)";
-    statusText = "error";
-  }
-
-  // Pipeline start/end — compact one-liner
-  if (evt.event_type === "pipeline_start" || evt.event_type === "pipeline_end") {
-    const isPipeEnd = evt.event_type === "pipeline_end";
-    return (
-      <div style={{
-        padding: "8px 0",
-        borderBottom: "1px solid var(--border-light)",
-        marginBottom: "4px",
-      }}>
-        <span style={{ fontSize: "12px", color: "var(--text-muted)", ...fontBase }}>
-          {isPipeEnd
-            ? `Pipeline complete · ${evt.total_findings ?? 0} finding${(evt.total_findings ?? 0) !== 1 ? "s" : ""}`
-            : `Pipeline started · ${evt.detail || ""}`}
-        </span>
-      </div>
-    );
-  }
-
-  return (
-    <div style={{
-      display: "flex",
-      alignItems: "flex-start",
-      gap: "12px",
-      padding: "9px 0",
-      borderBottom: "1px solid var(--border-light)",
-    }}>
-      {/* Dot */}
-      <div style={{
-        width: "7px", height: "7px", borderRadius: "50%",
-        background: isStart ? "var(--text-muted)" : isDone ? "var(--success)" : isError ? "var(--danger)" : "var(--border)",
-        marginTop: "5px", flexShrink: 0,
-        animation: isStart ? "xai-pulse 1.4s ease-in-out infinite" : "none",
-      }} />
-
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{
-          display: "flex", alignItems: "center",
-          justifyContent: "space-between", gap: "8px",
-        }}>
-          <span style={{
-            fontSize: "13px", fontWeight: 500, color: "var(--text-h)", ...fontBase,
-          }}>{label}</span>
-          <span style={{
-            fontSize: "11px", color: statusColor, fontWeight: 500,
-            whiteSpace: "nowrap" as const, ...fontBase,
-          }}>
-            {statusText}
-          </span>
-        </div>
-
-        {evt.detail && (
-          <p style={{
-            fontSize: "12px", color: "var(--text-muted)",
-            marginTop: "2px", lineHeight: 1.4,
-            overflow: "hidden", textOverflow: "ellipsis",
-            display: "-webkit-box", WebkitLineClamp: 2,
-            WebkitBoxOrient: "vertical" as const,
-            ...fontBase,
-          }}>{evt.detail}</p>
-        )}
-
-        {evt.findings_count != null && evt.findings_count > 0 && (
-          <span style={{
-            display: "inline-block", marginTop: "4px",
-            fontSize: "11px", fontWeight: 500,
-            padding: "1px 8px", borderRadius: "var(--radius-pill)",
-            background: "var(--accent-bg)", color: "var(--text-muted)",
-            ...fontBase,
-          }}>
-            {evt.findings_count} finding{evt.findings_count !== 1 ? "s" : ""}
-          </span>
         )}
       </div>
     </div>
