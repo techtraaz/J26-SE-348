@@ -83,8 +83,9 @@ def test_record_text_is_never_read_as_markup_and_odd_records_still_render():
 
 # ── The pipeline (API) ─────────────────────────────────────────────────
 
-async def test_generate_saves_the_pdf_in_mongodb_and_returns_the_agreed_reply(mongo, tmp_path,
-                                                                              monkeypatch):
+async def test_generate_uploads_the_pdf_to_object_storage_and_returns_the_agreed_reply(
+        mongo, _in_memory_object_storage, tmp_path, monkeypatch):
+    s3 = _in_memory_object_storage
     monkeypatch.chdir(tmp_path)
     async with _client() as client:
         resp = await client.post("/report/generate",
@@ -95,9 +96,54 @@ async def test_generate_saves_the_pdf_in_mongodb_and_returns_the_agreed_reply(mo
     assert body["download_url"] == f"/report/download/{body['filename']}"
     assert (body["audit_id"], body["verdict"], body["score"]) == (ISSUES, "issues_found", 75)
 
-    saved = mongo[config.REPORTS_COLLECTION].find_one({"_id": body["report_id"]})
-    assert bytes(saved["pdf"]).startswith(b"%PDF-") and saved["size_bytes"] == len(bytes(saved["pdf"]))
+    key = f"c04-reports/CASE-SAMPLE-04/{body['filename']}"
+    stored = s3.get_object(Bucket="test-reports", Key=key)
+    assert stored["ContentType"] == "application/pdf"
+    assert stored["Body"].read().startswith(b"%PDF-")
+    assert stored["Metadata"]["audit-id"] == ISSUES
+
+    row = mongo[config.REPORTS_COLLECTION].find_one({"_id": body["report_id"]})
+    assert "pdf" not in row and (row["object_key"], row["storage"]) == (key, "object")  # index only
     assert not any(tmp_path.iterdir())  # nothing written to the local disk
+
+
+async def test_reports_saved_in_mongodb_before_the_move_still_download(mongo):
+    mongo[config.REPORTS_COLLECTION].insert_one({
+        "_id": "RPT-20261020-152303-OLD1", "filename": "RPT-20261020-152303-OLD1.pdf",
+        "case_id": "CASE-SAMPLE-02", "pdf": b"%PDF-1.4 old report", "size_bytes": 19})
+    async with _client() as client:
+        resp = await client.get("/report/download/RPT-20261020-152303-OLD1.pdf")
+    assert resp.status_code == 200 and resp.content == b"%PDF-1.4 old report"
+
+
+async def test_a_file_missing_from_storage_is_not_found(mongo, _in_memory_object_storage):
+    async with _client() as client:
+        made = (await client.post("/report/generate", json={"audit_id": ISSUES})).json()
+        _in_memory_object_storage.delete_object(
+            Bucket="test-reports", Key=f"c04-reports/CASE-SAMPLE-04/{made['filename']}")
+        resp = await client.get(made["download_url"])
+    assert resp.status_code == 404 and "missing from storage" in resp.json()["detail"]
+
+
+async def test_storage_down_is_reported_and_nothing_is_indexed(mongo, _in_memory_object_storage):
+    from app.services import report_store
+    report_store.use_object_storage(_in_memory_object_storage, "no-such-bucket")
+    async with _client() as client:
+        resp = await client.post("/report/generate", json={"audit_id": ISSUES})
+    assert resp.status_code == 503 and "storage" in resp.json()["detail"].lower()
+    assert mongo[config.REPORTS_COLLECTION].count_documents({}) == 0
+
+
+async def test_upload_is_removed_when_the_index_row_cannot_be_written(mongo, _in_memory_object_storage,
+                                                                       monkeypatch):
+    def broken_insert(*_a, **_k):
+        raise RuntimeError("index unavailable")
+    monkeypatch.setattr(type(mongo[config.REPORTS_COLLECTION]), "insert_one", broken_insert)
+    async with _client() as client:
+        with pytest.raises(RuntimeError):
+            await client.post("/report/generate", json={"audit_id": ISSUES})
+    listed = _in_memory_object_storage.list_objects_v2(Bucket="test-reports")
+    assert listed.get("KeyCount", 0) == 0  # no orphan file left in the bucket
 
 
 async def test_download_serves_the_stored_pdf(mongo):

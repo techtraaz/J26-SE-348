@@ -1,11 +1,16 @@
-"""MongoDB access for the final audit report.
+"""Storage for the final audit report.
 
-Reads Component-03's saved audit records (``c03_audit_results``, read-only)
-and keeps every generated PDF in Component-04's own collection
-(``c04_reports``) — the file itself is stored in MongoDB, nothing is written
-to the local disk.
+- Audit records: read from Component-03's ``c03_audit_results`` (read-only).
+- PDF files: uploaded to the project's S3-compatible object storage (Garage),
+  under ``c04-reports/<case_id>/<report_id>.pdf`` in the shared bucket.
+- Report index: one small row per report in C04's ``c04_reports`` collection
+  (case, version, verdict, score, object key — never the file), so a case's
+  reports can be listed without reading every object.
 
-pymongo is synchronous, so every call runs in a worker thread
+Reports made before the move to object storage kept their file in the index
+row (``pdf``); they are still served from there.
+
+pymongo and boto3 are synchronous, so every call runs in a worker thread
 (``asyncio.to_thread``) and never blocks the event loop.
 """
 
@@ -14,28 +19,38 @@ from __future__ import annotations
 import asyncio
 import re
 import threading
+from collections.abc import Iterator
 from typing import Any
-
-from bson import Binary
 
 from app import config
 
 AUDIT_ID = re.compile(r"^[A-Za-z0-9._-]{1,120}:v\d{1,6}$")
 REPORT_FILE = re.compile(r"^RPT-[A-Z0-9-]{1,80}\.pdf$")
-MAX_PDF_BYTES = 15 * 1024 * 1024  # a MongoDB document holds at most 16 MB
+MAX_PDF_BYTES = 50 * 1024 * 1024
+CHUNK = 64 * 1024
 
 _db: Any = None
+_s3: Any = None
+_bucket: str | None = None
 _lock = threading.Lock()
 
 
 class StoreUnavailable(RuntimeError):
-    """MongoDB is not configured or cannot be reached."""
+    """MongoDB or the object storage is not configured or cannot be reached."""
 
+
+# ── Connections ────────────────────────────────────────────────────────
 
 def use_database(db: Any) -> None:
     """Use this database (tests pass a mongomock one). None resets."""
     global _db
     _db = db
+
+
+def use_object_storage(client: Any, bucket: str | None = None) -> None:
+    """Use this S3 client and bucket (tests pass a moto one). None resets."""
+    global _s3, _bucket
+    _s3, _bucket = client, bucket
 
 
 def _database() -> Any:
@@ -52,12 +67,38 @@ def _database() -> Any:
     return _db
 
 
+def _storage() -> tuple[Any, str]:
+    global _s3, _bucket
+    if _s3 is None:
+        with _lock:
+            if _s3 is None:
+                if not (config.GARAGE_ENDPOINT and config.GARAGE_ACCESS_KEY and config.GARAGE_SECRET_KEY):
+                    raise StoreUnavailable("Object storage is not configured (GARAGE_ENDPOINT, "
+                                           "GARAGE_ACCESS_KEY, GARAGE_SECRET_KEY)")
+                import boto3
+                from botocore.config import Config
+                _s3 = boto3.client(
+                    "s3",
+                    endpoint_url=config.GARAGE_ENDPOINT,
+                    aws_access_key_id=config.GARAGE_ACCESS_KEY,
+                    aws_secret_access_key=config.GARAGE_SECRET_KEY,
+                    region_name="garage",
+                    config=Config(signature_version="s3v4", s3={"addressing_style": "path"},
+                                  connect_timeout=10, read_timeout=60, retries={"max_attempts": 3}),
+                )
+                _bucket = config.GARAGE_BUCKET
+    return _s3, _bucket or config.GARAGE_BUCKET
+
+
 async def _run(fn, *args):
+    from botocore.exceptions import BotoCoreError, ClientError
     from pymongo.errors import PyMongoError
     try:
         return await asyncio.to_thread(fn, *args)
     except PyMongoError as exc:
         raise StoreUnavailable(f"MongoDB error: {exc}") from exc
+    except (BotoCoreError, ClientError) as exc:
+        raise StoreUnavailable(f"Object storage error: {type(exc).__name__}") from exc
 
 
 # ── Audit records (Component-03, read-only) ───────────────────────────
@@ -79,36 +120,69 @@ async def latest_audit(case_id: str) -> dict | None:
     return await _run(_latest_audit, case_id)
 
 
-# ── Reports (Component-04) ────────────────────────────────────────────
+# ── Reports ────────────────────────────────────────────────────────────
 
-_META = {"pdf": 0}  # listings never load the file itself
+def object_key(case_id: str, filename: str) -> str:
+    return f"{config.REPORTS_PREFIX}/{case_id}/{filename}"
 
 
-def _save_report(meta: dict, pdf: bytes) -> None:
+def _save_report(meta: dict, pdf: bytes) -> dict:
+    s3, bucket = _storage()
+    key = object_key(meta["case_id"], meta["filename"])
+    s3.put_object(Bucket=bucket, Key=key, Body=pdf, ContentType="application/pdf",
+                  Metadata={"report-id": meta["report_id"], "audit-id": meta["audit_id"],
+                            "sha256": meta["sha256"]})
+    row = {**meta, "_id": meta["report_id"], "storage": "object", "bucket": bucket,
+           "object_key": key, "size_bytes": len(pdf), "content_type": "application/pdf"}
     col = _database()[config.REPORTS_COLLECTION]
-    col.create_index([("case_id", 1), ("generated_at", -1)])
-    col.create_index("filename", unique=True)
-    col.insert_one({**meta, "_id": meta["report_id"], "size_bytes": len(pdf),
-                    "content_type": "application/pdf", "pdf": Binary(pdf)})
+    try:
+        col.create_index([("case_id", 1), ("generated_at", -1)])
+        col.create_index("filename", unique=True)
+        col.insert_one(row)
+    except Exception:
+        # no index row means nobody can find the file: do not leave it behind
+        s3.delete_object(Bucket=bucket, Key=key)
+        raise
+    return row
 
 
 def _get_report(filename: str) -> dict | None:
     return _database()[config.REPORTS_COLLECTION].find_one({"filename": filename})
 
 
+def _open_object(bucket: str, key: str) -> Iterator[bytes] | None:
+    from botocore.exceptions import ClientError
+    s3, _ = _storage()
+    try:
+        body = s3.get_object(Bucket=bucket, Key=key)["Body"]
+    except ClientError as exc:
+        if exc.response.get("Error", {}).get("Code", "") in ("NoSuchKey", "404", "NotFound"):
+            return None
+        raise
+    return body.iter_chunks(CHUNK)
+
+
 def _list_reports(case_id: str, limit: int) -> list[dict]:
     col = _database()[config.REPORTS_COLLECTION]
-    return list(col.find({"case_id": case_id}, _META).sort("generated_at", -1).limit(limit))
+    return list(col.find({"case_id": case_id}, {"pdf": 0}).sort("generated_at", -1).limit(limit))
 
 
-async def save_report(meta: dict, pdf: bytes) -> None:
+async def save_report(meta: dict, pdf: bytes) -> dict:
     if len(pdf) > MAX_PDF_BYTES:
         raise ValueError(f"The report is {len(pdf):,} bytes, over the {MAX_PDF_BYTES:,} byte limit.")
-    await _run(_save_report, meta, pdf)
+    return await _run(_save_report, meta, pdf)
 
 
 async def get_report(filename: str) -> dict | None:
     return await _run(_get_report, filename)
+
+
+async def open_report(row: dict) -> Iterator[bytes] | None:
+    """The report file as chunks, or None when it is missing from storage."""
+    if "pdf" in row:  # made before the move to object storage
+        data = bytes(row["pdf"])
+        return iter([data])
+    return await _run(_open_object, row.get("bucket") or config.GARAGE_BUCKET, row["object_key"])
 
 
 async def list_reports(case_id: str, limit: int = 50) -> list[dict]:

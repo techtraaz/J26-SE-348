@@ -1,12 +1,13 @@
-"""Final report pipeline: audit id -> saved audit record -> PDF -> MongoDB.
+"""Final report pipeline: audit id -> saved audit record -> PDF -> object storage.
 
 Component-03 asks for a report when the user tells the Copilot to "generate
 the report" (contract: Component-03/docs/c4_report_contract.md):
 
     POST /report/generate  {"audit_id": "<case_id>:v<version>", "case_id": ..., "version": ...}
 
-C04 reads exactly that saved record, builds the PDF, stores the file in its
-own MongoDB collection and replies with the download link:
+C04 reads exactly that saved record, builds the PDF, uploads the file to the
+project's S3-compatible object storage (indexed in MongoDB) and replies with
+the download link, which C04 itself serves:
 
     {"status": "report_ready", "download_url": "/report/download/<file>.pdf", ...}
 

@@ -20,7 +20,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, Response
+from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
@@ -182,7 +182,9 @@ async def generate_latest_report(case_id: str):
 
 @app.get("/report/download/{filename}")
 async def download_report(filename: str, download: bool = False):
-    """Serve a stored report: shown in the browser, or saved with ?download=1."""
+    """Serve a report from object storage: shown in the browser, or saved with ?download=1.
+
+    The link stays on C04, so C3 and the browser never need the storage address or keys."""
     if not report_store.REPORT_FILE.match(filename):
         raise HTTPException(status_code=404, detail=f"Report '{filename}' not found.")
     try:
@@ -191,10 +193,18 @@ async def download_report(filename: str, download: bool = False):
         raise HTTPException(status_code=503, detail=f"The report store is unavailable: {exc}") from exc
     if doc is None:
         raise HTTPException(status_code=404, detail=f"Report '{filename}' not found.")
+    try:
+        chunks = await report_store.open_report(doc)
+    except report_store.StoreUnavailable as exc:
+        raise HTTPException(status_code=502, detail=f"Could not read the report from storage: {exc}") from exc
+    if chunks is None:
+        raise HTTPException(status_code=404, detail=f"Report '{filename}' is missing from storage.")
     disposition = "attachment" if download else "inline"
-    return Response(content=bytes(doc["pdf"]), media_type="application/pdf",
-                    headers={"Content-Disposition": f'{disposition}; filename="{filename}"',
-                             "Cache-Control": "private, max-age=3600"})
+    headers = {"Content-Disposition": f'{disposition}; filename="{filename}"',
+               "Cache-Control": "private, max-age=3600"}
+    if doc.get("size_bytes"):
+        headers["Content-Length"] = str(doc["size_bytes"])
+    return StreamingResponse(chunks, media_type="application/pdf", headers=headers)
 
 
 @app.get("/report/list/{case_id}")
@@ -205,5 +215,6 @@ async def list_reports(case_id: str, limit: int = 20):
     except report_store.StoreUnavailable as exc:
         raise HTTPException(status_code=503, detail=f"The report store is unavailable: {exc}") from exc
     return {"case_id": case_id, "reports": [
-        {**{k: v for k, v in r.items() if k not in ("_id", "sha256", "content_type")},
+        {**{k: v for k, v in r.items()
+            if k not in ("_id", "sha256", "content_type", "bucket", "object_key", "storage")},
          "download_url": f"/report/download/{r['filename']}"} for r in reports]}

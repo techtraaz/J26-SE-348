@@ -25,7 +25,16 @@ MONGODB_URI: str = os.getenv(
 MONGODB_DB_NAME: str = os.getenv("C04_MONGODB_DB_NAME", "nomos_xai")
 C03_TRACES_COLLECTION: str = "c03_callback_traces"
 AUDIT_RESULTS_COLLECTION: str = "c03_audit_results"  # C03's saved audits (read-only)
-REPORTS_COLLECTION: str = "c04_reports"              # C04's generated PDFs
+REPORTS_COLLECTION: str = "c04_reports"              # C04's report index (no files)
+
+# ---------------------------------------------------------------------------
+# Object storage (S3-compatible Garage) — where the report PDFs are kept
+# ---------------------------------------------------------------------------
+GARAGE_ENDPOINT: str = os.getenv("GARAGE_ENDPOINT", "")
+GARAGE_ACCESS_KEY: str = os.getenv("GARAGE_ACCESS_KEY", "")
+GARAGE_SECRET_KEY: str = os.getenv("GARAGE_SECRET_KEY", "")
+GARAGE_BUCKET: str = os.getenv("GARAGE_BUCKET", "uploads")
+REPORTS_PREFIX: str = os.getenv("C04_REPORTS_PREFIX", "c04-reports")  # folder in the shared bucket
 TRACE_POLL_INTERVAL_MS: int = int(os.getenv("C04_TRACE_POLL_MS", "300"))
 
 # ---------------------------------------------------------------------------
