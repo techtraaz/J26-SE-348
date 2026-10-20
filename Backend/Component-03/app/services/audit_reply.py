@@ -10,6 +10,8 @@ from app.schemas.findings import AuditResult, Finding, RuleApplication
 from app.services.rules import label
 from app.services.store import ResultStore
 
+VERDICT = {"clean": "clean", "issues_found": "issues found", "needs_review": "needs review",
+           "not_auditable": "not auditable"}
 OUTCOME = {"passed": "passed", "failed": "FAILED", "review": "needs your confirmation",
            "skipped": "not checked", "error": "could not be checked"}
 
@@ -50,7 +52,9 @@ def describe(result: AuditResult, docs: list[AuditDocument]) -> str:
     if result.status == "not_auditable":
         reasons = "\n".join(f"- {f.message}" for f in result.findings)
         return f"{head}\nNothing could be checked, so this case is not auditable:\n{reasons}"
-    lines = [f"{head} {_plural(len(docs), 'document')} checked. {_headline(result)}"]
+    score = f", score {result.score}/100" if result.score is not None else ""
+    lines = [f"{head} Verdict: {VERDICT[result.verdict]}{score}.",
+             f"{_plural(len(docs), 'document')} checked. {_headline(result)}"]
     for d in docs:
         about = f"{d.doc_type.replace('_', ' ')}, {d.period_year}"
         if d.parent_doc_id:
@@ -74,9 +78,11 @@ def describe(result: AuditResult, docs: list[AuditDocument]) -> str:
     if other:
         lines.append("\nAlso needs review:")
         lines += [_review_line(f) for f in other]
-    summary = next((t.detail for t in result.trace if t.decision_type == "summary"), None)
-    if summary:
-        lines.append(f"\nSummary\n{summary}")
+    if result.recommendations:
+        lines.append("\nWhat to do next")
+        lines += [f"- {r.rule_id}: {r.text}" for r in result.recommendations]
+    if result.narrative:
+        lines.append(f"\nSummary\n{result.narrative}")
     return "\n".join(lines)
 
 

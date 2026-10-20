@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 
 from app import config
 from app.schemas.copilot import CopilotQuery
-from app.services import audit_reply, intake, orchestrator
+from app.services import audit_reply, c4_report, intake, orchestrator
 from app.services.copilot import whatif
 from app.services.copilot.entities import Entities
 from app.services.copilot.registry import REGISTRY, intent
@@ -463,6 +463,32 @@ def standard_search(turn: Turn) -> Reply:
     lines = [f"- {h.get('section') or h.get('standard') or 'source'}: {h.get('text', '')}"
              for h in hits[:3]]
     return Reply("\n".join(lines), {"search": hits, "kg_source": turn.kg.source})
+
+
+@intent("generate_report", group="case_query",
+        description="Make the PDF audit report of an audited case (by Component-04).",
+        examples=("generate the report", "download the audit report for case ACME-1 as a PDF"),
+        patterns={r"\b(generate|create|make|build|download|get|prepare|export|give)\b.*\b(report|pdf)\b": 3.0,
+                  r"\breport\b": 1.0, r"\bpdf\b": 1.5},
+        needs=("saved_case",),
+        follow_ups=("Show the high severity findings", "Summarise this case"))
+def generate_report(turn: Turn) -> Reply:
+    version = turn.entities.versions[0] if turn.entities.versions else None
+    rec = turn.record(version) if version else turn.record()
+    if rec is None:
+        return Reply(f"Case {turn.case_id} has no version {version}.")
+    try:
+        out = c4_report.request_report(turn.case_id, rec["version"])
+    except c4_report.C4Unavailable as exc:
+        return Reply(f"I couldn't make the report: {exc}. Start Component-04 and ask again.",
+                     {"report_error": str(exc)})
+    data = {"report_url": out["report_url"], "audit_id": c4_report.audit_id(turn.case_id, rec["version"]),
+            "version": rec["version"]}
+    if not out.get("report_url"):
+        return Reply(f"Component-04 made the report for case {turn.case_id} version {rec['version']}, "
+                     f"but sent no link to it.", data)
+    return Reply(f"The audit report for case {turn.case_id} (version {rec['version']}) is ready: "
+                 f"{out['report_url']}", data)
 
 
 # --- conversation ------------------------------------------------------------------

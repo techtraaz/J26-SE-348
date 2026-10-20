@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 
 from app import main
 from app.schemas.copilot import CopilotQuery
-from app.services import c1_fetch, copilot, intake, llm, orchestrator
+from app.services import c1_fetch, c4_report, copilot, intake, llm, orchestrator
 from app.services.store import MongoStore
 from tests.conftest import doc
 from tests.test_c1_review import _stamp
@@ -288,8 +288,9 @@ def test_audit_reply_says_what_was_checked_on_each_document(kg, store):
     from app.services import audit_reply
     r = _audit(kg, store, INV_CASE)
     text = audit_reply.describe_saved(r, store)
-    assert text.startswith("Audit of case C4-1 saved as version 1. 3 documents checked. "
-                           "No audit rule was broken. 1 item needs your review.")
+    assert text.startswith("Audit of case C4-1 saved as version 1. Verdict: needs review, score 98/100.\n"
+                           "3 documents checked. No audit rule was broken. 1 item needs your review.")
+    assert "What to do next\n- REV-004: Check the document was read correctly" in text
     assert "03_Tax_Invoice.pdf (invoice, 2026)" in text
     assert ("- POL-07 Purchases above Rs. 100,000 need dual approval: passed "
             "(amount 2,562,724.00 > limit 100,000.00; 2 of 2 approvals signed)") in text
@@ -319,3 +320,94 @@ def test_audit_again_on_an_audited_case_reruns_it(kg, store, text):
 def test_audit_with_nothing_attached_asks_in_plain_words(kg, store):
     r = copilot.answer(CopilotQuery(text="audit these documents", case_id="NEW-9"), kg, store)
     assert r.data["needs"] == "docs" and "Attach them with +" in r.reply and "POST" not in r.reply
+
+
+# --- the report block: verdict, score, summary, recommendations -----------------------------
+
+SFP_OK = doc("SFP-41", "balance_sheet", {"total_assets": 152733375, "total_liabilities": 67133250,
+                                         "total_equity": 85600125})
+INV_UNSIGNED = doc("INV-04", "invoice", {"amount": 636256, "approvals": 1})
+
+
+@pytest.mark.parametrize("docs,verdict,score", [
+    ([SFP_OK], "clean", 100),
+    ([SFP_42], "issues_found", 75),                 # one high finding
+    ([SFP_42, INV_UNSIGNED], "issues_found", 50),   # two high findings
+    (INV_CASE, "needs_review", 98),                 # only the empty GRN review item
+    ([], "not_auditable", None),                    # nothing to check: no score, not 0 or 100
+])
+def test_verdict_and_score(kg, store, docs, verdict, score):
+    r = _audit(kg, store, docs)
+    assert (r.verdict, r.score, r.schema_version) == (verdict, score, 1)
+
+
+def test_summary_and_recommendations_are_fixed_and_saved(kg, store):
+    r = _audit(kg, store, [SFP_42, INV_UNSIGNED, doc("INV-07", "invoice", {"amount": 636256})])
+    assert r.summary == ("3 documents audited; 3 rule checks: 2 failed, 1 need confirmation "
+                         "(6 not run, inputs missing); 3 rule findings (2 high, 1 medium), 0 review items.")
+    recs = {x.finding_id: x for x in r.recommendations}
+    assert recs["SFP-42-CHK-001"].text.startswith("Reconcile the statement")
+    assert recs["INV-04-POL-07"].text.startswith("Get the missing approval signed")
+    assert recs["INV-07-POL-07"].text.startswith("Confirm the required approvals")  # stamp not read
+    assert [x.severity for x in r.recommendations] == sorted(
+        (x.severity for x in r.recommendations), key=["high", "medium", "low"].index)
+    saved = store.latest("C4-1")
+    assert {"schema_version", "verdict", "score", "summary", "narrative", "recommendations"} <= saved.keys()
+    assert saved["verdict"] == "issues_found" and len(saved["recommendations"]) == len(r.findings)
+
+
+def test_narrative_is_the_llm_summary_only_when_it_passed(kg, store, summary_llm):
+    summary_llm("Case C4-1: the statement does not balance by 12,062,150.")
+    assert _audit(kg, store, [SFP_42]).narrative == "Case C4-1: the statement does not balance by 12,062,150."
+    summary_llm("It is off by Rs 9,999,999.")  # a number not in the facts
+    assert _audit(kg, store, [SFP_42], case_id="C4-2").narrative is None
+
+
+# --- "generate the report": C3 asks C4 for the PDF of one saved version ---------------------
+
+@pytest.fixture
+def fake_c4(monkeypatch):
+    calls = []
+
+    def use(replies):
+        def post(url, body, timeout):
+            calls.append((url, body))
+            return replies.pop(0)
+        monkeypatch.setattr(c4_report, "_post", post)
+        return calls
+    return use
+
+
+def test_generate_report_sends_the_audit_id_and_shows_the_link(kg, store, fake_c4):
+    _audit(kg, store, [SFP_42], case_id="REP-1")
+    calls = fake_c4([(200, {"status": "report_ready", "download_url": "/report/download/REP-1.pdf"})])
+    r = copilot.answer(CopilotQuery(text="generate the report", case_id="REP-1"), kg, store)
+    assert r.intent == "generate_report"
+    assert calls == [("http://localhost:8004/report/generate",
+                      {"audit_id": "REP-1:v1", "case_id": "REP-1", "version": 1})]
+    assert r.data["report_url"] == "http://localhost:8004/report/download/REP-1.pdf"
+    assert "http://localhost:8004/report/download/REP-1.pdf" in r.reply
+
+
+def test_generate_report_falls_back_to_c4s_current_endpoint(kg, store, fake_c4):
+    _audit(kg, store, [SFP_42], case_id="REP-2")
+    calls = fake_c4([(404, {"detail": "Not Found"}), (200, {"download_url": "/report/download/x.pdf"})])
+    r = copilot.answer(CopilotQuery(text="download the audit report as pdf", case_id="REP-2"), kg, store)
+    assert [c[0] for c in calls] == ["http://localhost:8004/report/generate",
+                                     "http://localhost:8004/report/generate/REP-2"]
+    assert r.data["report_url"].endswith("/report/download/x.pdf")
+
+
+def test_generate_report_when_c4_is_down_says_so(kg, store, monkeypatch):
+    _audit(kg, store, [SFP_42], case_id="REP-3")
+
+    def down(url, body, timeout):
+        raise c4_report.C4Unavailable("Component-04 not reachable at http://localhost:8004: refused")
+    monkeypatch.setattr(c4_report, "_post", down)
+    r = copilot.answer(CopilotQuery(text="generate the report", case_id="REP-3"), kg, store)
+    assert "couldn't make the report" in r.reply and "Start Component-04" in r.reply
+
+
+def test_report_needs_an_audited_case(kg, store):
+    r = copilot.answer(CopilotQuery(text="generate the report", case_id="NOPE-1"), kg, store)
+    assert r.data["needs"] == "saved_case"
