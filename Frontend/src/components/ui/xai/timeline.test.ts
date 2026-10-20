@@ -4,7 +4,7 @@ import fixture from "./__fixtures__/sse_events.json";
 import {
   buildRuns,
   isFoldedPass,
-  oneLine,
+  replyPreview,
   runHeadline,
   runTitle,
   stageSummary,
@@ -52,8 +52,11 @@ describe("buildRuns", () => {
     expect(runHeadline(turn)).not.toMatch(/^\d+ steps$/);
   });
 
-  it("writes a reply as one readable line", () => {
-    expect(oneLine("I can:\n- Check a transaction\n- Explain a rule")).toBe("Check a transaction · Explain a rule");
+  it("keeps a reply's lines and marks a reply cut at the trace limit", () => {
+    expect(replyPreview("I can:\n- Check a transaction\n\n- Explain a rule"))
+      .toBe("I can:\n• Check a transaction\n• Explain a rule");
+    const cut = replyPreview(`${"word ".repeat(59)}\n  - tests: Accuracy`.slice(0, 300));
+    expect(cut.endsWith("word…")).toBe(true); // the half word "test" is dropped
   });
 
   it("shows an audit started from a chat on that chat's stream, with its review", () => {

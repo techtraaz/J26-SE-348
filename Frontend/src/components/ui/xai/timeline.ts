@@ -88,7 +88,8 @@ export interface Run {
   version: number | null;
   status: Status;
   question: string; // Copilot: what was asked
-  answer: string; // Copilot: the reply, as one short line
+  answer: string; // Copilot: the reply (its first 300 characters), lines kept
+  needsInput: boolean; // Copilot: the reply asked the user for a missing detail
   docCount: number | null;
   totalFindings: number | null;
   durationMs: number | null;
@@ -108,6 +109,7 @@ function newRun(e: XaiEvent, key: string): Run {
     status: "running",
     question: "",
     answer: "",
+    needsInput: false,
     docCount: null,
     totalFindings: null,
     durationMs: null,
@@ -194,7 +196,8 @@ export function buildRuns(events: XaiEvent[]): Run[] {
         finish(run);
         break;
       case "run_end":
-        run.answer = oneLine(e.detail ?? "");
+        run.answer = replyPreview(e.detail ?? "");
+        run.needsInput = e.status === "needs_slot";
         run.durationMs = e.duration_ms ?? null;
         finish(run);
         break;
@@ -218,15 +221,21 @@ function toReview(e: XaiEvent): Review {
   };
 }
 
-/** A reply as one readable line: list markers and a bare "I can:" lead-in are dropped. */
-export function oneLine(text: string, max = 140): string {
-  const flat = text
+/** C03 traces only the first 300 characters of a reply. */
+const TRACED_REPLY = 300;
+
+/** A reply as readable lines: list markers become bullets, blank lines go, and a
+ *  reply cut at the trace limit ends on a whole word with "…" instead of looking complete. */
+export function replyPreview(text: string): string {
+  const cut = text.length >= TRACED_REPLY;
+  // drop the word the trace limit cut in half (and a bullet left empty by that)
+  const kept = cut ? text.replace(/\s*\S*$/, "") : text;
+  const lines = kept
     .split("\n")
-    .map((l) => l.replace(/^\s*[-*•]\s*/, "").trim())
-    .filter(Boolean)
-    .join(" · ")
-    .replace(/^[^·]{0,24}:\s*·\s*/, "");
-  return flat.length > max ? `${flat.slice(0, max - 1).trimEnd()}…` : flat;
+    .map((l) => l.trim().replace(/^[-*]\s+/, "• "))
+    .filter((l) => l && l !== "-" && l !== "*")
+    .join("\n");
+  return cut ? `${lines}…` : lines;
 }
 
 function finish(run: Run) {

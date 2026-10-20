@@ -163,24 +163,44 @@ function RunBlock({ run, latest, focused = false }: { run: Run; latest: boolean;
 }
 
 function RunFooter({ run }: { run: Run }) {
+  const [more, setMore] = useState(false);
   if (run.status === "running") return null;
-  const parts: string[] = [];
-  if (run.kind === "audit") {
-    parts.push(run.status === "error" ? "Stopped with an error" : "Audit complete");
-    if (run.totalFindings != null) parts.push(`${run.totalFindings} finding${run.totalFindings === 1 ? "" : "s"}`);
+
+  let status: string;
+  if (run.status === "error") status = "Stopped with an error";
+  else if (run.kind === "audit") {
+    status = "Audit complete";
+    if (run.totalFindings != null) status += ` · ${run.totalFindings} finding${run.totalFindings === 1 ? "" : "s"}`;
   } else {
-    parts.push(run.status === "error" ? "Stopped with an error" : "Answered");
-    if (run.durationMs != null) parts.push(formatDuration(run.durationMs));
+    status = run.needsInput ? "Asked for more details" : "Answered";
+    if (run.durationMs != null) status += ` in ${formatDuration(run.durationMs)}`;
   }
+  const long = run.answer.length > 160 || run.answer.split("\n").length > 3;
+
   return (
-    <div style={{ padding: "8px 14px", fontSize: 12, color: "var(--text-muted)", background: "var(--surface-muted)",
-                  borderTop: "1px solid var(--border-light)" }}>
-      {parts.join(" · ")}
+    <div style={{ padding: "10px 14px", background: "var(--surface-muted)", borderTop: "1px solid var(--border-light)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 500,
+                    color: run.status === "error" ? "var(--danger)" : "var(--text-h)" }}>
+        {run.status === "error" ? <X size={13} /> : <Check size={13} color="var(--success)" />}
+        {status}
+      </div>
       {run.answer && (
-        <div style={{ marginTop: 3, color: "var(--text-soft)", overflow: "hidden", textOverflow: "ellipsis",
-                      whiteSpace: "nowrap" }}>
-          {run.answer}
-        </div>
+        <>
+          <p style={{
+            margin: "6px 0 0", fontSize: 12.5, lineHeight: 1.5, color: "var(--text-muted)", whiteSpace: "pre-line",
+            overflowWrap: "anywhere", display: "-webkit-box", WebkitBoxOrient: "vertical",
+            WebkitLineClamp: more ? undefined : 3, overflow: more ? "visible" : "hidden",
+          }}>
+            {run.answer}
+          </p>
+          {long && (
+            <button type="button" className="xai-more" onClick={() => setMore(!more)} aria-expanded={more}
+                    style={{ ...font, marginTop: 4, padding: 0, border: "none", background: "none", cursor: "pointer",
+                             fontSize: 12, fontWeight: 500, color: "var(--text-h)" }}>
+              {more ? "Show less" : "Show more"}
+            </button>
+          )}
+        </>
       )}
     </div>
   );
