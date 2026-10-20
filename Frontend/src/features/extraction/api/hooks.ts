@@ -157,6 +157,35 @@ export function useReopenDocument(documentId: string) {
   })
 }
 
+/** Rename and/or move a document (`folderId: null` = Unfiled). */
+export function useUpdateDocument() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (input: { id: string; filename?: string; folderId?: string | null }) =>
+      call(
+        api.PATCH('/api/v1/documents/{document_id}', {
+          params: { path: { document_id: input.id } },
+          body: {
+            ...(input.filename !== undefined ? { filename: input.filename } : {}),
+            ...(input.folderId !== undefined ? { folder_id: input.folderId } : {}),
+          },
+        }),
+      ),
+    // Folder cards show counts, so they refresh too.
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.all }),
+  })
+}
+
+/** Delete a document that has no verified versions. */
+export function useDeleteDocument() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) =>
+      callVoid(api.DELETE('/api/v1/documents/{document_id}', { params: { path: { document_id: id } } })),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.all }),
+  })
+}
+
 export function useCreateFolder() {
   const queryClient = useQueryClient()
   return useMutation({

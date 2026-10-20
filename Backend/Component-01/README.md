@@ -61,8 +61,10 @@ All settings are listed in [.env.example](.env.example).
 | `GET /health` | Engine in use, worker running |
 | `POST /folders` · `GET /folders?parent_id=` · `GET/PATCH/DELETE /folders/{id}` | Folder tree (delete: empty folders only) |
 | `POST /documents` (multipart `file`, optional `folder_id`) | Upload → `202`; extraction runs in the background |
-| `GET /documents?folder_id&root_only&status&q&limit&offset` | List (e.g. `status=verified`) |
+| `GET /documents?folder_id&root_only&status&q&limit&offset` | List; each document carries `folder_name`. `root_only=true` = Unfiled; `status=verified` for downstream |
 | `GET /documents/{id}` | Status, extraction progress, pages |
+| `PATCH /documents/{id}` | Rename (`filename`) and/or move (`folder_id`; `null` = Unfiled, in no folder) |
+| `DELETE /documents/{id}` | Delete with its files and review. Refused (`409`) while it is being extracted or once it has verified versions (audit trail) |
 | `POST /documents/{id}/retry` | Extract a failed document again |
 | `GET /documents/{id}/extraction` | Machine output: lines with boxes and raw confidence |
 | `GET /documents/{id}/pages/{n}/image` | Page image the boxes refer to (`?variant=original` for the source) |

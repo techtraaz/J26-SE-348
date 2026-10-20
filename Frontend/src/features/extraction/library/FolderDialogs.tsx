@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import type { FormEvent } from 'react'
 
 import { errorMessage } from '@/features/extraction/api/errors'
@@ -7,6 +7,7 @@ import { Modal } from '@/features/extraction/components/Modal'
 
 interface NameDialogProps {
   title: string
+  label?: string // what is being named ("Folder name", "Document name")
   initialName?: string
   submitLabel: string
   onSubmit: (name: string) => Promise<unknown>
@@ -15,7 +16,15 @@ interface NameDialogProps {
 
 /** Create or rename a folder. Server errors (e.g. a duplicate name) are shown
  * inline so the user can fix the name without losing the dialog. */
-export function FolderNameDialog({ title, initialName = '', submitLabel, onSubmit, onClose }: NameDialogProps) {
+export function FolderNameDialog({
+  title,
+  label = 'Folder name',
+  initialName = '',
+  submitLabel,
+  onSubmit,
+  onClose,
+}: NameDialogProps) {
+  const inputId = useId()
   const [name, setName] = useState(initialName)
   const [error, setError] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
@@ -41,11 +50,11 @@ export function FolderNameDialog({ title, initialName = '', submitLabel, onSubmi
   return (
     <Modal title={title} onClose={onClose}>
       <form onSubmit={submit}>
-        <label htmlFor="folder-name" className="mb-1.5 block text-[13px] font-medium text-ink">
-          Folder name
+        <label htmlFor={inputId} className="mb-1.5 block text-[13px] font-medium text-ink">
+          {label}
         </label>
         <input
-          id="folder-name"
+          id={inputId}
           autoFocus
           value={name}
           maxLength={255}
