@@ -14,6 +14,9 @@ _RULE_ID = re.compile(r"\b(CHK|POL|REV)-?\s?(\d{1,3})\b", re.IGNORECASE)
 _CASE_ID = re.compile(r"\bcase\s*(?:id|no\.?|number|#)?\s*[:#]?\s*([A-Za-z0-9][A-Za-z0-9_.-]{0,63})", re.IGNORECASE)
 _VERSION = re.compile(r"\b(?:version|ver\.?|v)\s?(\d{1,4})\b", re.IGNORECASE)
 _STANDARD = re.compile(r"\b(LKAS|SLFRS|SLAuS|CF)\s?(\d{1,4})?\b", re.IGNORECASE)
+# A paragraph of a standard: "LKAS 2:9", "LKAS 2 para 9", "CF:4.4", "SLAuS 240 paragraph 12A".
+_SECTION = re.compile(r"\b(LKAS|SLFRS|SLAuS|CF)\s?(\d{1,4})?\s*(?::|\s+para(?:graph)?\.?\s*)"
+                      r"\s*(\d{1,3}[A-Z]?(?:\.\d{1,3}){0,2})\b", re.IGNORECASE)
 # Commas only as thousands groups; digits glued to letters or '-' (C-14, Q3) are IDs.
 _AMOUNT = re.compile(r"(?:(?:rs|lkr)\.?\s*)?(?<![\w.-])\(?-?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?\)?"
                      r"(?:\s?(?:k|mn|m|million|thousand)\b)?", re.IGNORECASE)
@@ -60,6 +63,7 @@ class Entities:
     categories: list[str] = field(default_factory=list)
     doc_types: list[str] = field(default_factory=list)
     standards: list[str] = field(default_factory=list)
+    sections: list[str] = field(default_factory=list)  # "LKAS 2:9"
     amounts: list[Amount] = field(default_factory=list)
     finding_ids: list[str] = field(default_factory=list)  # set only from session memory
 
@@ -80,7 +84,7 @@ def amounts_in(text: str) -> list[Amount]:
     """Money-like numbers, e.g. 'Rs. 150,000', '1.2m', '(5,000)'. Years, versions
     and rule numbers are not money and are skipped."""
     out: list[Amount] = []
-    skip_spans = [m.span() for p in (_RULE_ID, _VERSION, _STANDARD, _CASE_ID)
+    skip_spans = [m.span() for p in (_RULE_ID, _VERSION, _SECTION, _STANDARD, _CASE_ID)
                   for m in p.finditer(text)]
     for m in _AMOUNT.finditer(text):
         if any(s <= m.start() < e for s, e in skip_spans):
@@ -107,6 +111,10 @@ def _looks_like_id(token: str) -> bool:
     return any(ch.isdigit() or ch in "-_." for ch in token) or (token.isupper() and len(token) > 1)
 
 
+def _family(name: str) -> str:
+    return "SLAuS" if name.upper() == "SLAUS" else name.upper()
+
+
 def _rule_id(prefix: str, number: str) -> str:
     prefix = prefix.upper()
     return f"POL-{int(number):02d}" if prefix == "POL" else f"{prefix}-{int(number):03d}"
@@ -121,8 +129,9 @@ def extract(text: str, known_doc_ids: list[str] | None = None,
     known = [c for c in (known_case_ids or []) if _words(low, c.lower())]
     ent.case_ids = _unique(named + known)
     ent.versions = _unique(int(v) for v in _VERSION.findall(text))
-    ent.standards = _unique(f"{s.upper() if s.upper() != 'SLAUS' else 'SLAuS'}"
-                            f"{' ' + n if n else ''}" for s, n in _STANDARD.findall(text))
+    ent.standards = _unique(f"{_family(s)}{' ' + n if n else ''}" for s, n in _STANDARD.findall(text))
+    ent.sections = _unique(f"{_family(s)}{' ' + n if n else ''}:{para}"
+                           for s, n, para in _SECTION.findall(text))
     ent.severities = _unique(v for k, v in SEVERITY_WORDS.items() if _words(low, k))
     ent.review_statuses = _unique(s for s, words in REVIEW_WORDS.items()
                                   if any(w in low for w in words))

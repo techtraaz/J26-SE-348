@@ -17,6 +17,9 @@ export interface AuditDocument {
 export interface AuditCase {
   case_id: string;
   docs: AuditDocument[];
+  // Amount below which a difference is not material (SLAuS 320). Findings below it
+  // stay, at low severity. Omitted = every difference counts.
+  materiality?: number | null;
 }
 
 export type FindingCategory = "arithmetic" | "ledger" | "format" | "compliance" | "possible_fraud";
@@ -79,6 +82,7 @@ export interface CaseSummary {
   findings: number;
   high: number;
   needs_review: number;
+  materiality: number | null;
 }
 
 export type CopilotGroup = "rule_query" | "case_query" | "evidence_append" | "fresh_audit" | "other";

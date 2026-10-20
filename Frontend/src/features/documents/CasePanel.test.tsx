@@ -61,6 +61,29 @@ describe("CasePanel", () => {
     expect(useUI.getState().staged["CASE-1"]).toEqual([]);
   });
 
+  it("sends the case materiality when one is entered", async () => {
+    useUI.setState({ staged: { "CASE-1": [DOC] } });
+    vi.mocked(c3.run).mockResolvedValue(RESULT);
+    renderPanel();
+
+    await userEvent.type(screen.getByLabelText("Materiality"), "Rs. 50,000");
+    await userEvent.click(screen.getByRole("button", { name: "Audit 1 document(s)" }));
+
+    expect(c3.run).toHaveBeenCalledWith({ case_id: "CASE-1", docs: [DOC], materiality: 50000 }, "CASE-1");
+  });
+
+  it("refuses a materiality that is not an amount", async () => {
+    useUI.setState({ staged: { "CASE-1": [DOC] } });
+    vi.mocked(c3.run).mockReset();
+    renderPanel();
+
+    await userEvent.type(screen.getByLabelText("Materiality"), "a lot");
+    await userEvent.click(screen.getByRole("button", { name: "Audit 1 document(s)" }));
+
+    expect(c3.run).not.toHaveBeenCalled();
+    expect(screen.getByText(/Materiality must be an amount/)).toBeInTheDocument();
+  });
+
   it("removes a document from the case", async () => {
     useUI.setState({ staged: { "CASE-1": [DOC] } });
     renderPanel();

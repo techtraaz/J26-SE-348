@@ -71,7 +71,8 @@ def _ctx(run_config: RunnableConfig | None) -> RunContext:
 def _checkable(state: AuditState) -> AuditCase:
     case = state["case"]
     bad = set(state.get("rejected_records") or [])
-    return AuditCase(case_id=case.case_id, docs=[d for d in case.docs if d.doc_id not in bad])
+    # a copy, so case-level settings such as materiality travel with the documents
+    return case.model_copy(update={"docs": [d for d in case.docs if d.doc_id not in bad]})
 
 
 def _finish(ctx: RunContext, agent: str, findings: list, update: dict) -> dict:
@@ -232,13 +233,16 @@ def stream_case(case: AuditCase, kg: KGClient | None = None,
 
 def append_evidence(case_id: str, docs: list[dict], kg: KGClient | None = None,
                     publisher: EventPublisher | None = None,
-                    store: ResultStore | None = None) -> AuditResult:
+                    store: ResultStore | None = None,
+                    materiality: float | None = None) -> AuditResult:
     """FR5/FR6: add documents to the latest saved version of a case and re-run.
-    The earlier version stays saved; the new run gets the next version."""
+    The earlier version stays saved; the new run gets the next version. The case's
+    materiality carries over unless a new one is given."""
     store = store or default_store()
     previous = store.latest(case_id)
     if previous is None:
         raise LookupError(f"No saved audit for case {case_id!r}; run a fresh audit first.")
-    merged = intake.normalize_case({"case_id": case_id,
-                                    "docs": list(previous["case"]["docs"]) + list(docs)})
+    merged = intake.normalize_case({
+        "case_id": case_id, "docs": list(previous["case"]["docs"]) + list(docs),
+        "materiality": materiality if materiality is not None else previous["case"].get("materiality")})
     return run_case(merged, kg, publisher, store)

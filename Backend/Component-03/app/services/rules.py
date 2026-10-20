@@ -15,7 +15,7 @@ violations):
 """
 from app import config
 from app.schemas.case import AuditCase, AuditDocument
-from app.schemas.findings import EvidenceClaim, Finding
+from app.schemas.findings import EvidenceClaim, Finding, TraceEntry
 from app.schemas.kg import CheckRuleResponse, RuleResponse
 from app.services import expression
 from app.services.expression import ExpressionError
@@ -98,12 +98,14 @@ def prior_doc(case: AuditCase, doc: AuditDocument) -> AuditDocument | str | None
 
 
 def evaluate_rule(rule: CheckRuleResponse, doc: AuditDocument,
-                  scopes: dict[str, AuditDocument] | None = None
-                  ) -> tuple[Finding | None, str | None]:
+                  scopes: dict[str, AuditDocument] | None = None,
+                  materiality: float | None = None) -> tuple[Finding | None, str | None]:
     """(finding, skip_reason). A passing rule returns (None, None).
 
     Plain names read `doc`; `prior.x`, `child.x`, `parent.x` read the document in
-    `scopes`. A missing or unreadable input skips the rule with a reason."""
+    `scopes`. A missing or unreadable input skips the rule with a reason. With a
+    case materiality, a failure whose amount difference is below it stays a
+    finding at low severity (never dropped); see below_materiality()."""
     names = rule_names(rule)
     if names is None:
         return _rule_error(rule, doc, "expression cannot be parsed"), None
@@ -135,16 +137,43 @@ def evaluate_rule(rule: CheckRuleResponse, doc: AuditDocument,
         if target.doc_id not in evidence_ids:
             evidence_ids.append(target.doc_id)
     shown = ", ".join(f"{n}={fmt(v)}" for n, v in values.items())
+    category = config.RULE_CATEGORY.get(rule.rule_id, config.DEFAULT_RULE_CATEGORY)
+    severity, note = rule.severity, ""
+    gap = below_materiality(rule, category, values, materiality)
+    if gap is not None:
+        severity = "low"
+        note = (f" The difference {fmt(gap)} is below the case materiality {fmt(float(materiality))};"
+                f" C2 rates this rule {rule.severity}.")
     return Finding(
         finding_id=f"{doc.doc_id}-{rule.rule_id}", rule_id=rule.rule_id,
-        category=config.RULE_CATEGORY.get(rule.rule_id, config.DEFAULT_RULE_CATEGORY),
-        severity=rule.severity,
+        category=category, severity=severity,
         message=f"{rule.name or rule.rule_id} failed for {doc.doc_id}: "
-                f"{rule.expression} is false ({shown}).",
+                f"{rule.expression} is false ({shown}).{note}",
         evidence_ids=evidence_ids,
         confidence=min(confidence_of(t, k) for t, k in sources.values()) if sources else 1.0,
         claims=[EvidenceClaim(evidence_id=t.doc_id, field=k, claimed_value=values[n])
                 for n, (t, k) in sources.items()]), None
+
+
+def below_materiality(rule: CheckRuleResponse, category: str, values: dict[str, Value],
+                      materiality: float | None) -> float | None:
+    """The amount difference when it is below the case materiality, else None.
+    Only plain amount comparisons qualify; fraud patterns are material whatever
+    the amount (SLAuS 240), and ratios, thresholds and policy limits have no
+    amount difference to compare."""
+    if materiality is None or category == "possible_fraud":
+        return None
+    gap = expression.amount_difference(rule.expression, values)
+    return gap if gap is not None and gap < materiality else None
+
+
+def materiality_trace(agent: str, materiality: float | None, findings: list[Finding]) -> list[TraceEntry]:
+    if materiality is None:
+        return []
+    below = sum("below the case materiality" in f.message for f in findings)
+    return [TraceEntry(agent_name=agent, decision_type="materiality",
+                       detail=f"Case materiality {fmt(float(materiality))}: {below} finding(s) below it "
+                              f"kept at low severity (not dropped).")]
 
 
 def _rule_error(rule: CheckRuleResponse, doc: AuditDocument, why: str) -> Finding:

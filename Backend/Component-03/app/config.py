@@ -126,6 +126,9 @@ RULE_CATEGORY: dict[str, str] = {
     "CHK-001": "ledger", "CHK-002": "ledger",
     "CHK-003": "arithmetic", "CHK-004": "arithmetic",
     "CHK-005": "possible_fraud",
+    "CHK-007": "arithmetic", "CHK-008": "arithmetic",  # totals within one statement
+    "CHK-009": "arithmetic", "CHK-010": "arithmetic",  # ties between statements
+    "CHK-011": "compliance",  # LKAS 2 measurement requirement
 }
 DEFAULT_RULE_CATEGORY: str = "compliance"
 
