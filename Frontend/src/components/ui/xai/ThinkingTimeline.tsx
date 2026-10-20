@@ -175,32 +175,28 @@ function RunFooter({ run }: { run: Run }) {
     status = run.needsInput ? "Asked for more details" : "Answered";
     if (run.durationMs != null) status += ` in ${formatDuration(run.durationMs)}`;
   }
-  const long = run.answer.length > 160 || run.answer.split("\n").length > 3;
-
+  // Just the status; the reply itself is in the chat, shown here only on request.
   return (
     <div style={{ padding: "10px 14px", background: "var(--surface-muted)", borderTop: "1px solid var(--border-light)" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 500,
                     color: run.status === "error" ? "var(--danger)" : "var(--text-h)" }}>
         {run.status === "error" ? <X size={13} /> : <Check size={13} color="var(--success)" />}
-        {status}
+        <span style={{ flex: 1 }}>{status}</span>
+        {run.answer && (
+          <button type="button" className="xai-more" onClick={() => setMore(!more)} aria-expanded={more}
+                  style={{ ...font, display: "inline-flex", alignItems: "center", gap: 2, padding: "2px 6px",
+                           border: "none", borderRadius: 6, background: "none", cursor: "pointer",
+                           fontSize: 12, fontWeight: 500, color: "var(--text-muted)" }}>
+            {more ? "Hide reply" : "Show reply"}
+            {more ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+          </button>
+        )}
       </div>
-      {run.answer && (
-        <>
-          <p style={{
-            margin: "6px 0 0", fontSize: 12.5, lineHeight: 1.5, color: "var(--text-muted)", whiteSpace: "pre-line",
-            overflowWrap: "anywhere", display: "-webkit-box", WebkitBoxOrient: "vertical",
-            WebkitLineClamp: more ? undefined : 3, overflow: more ? "visible" : "hidden",
-          }}>
-            {run.answer}
-          </p>
-          {long && (
-            <button type="button" className="xai-more" onClick={() => setMore(!more)} aria-expanded={more}
-                    style={{ ...font, marginTop: 4, padding: 0, border: "none", background: "none", cursor: "pointer",
-                             fontSize: 12, fontWeight: 500, color: "var(--text-h)" }}>
-              {more ? "Show less" : "Show more"}
-            </button>
-          )}
-        </>
+      {more && run.answer && (
+        <p style={{ margin: "8px 0 0", fontSize: 12.5, lineHeight: 1.5, color: "var(--text-muted)",
+                    whiteSpace: "pre-line", overflowWrap: "anywhere" }}>
+          {run.answer}
+        </p>
       )}
     </div>
   );

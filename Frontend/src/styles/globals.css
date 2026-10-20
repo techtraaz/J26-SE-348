@@ -294,3 +294,8 @@ code, .id { font-family: 'JetBrains Mono Variable', monospace; }
   background: var(--sidebar-hover);
 }
 
+
+#xai-panel .xai-more:hover {
+  background: var(--sidebar-hover) !important;
+  color: var(--text-h) !important;
+}

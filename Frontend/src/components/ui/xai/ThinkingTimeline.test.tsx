@@ -84,6 +84,17 @@ describe("ThinkingTimeline", () => {
     expect(review.textContent).not.toContain("Next steps");
   });
 
+  it("keeps the footer to a status line, with the reply only on request", async () => {
+    renderStream(caseStream);
+    const chat = screen.getByRole("region", { name: /why did CHK-001 fail/ }); // latest run: open
+    expect(within(chat).getByText(/^Answered in /)).toBeTruthy();
+    const toggle = within(chat).getByRole("button", { name: /Show reply/ });
+    expect(chat.textContent).not.toContain("Accounting equation failed for BS");
+    await userEvent.click(toggle);
+    expect(chat.textContent).toContain("Accounting equation failed for BS");
+    expect(within(chat).getByRole("button", { name: /Hide reply/ })).toBeTruthy();
+  });
+
   it("never uses placeholder wording", async () => {
     const { container } = renderStream(caseStream);
     for (const button of screen.getAllByRole("button")) {
