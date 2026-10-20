@@ -373,8 +373,11 @@ def data_quality_findings(case: AuditCase) -> list[Finding]:
                 evidence_ids=[d.doc_id], policy_ids=["CHK-006"]))
         if not d.fields:
             out.append(review(f"{d.doc_id}-REV004-nofields", "REV-004",
-                              f"No fields were extracted for {label(d)}; nothing on it "
-                              f"could be checked.", [d.doc_id]))
+                              f"No values were read from {label(d)}, so no rule checked it. "
+                              f"This is expected for a document without amounts (e.g. a goods "
+                              f"received note lists only quantities and dates); it stays in the "
+                              f"case as supporting evidence. If it should have amounts, check its "
+                              f"fields in the Library.", [d.doc_id]))
         for fname, value in d.fields.items():
             if isinstance(value, list):
                 out.append(review(f"{d.doc_id}-REV003-{fname}", "REV-003",

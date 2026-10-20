@@ -296,7 +296,9 @@ def test_audit_reply_says_what_was_checked_on_each_document(kg, store):
     assert "03a_Purchase_Order.pdf (purchase order, 2026, supports 03_Tax_Invoice.pdf)" in text
     assert ("- CHK-003 Child amount matches parent: passed "
             "(child.amount 2,562,724.00 vs parent.amount 2,562,724.00)") in text
-    assert "- Needs review (REV-004): No fields were extracted for 03b_Goods_Received_Note.pdf" in text
+    assert "- Needs review (REV-004): No values were read from 03b_Goods_Received_Note.pdf" in text
+    grn = text.split("03b_Goods_Received_Note.pdf (goods received note")[1]
+    assert "No audit rules for this document type" not in grn  # said once, by the review line
     assert "GRN-03b;" not in text  # people see file names, not ids
 
 

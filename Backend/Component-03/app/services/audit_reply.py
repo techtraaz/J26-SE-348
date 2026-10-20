@@ -65,7 +65,7 @@ def describe(result: AuditResult, docs: list[AuditDocument]) -> str:
         if skipped:
             lines.append("- Not checked, inputs missing: "
                          + "; ".join(f"{a.rule_id} ({a.reason})" for a in skipped))
-        if not applied and d.doc_id not in result.rejected_records:
+        if not applied and d.fields and d.doc_id not in result.rejected_records:
             lines.append("- No audit rules for this document type; only the data checks ran.")
         lines += [_review_line(f) for f in result.findings
                   if f.rule_id.startswith("REV-") and f.evidence_ids[:1] == [d.doc_id]]
