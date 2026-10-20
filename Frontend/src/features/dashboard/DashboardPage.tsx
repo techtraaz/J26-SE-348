@@ -174,7 +174,7 @@ export function DashboardPage() {
               ))}
               {busy && (
                 <div style={{ display: "flex", alignItems: "flex-start" }}>
-                  <div style={{ padding: "12px 16px", borderRadius: "16px 16px 16px 4px", background: "var(--surface)", border: "1px solid var(--border-light)", fontSize: "14px", color: "var(--text-muted)" }}>
+                  <div style={{ padding: "12px 16px", borderRadius: "16px 16px 16px 4px", background: "var(--surface)", border: "1px solid var(--border)", fontSize: "14px", color: "var(--text-muted)" }}>
                     <span className="thinking-dots">Thinking</span>
                   </div>
                 </div>
@@ -195,9 +195,10 @@ export function DashboardPage() {
               </span>
             </div>
           )}
-          <div style={{
+          <div className="chat-composer" style={{
             background: "var(--input-bg)", borderRadius: "var(--radius-xl)", padding: "12px 16px",
             display: "flex", flexDirection: "column", gap: "8px",
+            border: "1px solid var(--input-border)", boxShadow: "var(--shadow-sm)",
           }}>
             <input
               type="text"
@@ -267,9 +268,10 @@ function Bubble({ user, error, children }: { user: boolean; error?: boolean; chi
         maxWidth: "85%", padding: "12px 16px",
         borderRadius: user ? "16px 16px 4px 16px" : "16px 16px 16px 4px",
         background: user ? "var(--text-h)" : "var(--surface)",
-        color: user ? "#f5f0ea" : error ? "var(--danger)" : "var(--text)",
+        color: user ? "var(--bg)" : error ? "var(--danger)" : "var(--text)",
         fontSize: "14px", lineHeight: "1.6", whiteSpace: "pre-wrap",
-        border: user ? "none" : `1px solid ${error ? "var(--danger)" : "var(--border-light)"}`,
+        border: user ? "none" : `1px solid ${error ? "var(--danger)" : "var(--border)"}`,
+        boxShadow: user ? "none" : "var(--shadow-sm)",
       }}>{children}</div>
     </div>
   );
@@ -326,7 +328,7 @@ function SendButton({ ready, onClick }: { ready: boolean; onClick: () => void })
       background: ready ? "var(--text-h)" : "var(--border)", cursor: ready ? "pointer" : "default",
       display: "flex", alignItems: "center", justifyContent: "center", transition: "background 0.2s",
     }}>
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={ready ? "#f5f0ea" : "var(--text-soft)"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={ready ? "var(--bg)" : "var(--text-soft)"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <line x1="22" y1="2" x2="11" y2="13" />
         <polygon points="22 2 15 22 11 13 2 9 22 2" />
       </svg>

@@ -115,3 +115,11 @@ code, .id { font-family: 'JetBrains Mono Variable', monospace; }
   background: var(--text-soft);
 }
 
+/* ── Chat composer: show where to type ── */
+.chat-composer {
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.chat-composer:focus-within {
+  border-color: var(--text-muted) !important;
+  box-shadow: var(--shadow-md) !important;
+}

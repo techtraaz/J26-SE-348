@@ -11,7 +11,8 @@ const tabs = [
 export function AppShell() {
   const { theme, xaiPanelOpen, toggleXaiPanel } = useUI();
   return (
-    <div data-theme={theme} style={{ background: "var(--bg)", color: "var(--text)", minHeight: "100vh", display: "flex", flexDirection: "column" }}>
+    // The shell fills the viewport and only <main> scrolls, so the header stays put on every page.
+    <div data-theme={theme} style={{ background: "var(--bg)", color: "var(--text)", height: "100vh", overflow: "hidden", display: "flex", flexDirection: "column" }}>
       {/* ── Top Navigation Bar ── */}
       <header style={{
         display: "flex",
@@ -19,6 +20,7 @@ export function AppShell() {
         justifyContent: "center",
         padding: "14px 24px",
         position: "relative",
+        flexShrink: 0,
         borderBottom: "1px solid var(--border-light)",
       }}>
         {/* Center Tabs */}
@@ -117,6 +119,8 @@ export function AppShell() {
       {/* ── Main Content (shrinks when XAI panel is open) ── */}
       <main style={{
         flex: 1,
+        minHeight: 0,
+        overflowY: "auto",
         display: "flex",
         flexDirection: "column",
         marginRight: xaiPanelOpen ? "380px" : "0",
