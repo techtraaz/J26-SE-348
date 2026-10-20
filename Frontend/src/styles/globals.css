@@ -157,3 +157,30 @@ code, .id { font-family: 'JetBrains Mono Variable', monospace; }
 .icon-btn[data-tip-side="top"]:hover::after { bottom: calc(100% + 6px); left: 0; }
 .icon-btn[data-tip-side="right"]:hover::after { left: calc(100% + 8px); top: 50%; transform: translateY(-50%); }
 
+
+/* ── Sidebar rows ── */
+.side-row {
+  transition: background 0.15s ease;
+}
+.side-row:not(.side-row-active):hover {
+  background: var(--sidebar-hover) !important;
+}
+
+/* ── Thin, quiet scrollbars (chat, sidebar) ── */
+.thin-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+.thin-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+.thin-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.thin-scroll::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 6px;
+}
+.thin-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--text-soft);
+}

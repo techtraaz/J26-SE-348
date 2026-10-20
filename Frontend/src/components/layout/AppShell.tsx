@@ -1,8 +1,11 @@
-import { NavLink, Outlet } from "react-router-dom";
+import { NavLink, Outlet, useMatch } from "react-router-dom";
 import { Sparkles } from "lucide-react";
 import { useUI } from "@/store/ui";
 import { routes } from "@/config/routes";
 import { XaiPanel } from "@/components/ui/XaiPanel";
+import { CasesSidebar } from "@/components/layout/CasesSidebar";
+
+const TOP_BAR_HEIGHT = 60; // CasesSidebar's brand row has the same height
 
 const tabs = [
   { to: routes.documents, label: "Library" },
@@ -11,15 +14,20 @@ const tabs = [
 
 export function AppShell() {
   const { theme, xaiPanelOpen, toggleXaiPanel } = useUI();
+  const onChat = useMatch(routes.dashboard) !== null;
   return (
     // The shell fills the viewport and only <main> scrolls, so the header stays put on every page.
-    <div data-theme={theme} style={{ background: "var(--bg)", color: "var(--text)", height: "100vh", overflow: "hidden", display: "flex", flexDirection: "column" }}>
+    // On Chat the Cases sidebar runs the full height on the left; the top bar spans the rest.
+    <div data-theme={theme} style={{ background: "var(--bg)", color: "var(--text)", height: "100vh", overflow: "hidden", display: "flex" }}>
+      {onChat && <CasesSidebar />}
+      <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
       {/* ── Top Navigation Bar ── */}
       <header style={{
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        padding: "14px 24px",
+        height: `${TOP_BAR_HEIGHT}px`,
+        padding: "0 24px",
         position: "relative",
         flexShrink: 0,
         borderBottom: "1px solid var(--border-light)",
@@ -88,7 +96,7 @@ export function AppShell() {
 
       {/* ── Page + Explainability panel, side by side below the header ── */}
       <div style={{ flex: 1, minHeight: 0, display: "flex" }}>
-        <main style={{
+        <main className="thin-scroll" style={{
           flex: 1,
           minWidth: 0,
           minHeight: 0,
@@ -100,6 +108,7 @@ export function AppShell() {
         </main>
 
         <XaiPanel />
+      </div>
       </div>
     </div>
   );

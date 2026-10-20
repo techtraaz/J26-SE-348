@@ -120,7 +120,7 @@ export function XaiPanel() {
     <aside id="xai-panel" aria-label="Explainability" style={{
       ...fontBase,
       position: "relative",
-      margin: "12px 12px 12px 0",
+      margin: "14px 14px 14px 16px",
       width: "368px",
       flexShrink: 0,
       background: "var(--surface)",

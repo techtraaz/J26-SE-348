@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { c3, chat } from "@/lib/apiClient";
 import { VerifiedDocumentPicker } from "@/features/documents/VerifiedDocumentPicker";
 import { useUI } from "@/store/ui";
 import { FindingCard } from "@/components/audit/FindingCard";
-import { PanelLeft, Plus, UserRound } from "lucide-react";
-import type { CaseSummary, ChatMessage, Finding } from "@/types/audit";
+import { Plus, Trash2 } from "lucide-react";
+import { IconButton } from "@/components/ui/IconButton";
+import type { ChatMessage, Finding } from "@/types/audit";
 
 const STARTERS = [
   "Summarise this case",
@@ -15,17 +16,8 @@ const STARTERS = [
 ];
 const SHOWN_FINDINGS = 6;
 
-// A case in the sidebar: audited (with its latest summary) or started here and not audited yet.
-type SidebarCase = { case_id: string; summary: CaseSummary | null };
 // Shown only until the server answers (pending) or because sending failed (not saved).
 type LocalMessage = { key: string; role: "user" | "error"; text: string; attached?: number };
-
-function timeAgo(iso: string): string {
-  const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
-  if (mins < 60) return `${mins}m ago`;
-  if (mins < 1440) return `${Math.round(mins / 60)}h ago`;
-  return `${Math.round(mins / 1440)}d ago`;
-}
 
 /** The reply text lists findings as "- RULE ..." lines; drop those when cards show them. */
 function replyText(content: string, findings: Finding[]): string {
@@ -39,22 +31,9 @@ function replyText(content: string, findings: Finding[]): string {
 
 export function DashboardPage() {
   const qc = useQueryClient();
-  const { selectedCase, setCase, newCase, draftCases, generalSessionId, staged, clearStaged,
-          sidebarOpen, toggleSidebar } = useUI();
+  const { selectedCase, newCase, generalSessionId, staged, clearStaged } = useUI();
   const [input, setInput] = useState("");
   const inputRef = useRef<HTMLTextAreaElement>(null);
-
-  // Ctrl+B (Cmd+B on Mac) shows or hides the Cases sidebar.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "b") {
-        e.preventDefault();
-        toggleSidebar();
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [toggleSidebar]);
 
   // The message box grows with its text, up to a limit, then scrolls.
   useEffect(() => {
@@ -70,18 +49,10 @@ export function DashboardPage() {
   const endRef = useRef<HTMLDivElement>(null);
 
   const sessionId = selectedCase ?? generalSessionId; // a case's chat id is its case id
-  const cases = useQuery({ queryKey: ["c3-cases"], queryFn: c3.cases, retry: false });
   const history = useQuery({ queryKey: ["chat", sessionId], queryFn: () => chat.messages(sessionId), retry: false });
   const saved = history.data ?? [];
   const pending = local[sessionId] ?? [];
   const attached = selectedCase ? staged[selectedCase] ?? [] : [];
-
-  const sidebar = useMemo((): SidebarCase[] => {
-    const audited = cases.data ?? [];
-    const known = new Set(audited.map((c) => c.case_id));
-    const drafts = draftCases.filter((id) => !known.has(id)).map((id) => ({ case_id: id, summary: null }));
-    return [...drafts, ...audited.map((c) => ({ case_id: c.case_id, summary: c }))];
-  }, [cases.data, draftCases]);
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); },
             [saved.length, pending.length, busy]);
@@ -128,76 +99,29 @@ export function DashboardPage() {
 
   return (
     <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
-      {/* ── Cases (one chat per case) ── */}
-      <aside aria-label="Cases" style={{
-        width: sidebarOpen ? "240px" : "56px", flexShrink: 0, borderRight: "1px solid var(--border-light)",
-        padding: sidebarOpen ? "14px 12px" : "14px 10px", display: "flex", flexDirection: "column", gap: "4px",
-        overflow: sidebarOpen ? "hidden" : "visible",
-        transition: "width 0.2s ease, padding 0.2s ease",
-      }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px",
-                      flexDirection: sidebarOpen ? "row" : "column" }}>
-          <IconButton tip={sidebarOpen ? "Hide sidebar" : "Show sidebar"} shortcut="Ctrl+B"
-                      tipSide={sidebarOpen ? "bottom" : "right"} onClick={toggleSidebar}>
-            <PanelLeft size={18} strokeWidth={1.6} />
-          </IconButton>
-          {sidebarOpen && (
-            <span style={{ flex: 1, fontWeight: 600, fontSize: "13px", color: "var(--text-h)" }}>Cases</span>
-          )}
-          <IconButton tip="New case" tipSide={sidebarOpen ? "bottom-end" : "right"} onClick={() => newCase()}>
-            <Plus size={18} strokeWidth={1.6} />
-          </IconButton>
-        </div>
-        {sidebarOpen && <div style={{ flex: 1, minHeight: 0, overflowY: "auto", display: "flex",
-                                      flexDirection: "column", gap: "4px", margin: "0 -4px", padding: "0 4px" }}>
-
-        <SessionButton active={selectedCase === null} onClick={() => setCase(null)}
-                       title="General questions" meta="rules, standards, what-ifs" />
-        {cases.isError && (
-          <p style={{ fontSize: "12px", color: "var(--danger)", margin: "6px 4px" }}>
-            Cases unavailable: {(cases.error as Error).message}
-          </p>
-        )}
-        {sidebar.map((c) => (
-          <SessionButton key={c.case_id} active={selectedCase === c.case_id} onClick={() => setCase(c.case_id)}
-                         title={c.case_id} meta={c.summary ? caseMeta(c.summary) : "new · not audited"}
-                         right={c.summary ? timeAgo(c.summary.created_at) : ""} />
-        ))}
-        </div>}
-        {!sidebarOpen && <div style={{ flex: 1 }} />}
-
-        {/* ── Account, at the bottom like Claude's sidebar ── */}
-        <div style={{ borderTop: "1px solid var(--border-light)", paddingTop: "10px", marginTop: "6px",
-                      display: "flex", justifyContent: sidebarOpen ? "flex-start" : "center" }}>
-          <button type="button" className="icon-btn" aria-label="Account" data-tip="Account"
-                  data-tip-side={sidebarOpen ? "top" : "right"}
-                  style={{
-                    display: "flex", alignItems: "center", gap: "10px", width: sidebarOpen ? "100%" : "36px",
-                    height: "40px", padding: sidebarOpen ? "0 8px" : 0, justifyContent: sidebarOpen ? "flex-start" : "center",
-                    border: "none", borderRadius: "10px", background: "transparent", cursor: "pointer",
-                    color: "var(--text-muted)", fontFamily: "inherit", fontSize: "13px",
-                  }}>
-            <span style={{
-              width: "28px", height: "28px", borderRadius: "50%", flexShrink: 0,
-              border: "1px solid var(--border-strong)", background: "var(--surface)",
-              display: "flex", alignItems: "center", justifyContent: "center",
-            }}>
-              <UserRound size={15} strokeWidth={1.6} />
-            </span>
-            {sidebarOpen && <span style={{ color: "var(--text-h)", fontWeight: 500 }}>Auditor</span>}
-          </button>
-        </div>
-      </aside>
-
       {/* ── Conversation ── */}
       <div style={{ flex: 1, display: "flex", flexDirection: "column", position: "relative", minWidth: 0 }}>
-        {!empty && (
-          <button onClick={clearChat} disabled={busy} title="Delete this chat's history (audits are kept)" style={{
-            position: "absolute", top: "12px", right: "20px", zIndex: 1, background: "none", border: "none",
-            cursor: "pointer", color: "var(--text-soft)", fontSize: "12px", fontFamily: "inherit",
-          }}>Clear chat</button>
-        )}
-        <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column" }}>
+        {/* ── Conversation header: which chat this is, and its actions ── */}
+        <div style={{
+          display: "flex", alignItems: "center", gap: "12px", padding: "10px 16px 10px 24px", minHeight: "52px",
+          borderBottom: "1px solid var(--border-light)", flexShrink: 0,
+        }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: "14px", fontWeight: 500, color: "var(--text-h)", overflow: "hidden",
+                          textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {selectedCase ?? "General questions"}
+            </div>
+            <div style={{ fontSize: "11.5px", color: "var(--text-soft)" }}>
+              {selectedCase ? "Case chat · audits and follow-up questions" : "Rules, standards and what-if checks"}
+            </div>
+          </div>
+          {!empty && (
+            <IconButton tip="Clear chat (audits are kept)" tipSide="bottom-end" onClick={() => { if (!busy) void clearChat(); }}>
+              <Trash2 size={16} strokeWidth={1.6} />
+            </IconButton>
+          )}
+        </div>
+        <div className="thin-scroll" style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column" }}>
           {empty ? (
             <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "48px 24px" }}>
               <h1 className="heading-serif" style={{ fontSize: "38px", marginBottom: "10px", color: "var(--text-h)" }}>
@@ -294,36 +218,6 @@ export function DashboardPage() {
   );
 }
 
-function caseMeta(c: CaseSummary): string {
-  if (c.status === "not_auditable") return `v${c.version} · not auditable`;
-  return `v${c.version} · ${c.findings} finding(s)${c.high ? `, ${c.high} high` : ""}`;
-}
-
-function SessionButton({ active, onClick, title, meta, right }: {
-  active: boolean; onClick: () => void; title: string; meta: string; right?: string;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        display: "flex", alignItems: "center", gap: "10px", padding: "8px 10px", borderRadius: "8px",
-        border: "none", background: active ? "var(--sidebar-active)" : "transparent", cursor: "pointer",
-        width: "100%", textAlign: "left", fontFamily: "inherit", transition: "background 0.15s",
-      }}
-      onMouseEnter={(e) => { if (!active) e.currentTarget.style.background = "var(--sidebar-hover)"; }}
-      onMouseLeave={(e) => { if (!active) e.currentTarget.style.background = "transparent"; }}
-    >
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: "13px", color: "var(--text-h)", fontWeight: active ? 500 : 400, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          {title}
-        </div>
-        <div style={{ fontSize: "11px", color: "var(--text-soft)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{meta}</div>
-      </div>
-      {right && <span style={{ fontSize: "11px", color: "var(--text-soft)", flexShrink: 0 }}>{right}</span>}
-    </button>
-  );
-}
-
 function Bubble({ user, error, children }: { user: boolean; error?: boolean; children: React.ReactNode }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: user ? "flex-end" : "flex-start" }}>
@@ -381,29 +275,6 @@ function Message({ m, showSuggestions, busy, onPick }: {
       {m.data.refs_missing ? <span style={{ fontSize: "12px", color: "var(--text-soft)" }}>The audit version this message refers to is no longer available.</span> : null}
       {showSuggestions && !user && m.suggestions.length ? <Chips items={m.suggestions} onPick={onPick} disabled={busy} /> : null}
     </div>
-  );
-}
-
-function IconButton({ tip, shortcut, tipSide = "bottom", bordered, onClick, children }: {
-  tip: string; shortcut?: string; tipSide?: "top" | "bottom" | "bottom-end" | "right"; bordered?: boolean;
-  onClick: () => void; children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      className="icon-btn"
-      aria-label={tip}
-      data-tip={shortcut ? `${tip}  ${shortcut}` : tip}
-      data-tip-side={tipSide}
-      onClick={onClick}
-      style={{
-        width: "32px", height: "32px", flexShrink: 0, borderRadius: bordered ? "50%" : "8px",
-        border: bordered ? "1px solid var(--border-strong)" : "none", background: "transparent",
-        color: "var(--text-muted)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
-      }}
-    >
-      {children}
-    </button>
   );
 }
 
