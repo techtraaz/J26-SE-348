@@ -224,3 +224,13 @@ code, .id { font-family: 'JetBrains Mono Variable', monospace; }
   background: color-mix(in srgb, var(--danger) 10%, transparent) !important;
 }
 
+/* ── A run opened from a chat reply's "Explain" ── */
+@keyframes xai-focus {
+  0%, 60% { box-shadow: 0 0 0 2px color-mix(in srgb, var(--text-muted) 45%, transparent); }
+  100% { box-shadow: 0 0 0 2px transparent; }
+}
+#xai-panel .xai-focused {
+  border-radius: var(--radius);
+  animation: xai-focus 1.8s ease-out;
+}
+

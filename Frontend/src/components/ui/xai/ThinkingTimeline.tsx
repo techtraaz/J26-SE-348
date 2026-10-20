@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowRight, Check, ChevronDown, ChevronRight, CircleAlert, CircleCheck, CircleX, LoaderCircle,
          Sparkles, X } from "lucide-react";
 import {
@@ -36,12 +36,23 @@ const toneColor: Record<Tone, string> = {
   neutral: "var(--text-muted)",
 };
 
-export function ThinkingTimeline({ events, connected, streamId }: {
+export function ThinkingTimeline({ events, connected, streamId, focus = null }: {
   events: XaiEvent[];
   connected: boolean;
   streamId: string;
+  focus?: { runKey: string; at: number } | null; // a chat reply's "Explain"
 }) {
   const runs = useMemo(() => buildRuns(events), [events]);
+  const focusFound = focus ? runs.some((r) => r.key === focus.runKey) : true;
+
+  // A reply older than the live history (or from before C04 restarted) has no trace to show.
+  const [gaveUpOn, setGaveUpOn] = useState<number | null>(null);
+  useEffect(() => {
+    if (!focus || focusFound) return;
+    const timer = setTimeout(() => setGaveUpOn(focus.at), 2500);
+    return () => clearTimeout(timer);
+  }, [focus, focusFound]);
+  const missing = focus !== null && !focusFound && gaveUpOn === focus.at;
 
   if (runs.length === 0) {
     return (
@@ -57,23 +68,41 @@ export function ThinkingTimeline({ events, connected, streamId }: {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-      {runs.map((run, i) => (
-        <RunBlock key={run.key} run={run} latest={i === runs.length - 1} />
-      ))}
+      {missing && (
+        <p role="status" style={{
+          fontSize: 12.5, lineHeight: 1.5, color: "var(--text-muted)", padding: "10px 12px", ...font,
+          borderRadius: "var(--radius)", border: "1px dashed var(--border-strong)",
+        }}>
+          The trace of that reply is no longer available. Traces are kept for recent replies only.
+        </p>
+      )}
+      {runs.map((run, i) => {
+        const focused = focus?.runKey === run.key;
+        // remounting a focused run resets it to open, also when it was collapsed before
+        return (
+          <RunBlock key={focused ? `${run.key}:${focus!.at}` : run.key} run={run}
+                    latest={i === runs.length - 1} focused={focused} />
+        );
+      })}
     </div>
   );
 }
 
 /* ── Run: the dropdown ─────────────────────────────────────────────── */
 
-function RunBlock({ run, latest }: { run: Run; latest: boolean }) {
+function RunBlock({ run, latest, focused = false }: { run: Run; latest: boolean; focused?: boolean }) {
   const [open, setOpen] = useState<boolean | null>(null);
-  const expanded = open ?? (latest || run.status === "running");
+  const expanded = open ?? (focused || latest || run.status === "running");
+  const ref = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (focused) ref.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+  }, [focused]);
   const failed = run.stages.reduce((n, s) => n + s.steps.filter(isFailure).length, 0);
   const running = run.status === "running";
 
   return (
-    <section aria-label={runTitle(run)} style={font}>
+    <section ref={ref} aria-label={runTitle(run)} className={focused ? "xai-focused" : undefined}
+             style={{ ...font, scrollMarginTop: 8 }}>
       <div style={{ fontSize: 11, color: "var(--text-soft)", marginBottom: 4, display: "flex", gap: 6 }}>
         <span style={{ textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 600 }}>
           {run.kind === "copilot" ? "Copilot" : "Audit"}

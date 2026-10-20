@@ -25,7 +25,7 @@ const monoFont: React.CSSProperties = {
 /* ── Main Component ─────────────────────────────────────────────────── */
 
 export function XaiPanel() {
-  const { xaiPanelOpen, xaiActiveTab, selectedCase, toggleXaiPanel, setXaiTab } = useUI();
+  const { xaiPanelOpen, xaiActiveTab, selectedCase, toggleXaiPanel, setXaiTab, xaiFocus } = useUI();
   // Events of one stream; switching case shows nothing until the new stream replays.
   const [feed, setFeed] = useState<{ stream: string; events: XaiEvent[] }>({ stream: "", events: [] });
   const [connected, setConnected] = useState(false);
@@ -226,6 +226,7 @@ export function XaiPanel() {
             events={events}
             streamId={streamId}
             connected={connected}
+            focus={xaiFocus}
           />
         ) : (
           <ReportTab
