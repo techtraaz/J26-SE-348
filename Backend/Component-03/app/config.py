@@ -48,6 +48,10 @@ LLM_BASE_URL: str = os.getenv("C03_LLM_BASE_URL", os.getenv(
     "OLLAMA_HOST", "http://localhost:11434" if LLM_PROVIDER == "ollama" else "http://localhost:8080/v1"))
 LLM_API_KEY: str = os.getenv("C03_LLM_API_KEY", "")  # only if the local server needs one
 LLM_TIMEOUT: float = float(os.getenv("C03_LLM_TIMEOUT", "8"))  # audit trace narration
+# The case summary written for the auditor (Reasoning agent): a few paragraphs,
+# so it needs longer than a trace line. Rejected if it uses a number not in the facts.
+LLM_SUMMARY_TIMEOUT: float = float(os.getenv("C03_LLM_SUMMARY_TIMEOUT", "90"))
+LLM_SUMMARY_MAX_CHARS: int = int(os.getenv("C03_LLM_SUMMARY_MAX_CHARS", "3000"))
 COPILOT_LLM_TIMEOUT: float = float(os.getenv("C03_COPILOT_LLM_TIMEOUT", "25"))  # first call loads the model
 LLM_RETRY_COOLDOWN: float = float(os.getenv("C03_LLM_RETRY_COOLDOWN", "30"))
 
@@ -78,6 +82,9 @@ ALLOW_FREE_CYPHER: bool = False
 #   live -> never fall back; KG problems become visible REV-007 findings
 KG_MODE: str = os.getenv("KG_MODE", "auto")
 KG_URL: str = os.getenv("KG_URL", "")  # C2 base URL, e.g. http://localhost:8002
+# Component-01, for POST /audit/run/c1 (C3 fetches verified records itself).
+C1_URL: str = os.getenv("C1_URL", "http://127.0.0.1:8000")
+C1_TIMEOUT: float = float(os.getenv("C1_TIMEOUT", "30"))
 KG_TIMEOUT: float = float(os.getenv("KG_TIMEOUT", "5"))
 # How C2 searches the standards for the Copilot: keyword | semantic | hybrid.
 # hybrid uses C2's embeddings and falls back to keyword (with a note) when they are off.

@@ -3,6 +3,7 @@
 export interface AuditDocument {
   doc_id: string;
   case_id?: string;
+  name?: string | null; // what people call it, e.g. C1's file name
   doc_type: string; // a Component-02 DocumentType code, or "unknown"
   period_year: number;
   parent_doc_id?: string | null;

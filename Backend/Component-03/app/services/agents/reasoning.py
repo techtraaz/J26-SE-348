@@ -7,7 +7,8 @@ a linked document that is not in the case becomes a visible REV-005 review
 item. A cited standard that is no longer current (e.g. superseded) is flagged
 in the chain, never silently cited. KG lookups run in parallel (each is a
 network round trip with the live KG); failures are reported in the trace,
-never hidden. The LLM writes the one-line summary only.
+never hidden. The LLM writes the case summary for the auditor from facts built
+here (it never changes a finding); without the LLM the summary line is fixed text.
 """
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
@@ -59,6 +60,27 @@ def _lookup_all(keys: list[str], fetch: Callable[[str], object], what: str,
 def _caution(std: StandardInfo) -> str:
     later = f", superseded by {', '.join(std.superseded_by)}" if std.superseded_by else ""
     return f"caution: cited standard {std.code} is {std.status}{later}; check the basis is still current"
+
+
+def case_facts(case: AuditCase, findings: list[Finding]) -> str:
+    """What the LLM may say about the case: documents, then every finding with its
+    rule, severity, status, values and basis. Everything in it comes from code."""
+    lines = [f"Case {case.case_id}, {len(case.docs)} document(s):"]
+    for d in case.docs:
+        name = f" ({d.name})" if d.name else ""
+        parent = f", supports {d.parent_doc_id}" if d.parent_doc_id else ""
+        lines.append(f"- {d.doc_id}{name}: {d.doc_type.replace('_', ' ')}, {d.period_year}{parent}")
+    if case.materiality is not None:
+        lines.append(f"Case materiality: {rules.fmt(float(case.materiality))}.")
+    lines.append(f"Findings ({len(findings)}):" if findings else "Findings: none.")
+    for f in findings:
+        kind = "review item" if f.rule_id.startswith("REV-") else "rule finding"
+        lines.append(f"- {f.rule_id} ({kind}, {f.severity}, {f.review_status.replace('_', ' ')}): {f.message}")
+        lines += [f"  {step}" for step in f.reasoning_chain[1:]
+                  if step.startswith(("basis:", "tests:", "risk:", "caution:"))]
+        if f.policy_ids:
+            lines.append(f"  cited: {', '.join(f.policy_ids)}")
+    return "\n".join(lines)
 
 
 def run(case: AuditCase, findings: list[Finding], kg: KGClient,
@@ -124,12 +146,15 @@ def run(case: AuditCase, findings: list[Finding], kg: KGClient,
             f.review_status = "needs_more_evidence"
 
     reviews = sum(f.review_status == "needs_more_evidence" for f in out)
-    fallback = (f"Case {case.case_id}: {len(out)} finding(s), {reviews} need review, "
-                f"all pending auditor review.")
-    summary = llm.narrate(
-        f"Say only: case {case.case_id} has {len(out)} finding(s), {reviews} need review.",
-        fallback=fallback) if narrate else fallback
-    trace = [TraceEntry(agent_name="reasoning", decision_type="merge", detail=summary)]
+    trace = [TraceEntry(agent_name="reasoning", decision_type="merge",
+                        detail=f"Case {case.case_id}: {len(out)} finding(s), {reviews} need review, "
+                               f"all pending auditor review.")]
+    if narrate:
+        summary, why_not = llm.explain(case_facts(case, out))
+        trace.append(TraceEntry(agent_name="reasoning", decision_type="summary", detail=summary)
+                     if summary else
+                     TraceEntry(agent_name="reasoning", decision_type="summary_skipped",
+                                detail=f"No written case summary: {why_not}."))
     if outdated:
         trace.append(TraceEntry(agent_name="reasoning", decision_type="kg",
                                 detail="Cited standards not current: "

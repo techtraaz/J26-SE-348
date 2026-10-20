@@ -62,6 +62,7 @@ export const c3 = {
       json({ case_id: caseId, documents })).then((r) => r.documents),
   confirmC1: (caseId: string, documents: (C1Record & {
     doc_type: string; period_year: number; parent_doc_id?: string | null; fields: FieldDecision[];
+    name?: string;
   })[]) =>
     request<{ case: AuditCase; issues: string[] }>(env.c3Base, "/audit/intake/c1/confirm",
       json({ case_id: caseId, documents })),

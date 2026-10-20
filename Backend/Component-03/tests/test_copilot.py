@@ -9,7 +9,7 @@ from app.schemas.copilot import CopilotQuery
 from app.services import copilot, intake, llm, orchestrator
 from app.services.copilot.entities import extract
 from app.services.copilot.nlu import RequestContext, understand
-from app.services.copilot.registry import REGISTRY
+from app.services.copilot.registry import FALLBACK_INTENT, REGISTRY
 from app.services.llm.providers import LLMError, LLMProvider
 from tests.conftest import doc
 
@@ -191,7 +191,7 @@ def test_every_follow_up_routes_to_a_real_intent(monkeypatch):
     for spec in REGISTRY.values():
         for text in spec.follow_ups:
             got = understand(text, extract(text), RequestContext(case_id="C-1")).intent
-            assert got != "help", f"{spec.name} follow-up {text!r} routes to help"
+            assert got != FALLBACK_INTENT, f"{spec.name} follow-up {text!r} matches no intent"
 
 
 def test_replies_carry_suggestions_and_findings(kg, audited):

@@ -393,7 +393,11 @@ class FallbackKGClient(KGClient):
         self.mode = (mode or config.KG_MODE).lower()
         if self.mode not in ("auto", "mock", "live"):
             raise KGError(f"Unknown KG_MODE {self.mode!r}; use auto|mock|live.")
-        self._mock = mock or MockKGClient(mock_path())
+        # A KG_MOCK_FILE that does not exist (no snapshot taken yet) falls back to
+        # the committed mock, and the trace says so.
+        wanted = mock_path() if mock is None else None
+        self._missing_mock = wanted if wanted is not None and not wanted.exists() else None
+        self._mock = mock or MockKGClient(None if self._missing_mock else wanted)
         self._live = live if live is not None else (LiveKGClient() if config.KG_URL else None)
         if self.mode == "live" and self._live is None:
             raise KGError("KG_MODE=live but no KG_URL is configured.")
@@ -420,6 +424,8 @@ class FallbackKGClient(KGClient):
         """Where the mock data came from, when the mock answered."""
         if self.source == "live" or not isinstance(self._mock, MockKGClient):
             return None
+        if self._missing_mock is not None:
+            return f"KG_MOCK_FILE {self._missing_mock} not found, so committed mock data"
         return self._mock.note
 
     def get_rules(self, doc_type):

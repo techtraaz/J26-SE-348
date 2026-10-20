@@ -39,7 +39,7 @@ class IntentSpec:
 
 
 REGISTRY: dict[str, IntentSpec] = {}
-FALLBACK_INTENT = "help"
+FALLBACK_INTENT = "out_of_scope"  # nothing matched: say so, never pretend to understand
 
 
 def intent(name: str, *, group: Group, description: str, examples: tuple[str, ...],
