@@ -116,19 +116,22 @@ export function XaiPanel() {
   if (!xaiPanelOpen) return null;
 
   return (
-    <div id="xai-panel" style={{
+    // A floating card below the top bar (rounded, outlined, inset from the edges).
+    <aside id="xai-panel" aria-label="XAI Inspector" style={{
       ...fontBase,
       position: "fixed",
-      top: 0,
-      right: 0,
-      width: "380px",
-      height: "100vh",
-      background: "var(--bg)",
-      borderLeft: "1px solid var(--border-light)",
+      top: "72px",
+      right: "12px",
+      bottom: "12px",
+      width: "368px",
+      background: "var(--surface)",
+      border: "1px solid var(--border-strong)",
+      borderRadius: "var(--radius-lg)",
       display: "flex",
       flexDirection: "column",
+      overflow: "hidden",
       zIndex: 1000,
-      boxShadow: "-4px 0 20px rgba(0,0,0,0.05)",
+      boxShadow: "var(--shadow-lg)",
       animation: "xai-slide-in 0.25s ease-out",
     }}>
       {/* ── Header ── */}
@@ -136,22 +139,27 @@ export function XaiPanel() {
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
-        padding: "14px 20px",
+        margin: "0 18px",
+        padding: "16px 0 14px",
         borderBottom: "1px solid var(--border-light)",
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <div style={{
-            width: "6px", height: "6px", borderRadius: "50%",
-            background: connected ? "var(--success)" : "var(--border)",
-            transition: "background 0.3s",
-          }} />
           <span style={{
-            fontSize: "13px", fontWeight: 500, color: "var(--text-h)",
+            fontSize: "15px", fontWeight: 600, color: "var(--text-h)",
             letterSpacing: "-0.01em",
           }}>XAI Inspector</span>
+          <span
+            title={connected ? "Live" : "Connecting"}
+            style={{
+              width: "7px", height: "7px", borderRadius: "50%",
+              background: connected ? "var(--success)" : "var(--border-strong)",
+              transition: "background 0.3s",
+            }}
+          />
         </div>
         <button
           onClick={toggleXaiPanel}
+          aria-label="Close XAI Inspector"
           style={{
             background: "none", border: "none", cursor: "pointer",
             color: "var(--text-muted)", padding: "4px",
@@ -172,8 +180,10 @@ export function XaiPanel() {
       <div style={{
         display: "flex",
         gap: "4px",
-        padding: "10px 20px",
-        borderBottom: "1px solid var(--border-light)",
+        margin: "12px 18px 4px",
+        padding: "3px",
+        borderRadius: "var(--radius-pill)",
+        background: "var(--surface-muted)",
       }}>
         {(["thinking", "report"] as const).map((tab) => (
           <button
@@ -182,7 +192,7 @@ export function XaiPanel() {
             style={{
               ...fontBase,
               flex: 1,
-              padding: "7px 16px",
+              padding: "6px 16px",
               borderRadius: "var(--radius-pill)",
               fontSize: "13px",
               fontWeight: 500,
@@ -211,7 +221,7 @@ export function XaiPanel() {
       }} style={{
         flex: 1,
         overflowY: "auto",
-        padding: "16px 20px",
+        padding: "14px 18px 18px",
       }}>
         {xaiActiveTab === "thinking" ? (
           <ThinkingTimeline
@@ -228,7 +238,7 @@ export function XaiPanel() {
           />
         )}
       </div>
-    </div>
+    </aside>
   );
 }
 
@@ -261,7 +271,7 @@ function ReportTab({ selectedCase, reportHtml, reportLoading, onGenerate }: {
         padding: "14px 16px",
         borderRadius: "var(--radius)",
         background: "var(--surface)",
-        border: "1px solid var(--border-light)",
+        border: "1px solid var(--border-strong)",
       }}>
         <p style={{ fontSize: "13px", color: "var(--text)", lineHeight: 1.5, ...fontBase }}>
           Generate a deterministic PDF audit report for case{" "}
@@ -296,7 +306,7 @@ function ReportTab({ selectedCase, reportHtml, reportLoading, onGenerate }: {
             padding: "14px 16px",
             borderRadius: "var(--radius)",
             background: "var(--surface)",
-            border: "1px solid var(--border-light)",
+            border: "1px solid var(--border-strong)",
             fontSize: "13px",
             lineHeight: 1.6,
             ...fontBase,

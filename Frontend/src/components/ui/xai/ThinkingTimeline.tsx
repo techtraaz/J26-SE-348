@@ -101,7 +101,7 @@ function RunBlock({ run, latest }: { run: Run; latest: boolean }) {
 
       {expanded && (
         <div style={{
-          marginTop: 8, border: "1px solid var(--border-light)", borderRadius: "var(--radius)",
+          marginTop: 8, border: "1px solid var(--border-strong)", borderRadius: "var(--radius)",
           background: "var(--surface)", overflow: "hidden",
         }}>
           {run.stages.length === 0 && <Row muted>Starting…</Row>}
@@ -113,7 +113,7 @@ function RunBlock({ run, latest }: { run: Run; latest: boolean }) {
       {run.insight && (
         <div style={{
           marginTop: 10, padding: "12px 14px", borderRadius: "var(--radius)",
-          border: "1px solid var(--border-light)", background: "var(--surface)",
+          border: "1px solid var(--border-strong)", background: "var(--surface)",
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 600,
                         textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--text-soft)", marginBottom: 6 }}>

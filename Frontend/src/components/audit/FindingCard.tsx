@@ -16,7 +16,7 @@ export function FindingCard({ f }: { f: Finding }) {
   const isReviewItem = f.rule_id.startsWith("REV-");
   return (
     <div style={{
-      border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "10px 12px",
+      border: "1px solid var(--border-strong)", borderRadius: "var(--radius)", padding: "10px 12px",
       background: "var(--bg)", fontSize: "13px",
     }}>
       <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>

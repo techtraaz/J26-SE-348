@@ -123,7 +123,7 @@ export function AppShell() {
         overflowY: "auto",
         display: "flex",
         flexDirection: "column",
-        marginRight: xaiPanelOpen ? "380px" : "0",
+        marginRight: xaiPanelOpen ? "392px" : "0", // the floating XAI card + its gap
         transition: "margin-right 0.25s ease",
       }}>
         <Outlet />

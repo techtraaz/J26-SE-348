@@ -4,6 +4,7 @@ import { c3, chat } from "@/lib/apiClient";
 import { VerifiedDocumentPicker } from "@/features/documents/VerifiedDocumentPicker";
 import { useUI } from "@/store/ui";
 import { FindingCard } from "@/components/audit/FindingCard";
+import { PanelLeft, Plus } from "lucide-react";
 import type { CaseSummary, ChatMessage, Finding } from "@/types/audit";
 
 const STARTERS = [
@@ -38,8 +39,30 @@ function replyText(content: string, findings: Finding[]): string {
 
 export function DashboardPage() {
   const qc = useQueryClient();
-  const { selectedCase, setCase, newCase, draftCases, generalSessionId, staged, clearStaged } = useUI();
+  const { selectedCase, setCase, newCase, draftCases, generalSessionId, staged, clearStaged,
+          sidebarOpen, toggleSidebar } = useUI();
   const [input, setInput] = useState("");
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Ctrl+B (Cmd+B on Mac) shows or hides the Cases sidebar.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "b") {
+        e.preventDefault();
+        toggleSidebar();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [toggleSidebar]);
+
+  // The message box grows with its text, up to a limit, then scrolls.
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
+  }, [input]);
   const [busy, setBusy] = useState(false);
   // Case documents come only from verified Component-01 documents (D16), picked here.
   const [pickingFor, setPickingFor] = useState<string | null>(null);
@@ -106,22 +129,26 @@ export function DashboardPage() {
   return (
     <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
       {/* ── Cases (one chat per case) ── */}
-      <aside style={{
-        width: "240px", flexShrink: 0, borderRight: "1px solid var(--border-light)",
-        padding: "20px 16px", display: "flex", flexDirection: "column", gap: "4px", overflowY: "auto",
+      <aside aria-label="Cases" style={{
+        width: sidebarOpen ? "240px" : "56px", flexShrink: 0, borderRight: "1px solid var(--border-light)",
+        padding: sidebarOpen ? "14px 12px" : "14px 10px", display: "flex", flexDirection: "column", gap: "4px",
+        overflow: sidebarOpen ? "hidden auto" : "visible",
+        transition: "width 0.2s ease, padding 0.2s ease",
       }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
-          <span style={{ fontWeight: 600, fontSize: "13px", color: "var(--text-h)" }}>Cases</span>
-          <button
-            style={{
-              width: "24px", height: "24px", borderRadius: "6px", border: "1px solid var(--border)",
-              background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
-              color: "var(--text-muted)", fontSize: "16px", fontFamily: "inherit",
-            }}
-            onClick={() => newCase()}
-            title="New case"
-          >+</button>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px",
+                      flexDirection: sidebarOpen ? "row" : "column" }}>
+          <IconButton tip={sidebarOpen ? "Hide sidebar" : "Show sidebar"} shortcut="Ctrl+B"
+                      tipSide={sidebarOpen ? "bottom" : "right"} onClick={toggleSidebar}>
+            <PanelLeft size={18} strokeWidth={1.6} />
+          </IconButton>
+          {sidebarOpen && (
+            <span style={{ flex: 1, fontWeight: 600, fontSize: "13px", color: "var(--text-h)" }}>Cases</span>
+          )}
+          <IconButton tip="New case" tipSide={sidebarOpen ? "bottom-end" : "right"} onClick={() => newCase()}>
+            <Plus size={18} strokeWidth={1.6} />
+          </IconButton>
         </div>
+        {sidebarOpen && <>
 
         <SessionButton active={selectedCase === null} onClick={() => setCase(null)}
                        title="General questions" meta="rules, standards, what-ifs" />
@@ -135,6 +162,7 @@ export function DashboardPage() {
                          title={c.case_id} meta={c.summary ? caseMeta(c.summary) : "new · not audited"}
                          right={c.summary ? timeAgo(c.summary.created_at) : ""} />
         ))}
+        </>}
       </aside>
 
       {/* ── Conversation ── */}
@@ -174,7 +202,7 @@ export function DashboardPage() {
               ))}
               {busy && (
                 <div style={{ display: "flex", alignItems: "flex-start" }}>
-                  <div style={{ padding: "12px 16px", borderRadius: "16px 16px 16px 4px", background: "var(--surface)", border: "1px solid var(--border)", fontSize: "14px", color: "var(--text-muted)" }}>
+                  <div style={{ padding: "12px 16px", borderRadius: "16px 16px 16px 4px", background: "var(--surface)", border: "1px solid var(--border-strong)", fontSize: "14px", color: "var(--text-muted)" }}>
                     <span className="thinking-dots">Thinking</span>
                   </div>
                 </div>
@@ -195,36 +223,47 @@ export function DashboardPage() {
               </span>
             </div>
           )}
-          <div className="chat-composer" style={{
-            background: "var(--input-bg)", borderRadius: "var(--radius-xl)", padding: "12px 16px",
-            display: "flex", flexDirection: "column", gap: "8px",
-            border: "1px solid var(--input-border)", boxShadow: "var(--shadow-sm)",
-          }}>
-            <input
-              type="text"
+          {/* Clicking anywhere in the box (except its buttons) puts the cursor in the text. */}
+          <div
+            className="chat-composer"
+            onMouseDown={(e) => {
+              if (!(e.target as HTMLElement).closest("button, textarea")) {
+                e.preventDefault();
+                inputRef.current?.focus();
+              }
+            }}
+            style={{
+              background: "var(--input-bg)", borderRadius: "var(--radius-xl)", padding: "14px 14px 10px 18px",
+              display: "flex", flexDirection: "column", gap: "10px", cursor: "text",
+              border: "1px solid var(--border-strong)", boxShadow: "var(--shadow-sm)",
+            }}
+          >
+            <textarea
+              ref={inputRef}
+              rows={1}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
               placeholder={attached.length ? "Say what to do with the documents, or press Enter to audit them" : "Message..."}
-              style={{ border: "none", outline: "none", background: "transparent", fontSize: "14px", color: "var(--text-h)", fontFamily: "inherit", width: "100%" }}
+              aria-label="Message"
+              style={{
+                border: "none", outline: "none", background: "transparent", fontSize: "14px", lineHeight: "22px",
+                color: "var(--text-h)", fontFamily: "inherit", width: "100%", resize: "none", padding: 0,
+                minHeight: "22px", maxHeight: "200px", overflowY: "auto",
+              }}
             />
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <button onClick={() => setPickingFor(selectedCase ?? newCase())} title="Add verified documents from the Library"
-                      style={{
-                        display: "flex", alignItems: "center", gap: "6px", background: "none", border: "none",
-                        cursor: "pointer", color: "var(--text-muted)", padding: "2px", fontSize: "13px", fontFamily: "inherit",
-                      }}>
-                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                  <polyline points="14 2 14 8 20 8" />
-                  <polyline points="9 15 11 17 15 13" />
-                </svg>
-                Add verified documents
-              </button>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px" }}>
+              <IconButton tip="Add verified documents" tipSide="top" bordered
+                          onClick={() => setPickingFor(selectedCase ?? newCase())}>
+                <Plus size={17} strokeWidth={1.7} />
+              </IconButton>
               {pickingFor && <VerifiedDocumentPicker caseId={pickingFor} onClose={() => setPickingFor(null)} />}
               <SendButton ready={Boolean(input.trim() || attached.length) && !busy} onClick={() => send()} />
             </div>
           </div>
+          <p style={{ textAlign: "center", fontSize: "11px", color: "var(--text-soft)", marginTop: "8px" }}>
+            Enter to send · Shift+Enter for a new line
+          </p>
         </div>
       </div>
     </div>
@@ -270,7 +309,7 @@ function Bubble({ user, error, children }: { user: boolean; error?: boolean; chi
         background: user ? "var(--text-h)" : "var(--surface)",
         color: user ? "var(--bg)" : error ? "var(--danger)" : "var(--text)",
         fontSize: "14px", lineHeight: "1.6", whiteSpace: "pre-wrap",
-        border: user ? "none" : `1px solid ${error ? "var(--danger)" : "var(--border)"}`,
+        border: user ? "none" : `1px solid ${error ? "var(--danger)" : "var(--border-strong)"}`,
         boxShadow: user ? "none" : "var(--shadow-sm)",
       }}>{children}</div>
     </div>
@@ -288,7 +327,7 @@ function Message({ m, showSuggestions, busy, onPick }: {
       {m.role === "report" || m.role === "system" ? (
         <div style={{
           maxWidth: "85%", padding: "10px 14px", borderRadius: "var(--radius)", fontSize: "13px",
-          border: "1px dashed var(--border)", color: "var(--text)", background: "var(--accent-bg)",
+          border: "1px dashed var(--border-strong)", color: "var(--text)", background: "var(--accent-bg)",
         }}>
           <span style={{ fontWeight: 600, color: "var(--text-h)" }}>
             {m.role === "report" ? `Report${m.refs?.version ? ` · v${m.refs.version}` : ""}` : "Notice"} ({m.source.toUpperCase()})
@@ -321,6 +360,29 @@ function Message({ m, showSuggestions, busy, onPick }: {
   );
 }
 
+function IconButton({ tip, shortcut, tipSide = "bottom", bordered, onClick, children }: {
+  tip: string; shortcut?: string; tipSide?: "top" | "bottom" | "bottom-end" | "right"; bordered?: boolean;
+  onClick: () => void; children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      className="icon-btn"
+      aria-label={tip}
+      data-tip={shortcut ? `${tip}  ${shortcut}` : tip}
+      data-tip-side={tipSide}
+      onClick={onClick}
+      style={{
+        width: "32px", height: "32px", flexShrink: 0, borderRadius: bordered ? "50%" : "8px",
+        border: bordered ? "1px solid var(--border-strong)" : "none", background: "transparent",
+        color: "var(--text-muted)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
 function SendButton({ ready, onClick }: { ready: boolean; onClick: () => void }) {
   return (
     <button onClick={onClick} disabled={!ready} style={{
@@ -341,7 +403,7 @@ function Chips({ items, onPick, disabled }: { items: string[]; onPick: (t: strin
     <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", maxWidth: "640px", justifyContent: "inherit" }}>
       {items.map((t) => (
         <button key={t} onClick={() => onPick(t)} disabled={disabled} style={{
-          padding: "6px 12px", borderRadius: "var(--radius-pill)", border: "1px solid var(--border)",
+          padding: "6px 12px", borderRadius: "var(--radius-pill)", border: "1px solid var(--border-strong)",
           background: "var(--surface)", color: "var(--text-h)", fontSize: "12px", cursor: disabled ? "default" : "pointer",
           fontFamily: "inherit",
         }}>{t}</button>
