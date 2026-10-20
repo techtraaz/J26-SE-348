@@ -53,12 +53,15 @@ def make_settings(tmp_path, database_url, replay_fixture):
         values = dict(
             engine="replay",
             replay_fixture=replay_fixture,
+            storage_backend="local",
             storage_root=tmp_path / "store",
             database_url=database_url,
             run_worker=False,
         )
         values.update(overrides)
-        return Settings(**values)
+        # Never read the developer's .env: tests must not reach a real object
+        # store (GARAGE_*) or depend on local settings.
+        return Settings(_env_file=None, **values)
 
     return _make
 
