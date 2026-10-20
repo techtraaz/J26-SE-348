@@ -1,10 +1,12 @@
-import { FileImage, FileText, RotateCw } from 'lucide-react'
+import { FileImage, FileText, Folder, Inbox, RotateCw } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
 import { extractionPaths } from '@/features/extraction/paths'
 import type { DocumentOut } from '@/features/extraction/api/types'
 import { Button } from '@/features/extraction/components/Button'
 import { formatRelativeTime, pluralize } from '@/features/extraction/format'
+import { DocumentMenu } from './DocumentActions'
+import type { DocumentAction } from './DocumentActions'
 import { DocumentProgress } from './DocumentProgress'
 import { StatusChip } from './StatusChip'
 
@@ -17,9 +19,11 @@ interface DocumentListProps {
   documents: DocumentOut[]
   onRetry: (id: string) => void
   retrying: boolean
+  onAction: (action: DocumentAction, document: DocumentOut) => void
+  showFolder?: boolean // All documents: say where each one is filed
 }
 
-export function DocumentList({ documents, onRetry, retrying }: DocumentListProps) {
+export function DocumentList({ documents, onRetry, retrying, onAction, showFolder = false }: DocumentListProps) {
   return (
     // Narrow screens scroll the table sideways rather than squeezing the name away.
     <div className="overflow-x-auto rounded-lg border border-line-light bg-surface">
@@ -28,10 +32,11 @@ export function DocumentList({ documents, onRetry, retrying }: DocumentListProps
           <tr>
             {/* Fixed widths for the short columns; the name takes the rest. */}
             <th scope="col" className="px-5 py-3 font-medium">Name</th>
+            {showFolder && <th scope="col" className="hidden w-44 px-4 py-3 font-medium lg:table-cell">Folder</th>}
             <th scope="col" className="w-44 px-4 py-3 font-medium">Status</th>
             <th scope="col" className="hidden w-24 px-4 py-3 font-medium sm:table-cell">Pages</th>
             <th scope="col" className="hidden w-28 px-4 py-3 font-medium md:table-cell">Uploaded</th>
-            <th scope="col" className="w-28 px-5 py-3"><span className="sr-only">Actions</span></th>
+            <th scope="col" className="w-36 px-5 py-3"><span className="sr-only">Actions</span></th>
           </tr>
         </thead>
         <tbody className="divide-y divide-line-light">
@@ -56,6 +61,11 @@ export function DocumentList({ documents, onRetry, retrying }: DocumentListProps
                   </div>
                 </div>
               </td>
+              {showFolder && (
+                <td className="hidden max-w-0 px-4 py-3.5 lg:table-cell">
+                  <FolderLink document={doc} />
+                </td>
+              )}
               <td className="px-4 py-3.5">
                 <StatusChip status={doc.status} />
                 <DocumentProgress document={doc} />
@@ -66,17 +76,38 @@ export function DocumentList({ documents, onRetry, retrying }: DocumentListProps
               <td className="hidden px-4 py-3.5 text-ink-muted md:table-cell">
                 {formatRelativeTime(doc.created_at)}
               </td>
-              <td className="px-5 py-3.5 text-right">
-                {doc.status === 'failed' && (
-                  <Button size="sm" disabled={retrying} onClick={() => onRetry(doc.id)}>
-                    <RotateCw size={14} aria-hidden /> Retry
-                  </Button>
-                )}
+              <td className="px-5 py-3.5">
+                <div className="flex items-center justify-end gap-1">
+                  {doc.status === 'failed' && (
+                    <Button size="sm" disabled={retrying} onClick={() => onRetry(doc.id)}>
+                      <RotateCw size={14} aria-hidden /> Retry
+                    </Button>
+                  )}
+                  <DocumentMenu document={doc} onAction={(action) => onAction(action, doc)} />
+                </div>
               </td>
             </tr>
           ))}
         </tbody>
       </table>
     </div>
+  )
+}
+
+/** Where a document is filed: its folder, or Unfiled. */
+export function FolderLink({ document }: { document: DocumentOut }) {
+  return document.folder_id ? (
+    <Link
+      to={extractionPaths.folder(document.folder_id)}
+      className="flex min-w-0 items-center gap-1.5 text-ink hover:text-ink-h hover:underline underline-offset-2"
+      title={document.folder_name ?? undefined}
+    >
+      <Folder size={14} strokeWidth={1.5} className="shrink-0 text-ink-soft" aria-hidden />
+      <span className="truncate">{document.folder_name}</span>
+    </Link>
+  ) : (
+    <Link to={extractionPaths.unfiled} className="flex items-center gap-1.5 text-ink-soft hover:text-ink-h">
+      <Inbox size={14} className="shrink-0" aria-hidden /> Unfiled
+    </Link>
   )
 }

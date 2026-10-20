@@ -2,8 +2,9 @@
 
 import uuid
 from datetime import datetime
+from typing import Annotated
 
-from pydantic import BaseModel
+from pydantic import BaseModel, StringConstraints
 
 class RunSummary(BaseModel):
     id: uuid.UUID
@@ -18,7 +19,8 @@ class RunSummary(BaseModel):
 
 class DocumentOut(BaseModel):
     id: uuid.UUID
-    folder_id: uuid.UUID | None
+    folder_id: uuid.UUID | None  # null = Unfiled (in no folder)
+    folder_name: str | None
     filename: str
     mime: str
     sha256: str
@@ -31,6 +33,14 @@ class DocumentOut(BaseModel):
     created_at: datetime
     updated_at: datetime
     latest_run: RunSummary | None
+
+class DocumentUpdate(BaseModel):
+    """Rename and/or move. Fields left out stay as they are; `folder_id: null`
+    moves the document out of every folder (Unfiled)."""
+
+    filename: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=255)] | None = None
+    folder_id: uuid.UUID | None = None
+
 
 class PageOut(BaseModel):
     page_number: int

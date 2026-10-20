@@ -97,10 +97,19 @@ export interface paths {
         get: operations["get_document_api_v1_documents__document_id__get"];
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * Delete Document
+         * @description Delete a document with its runs, pages, draft and files. A document with
+         *     verified versions is kept: it is part of the audit trail (D2).
+         */
+        delete: operations["delete_document_api_v1_documents__document_id__delete"];
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Update Document
+         * @description Rename and/or move a document. `folder_id: null` moves it to Unfiled.
+         */
+        patch: operations["update_document_api_v1_documents__document_id__patch"];
         trace?: never;
     };
     "/api/v1/documents/{document_id}/retry": {
@@ -330,6 +339,8 @@ export interface components {
             id: string;
             /** Folder Id */
             folder_id: string | null;
+            /** Folder Name */
+            folder_name: string | null;
             /** Filename */
             filename: string;
             /** Mime */
@@ -380,6 +391,8 @@ export interface components {
             id: string;
             /** Folder Id */
             folder_id: string | null;
+            /** Folder Name */
+            folder_name: string | null;
             /** Filename */
             filename: string;
             /** Mime */
@@ -419,6 +432,17 @@ export interface components {
          * @enum {string}
          */
         DocumentStatus: "uploaded" | "processing" | "needs_review" | "verified" | "failed";
+        /**
+         * DocumentUpdate
+         * @description Rename and/or move. Fields left out stay as they are; `folder_id: null`
+         *     moves the document out of every folder (Unfiled).
+         */
+        DocumentUpdate: {
+            /** Filename */
+            filename?: string | null;
+            /** Folder Id */
+            folder_id?: string | null;
+        };
         /** DraftLine */
         DraftLine: {
             /**
@@ -1000,6 +1024,70 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DocumentDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_document_api_v1_documents__document_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_document_api_v1_documents__document_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DocumentUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentOut"];
                 };
             };
             /** @description Validation Error */

@@ -1,6 +1,7 @@
 """Documents API: upload, list, status, extraction results, page images."""
 
 import hashlib
+import logging
 import uuid
 from pathlib import PurePath
 from typing import Annotated, Literal
@@ -14,11 +15,12 @@ from app.api.deps import get_db, get_settings, get_storage
 from app.api.errors import ApiError
 from app.core.config import Settings
 from app.db.enums import DocumentSource, DocumentStatus, RunStatus
-from app.db.models import Document, ExtractionRun, Folder, Page, Region
+from app.db.models import Document, ExtractionRun, Folder, Page, Region, VerifiedRecord
 from app.schemas.documents import (
     DocumentDetail,
     DocumentList,
     DocumentOut,
+    DocumentUpdate,
     ExtractionOut,
     PageOut,
     RegionOut,
@@ -26,6 +28,8 @@ from app.schemas.documents import (
 )
 from app.services.ingestion.pipeline import validate_upload
 from app.services.storage.base import Storage
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
@@ -54,11 +58,20 @@ def _run_summary(run: ExtractionRun) -> RunSummary:
     )
 
 
-def _document_fields(document: Document) -> dict:
+def _folder_names(db: Session, documents: list[Document]) -> dict[uuid.UUID, str]:
+    """Folder names for these documents, in one query."""
+    ids = {d.folder_id for d in documents if d.folder_id is not None}
+    if not ids:
+        return {}
+    return {row.id: row.name for row in db.execute(select(Folder.id, Folder.name).where(Folder.id.in_(ids)))}
+
+
+def _document_fields(document: Document, folder_names: dict[uuid.UUID, str]) -> dict:
     latest = _latest_run(document)
     return {
         "id": document.id,
         "folder_id": document.folder_id,
+        "folder_name": folder_names.get(document.folder_id) if document.folder_id else None,
         "filename": document.filename,
         "mime": document.mime,
         "sha256": document.sha256,
@@ -141,7 +154,7 @@ def upload_document(
     db.commit()
 
     response.headers["Location"] = f"/api/v1/documents/{document_id}"
-    return DocumentOut(**_document_fields(document))
+    return DocumentOut(**_document_fields(document, _folder_names(db, [document])))
 
 
 @router.get("", response_model=DocumentList)
@@ -173,8 +186,9 @@ def list_documents(
         .limit(limit)
         .offset(offset)
     ).all()
+    names = _folder_names(db, list(documents))
     return DocumentList(
-        items=[DocumentOut(**_document_fields(d)) for d in documents],
+        items=[DocumentOut(**_document_fields(d, names)) for d in documents],
         total=total,
         limit=limit,
         offset=offset,
@@ -185,9 +199,51 @@ def list_documents(
 def get_document(document_id: DocumentId, db: Db) -> DocumentDetail:
     document = _get_document(db, document_id)
     return DocumentDetail(
-        **_document_fields(document),
+        **_document_fields(document, _folder_names(db, [document])),
         pages=[_page_out(p) for p in document.pages],
     )
+
+
+@router.patch("/{document_id}", response_model=DocumentOut)
+def update_document(document_id: DocumentId, payload: DocumentUpdate, db: Db) -> DocumentOut:
+    """Rename and/or move a document. `folder_id: null` moves it to Unfiled."""
+    document = _get_document(db, document_id)
+    if "filename" in payload.model_fields_set:
+        if payload.filename is None:
+            raise ApiError(422, "invalid_name", "A document needs a name.")
+        document.filename = payload.filename
+    if "folder_id" in payload.model_fields_set:
+        if payload.folder_id is not None and db.get(Folder, payload.folder_id) is None:
+            raise ApiError(404, "folder_not_found", "Folder not found.")
+        document.folder_id = payload.folder_id
+    db.commit()
+    return DocumentOut(**_document_fields(document, _folder_names(db, [document])))
+
+
+@router.delete("/{document_id}", status_code=204)
+def delete_document(
+    document_id: DocumentId, db: Db, storage: Annotated[Storage, Depends(get_storage)]
+) -> Response:
+    """Delete a document with its runs, pages, draft and files. A document with
+    verified versions is kept: it is part of the audit trail (D2)."""
+    document = _get_document(db, document_id)
+    if document.status == DocumentStatus.PROCESSING.value:
+        raise ApiError(409, "document_busy", "This document is being extracted. Delete it once extraction has finished.")
+    verified = db.scalar(
+        select(func.count()).select_from(VerifiedRecord).where(VerifiedRecord.document_id == document.id)
+    )
+    if verified:
+        raise ApiError(
+            409, "document_verified",
+            "This document has verified versions, which are kept for the audit trail, so it cannot be deleted.",
+        )
+    db.delete(document)  # runs, regions, pages and the draft go with it (ON DELETE CASCADE)
+    db.commit()
+    try:
+        storage.delete_prefix(f"documents/{document_id}")
+    except OSError:  # the rows are gone; leftover files are harmless
+        logger.warning("Could not remove the files of deleted document %s", document_id, exc_info=True)
+    return Response(status_code=204)
 
 
 @router.post("/{document_id}/retry", status_code=202, response_model=DocumentOut)
@@ -202,7 +258,7 @@ def retry_document(document_id: DocumentId, db: Db) -> DocumentOut:
     document.error_message = None
     document.runs.append(ExtractionRun())
     db.commit()
-    return DocumentOut(**_document_fields(document))
+    return DocumentOut(**_document_fields(document, _folder_names(db, [document])))
 
 
 @router.get("/{document_id}/extraction", response_model=ExtractionOut)

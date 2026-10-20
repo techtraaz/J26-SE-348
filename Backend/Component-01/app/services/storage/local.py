@@ -1,6 +1,7 @@
 """Local-disk storage under one root folder."""
 
 import os
+import shutil
 from pathlib import Path
 
 from app.services.storage.base import Storage
@@ -29,3 +30,10 @@ class LocalStorage(Storage):
 
     def exists(self, key: str) -> bool:
         return self._path(key).is_file()
+
+    def delete_prefix(self, prefix: str) -> None:
+        path = self._path(prefix)  # the same root check: never outside the store
+        if path.is_dir():
+            shutil.rmtree(path)
+        elif path.is_file():
+            path.unlink()
