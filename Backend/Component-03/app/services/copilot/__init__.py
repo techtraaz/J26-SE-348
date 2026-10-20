@@ -101,7 +101,8 @@ def answer(q: CopilotQuery, kg: KGClient | None = None, store: ResultStore | Non
     with xai_trace.scope(tracer, "copilot_nlu"):
         nlu = understand(q.text, entities, ctx)
     spec = REGISTRY[nlu.intent]
-    meta = {"nlu": nlu.as_dict(), "entities": entities.as_dict(), "case_id": case_id}
+    meta = {"nlu": nlu.as_dict(), "entities": entities.as_dict(), "case_id": case_id,
+            "trace_id": tracer.trace_id}  # this turn's XAI trace (Component-04's "Explain")
 
     # ── XAI: copilot_nlu ──
     tracer.emit({
