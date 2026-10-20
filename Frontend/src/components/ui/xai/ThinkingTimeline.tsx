@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowRight, Check, ChevronDown, ChevronRight, CircleAlert, CircleCheck, CircleX, LoaderCircle,
-         Sparkles, X } from "lucide-react";
+import { ArrowRight, Check, ChevronDown, ChevronRight, CircleAlert, CircleCheck, CircleX, ClipboardCheck,
+         LoaderCircle, MessageSquareText, Sparkles, X } from "lucide-react";
 import {
   buildRuns,
   currentActivity,
@@ -67,10 +67,10 @@ export function ThinkingTimeline({ events, connected, streamId, focus = null }: 
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+    <div className="xai-runs" style={{ display: "flex", flexDirection: "column" }}>
       {missing && (
         <p role="status" style={{
-          fontSize: 12.5, lineHeight: 1.5, color: "var(--text-muted)", padding: "10px 12px", ...font,
+          fontSize: 12.5, lineHeight: 1.5, color: "var(--text-muted)", padding: "10px 12px", margin: "4px 0 10px", ...font,
           borderRadius: "var(--radius)", border: "1px dashed var(--border-strong)",
         }}>
           The trace of that reply is no longer available. Traces are kept for recent replies only.
@@ -101,40 +101,54 @@ function RunBlock({ run, latest, focused = false }: { run: Run; latest: boolean;
   const running = run.status === "running";
 
   return (
-    <section ref={ref} aria-label={runTitle(run)} className={focused ? "xai-focused" : undefined}
+    <section ref={ref} aria-label={runTitle(run)} className={`xai-run${focused ? " xai-focused" : ""}`}
              style={{ ...font, scrollMarginTop: 8 }}>
-      <div style={{ fontSize: 11, color: "var(--text-soft)", marginBottom: 4, display: "flex", gap: 6 }}>
-        <span style={{ textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 600 }}>
-          {run.kind === "copilot" ? "Copilot" : "Audit"}
-        </span>
-        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{runTitle(run)}</span>
-      </div>
-
       <button
         type="button"
-        className="xai-headline"
+        className="xai-run-head"
         aria-expanded={expanded}
         onClick={() => setOpen(!expanded)}
         style={{
-          ...font, display: "flex", alignItems: "center", gap: 6, width: "100%", textAlign: "left",
-          background: "none", border: "none", padding: "2px 0", cursor: "pointer",
-          fontSize: 13.5, color: "var(--text)",
+          ...font, display: "flex", alignItems: "flex-start", gap: 10, width: "100%", textAlign: "left",
+          background: "none", border: "none", padding: "10px 8px", cursor: "pointer", borderRadius: 10,
         }}
       >
-        {running && <LoaderCircle size={14} className="xai-spin" color="var(--text-muted)" />}
-        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>
-          {running ? currentActivity(run) : runHeadline(run)}
+        <span style={{
+          width: 26, height: 26, borderRadius: 8, flexShrink: 0, display: "flex", alignItems: "center",
+          justifyContent: "center", background: "var(--surface-muted)", color: "var(--text-muted)", marginTop: 1,
+        }}>
+          {running
+            ? <LoaderCircle size={14} className="xai-spin" />
+            : run.kind === "copilot" ? <MessageSquareText size={14} strokeWidth={1.7} /> : <ClipboardCheck size={14} strokeWidth={1.7} />}
         </span>
-        {failed > 0 && (
-          <span style={{ color: "var(--danger)", fontSize: 12, whiteSpace: "nowrap" }}>· {failed} failed</span>
-        )}
-        {!expanded && run.review?.verdict && <VerdictChip verdict={run.review.verdict} kind={run.kind} small />}
-        {expanded ? <ChevronDown size={14} style={{ flexShrink: 0 }} /> : <ChevronRight size={14} style={{ flexShrink: 0 }} />}
+        <span style={{ flex: 1, minWidth: 0 }}>
+          <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ flex: 1, minWidth: 0, fontSize: 13.5, fontWeight: 500, color: "var(--text-h)",
+                           overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {runTitle(run)}
+            </span>
+            {run.review?.verdict && <VerdictChip verdict={run.review.verdict} kind={run.kind} small />}
+          </span>
+          <span style={{ display: "flex", gap: 6, marginTop: 2, fontSize: 12.5, color: "var(--text-muted)" }}>
+            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>
+              {running ? currentActivity(run) : runHeadline(run)}
+            </span>
+            {failed > 0 && <span style={{ color: "var(--danger)", whiteSpace: "nowrap" }}>· {failed} failed</span>}
+            {!running && run.durationMs != null && (
+              <span style={{ marginLeft: "auto", whiteSpace: "nowrap", color: "var(--text-soft)", ...mono, fontSize: 11 }}>
+                {formatDuration(run.durationMs)}
+              </span>
+            )}
+          </span>
+        </span>
+        {expanded
+          ? <ChevronDown size={15} color="var(--text-soft)" style={{ flexShrink: 0, marginTop: 6 }} />
+          : <ChevronRight size={15} color="var(--text-soft)" style={{ flexShrink: 0, marginTop: 6 }} />}
       </button>
 
       {expanded && (
         <div style={{
-          marginTop: 8, border: "1px solid var(--border-strong)", borderRadius: "var(--radius)",
+          margin: "2px 0 14px", border: "1px solid var(--border-strong)", borderRadius: "var(--radius)",
           background: "var(--surface)", overflow: "hidden",
         }}>
           {run.stages.length === 0 && <Row muted>Starting…</Row>}
@@ -250,8 +264,9 @@ function ReviewCard({ review, kind }: { review: Review; kind: Run["kind"] }) {
           )}
           <p style={{ fontSize: 11, color: "var(--text-soft)", marginTop: 10 }}>
             {review.source === "rules"
-              ? "Written from the trace with fixed wording (language model unavailable)."
-              : `${chat ? "Wrap-up" : "Summary"} written by the review agent from the trace above${review.model ? ` · ${review.model}` : ""}. ${chat ? "The verdict comes from the trace." : "Verdict and next steps come from the checks."}`}
+              ? "Written from this trace (AI unavailable)."
+              : "AI summary of this trace."}
+            {" "}{chat ? "Verdict from the steps above." : "Verdict and next steps from the checks."}
           </p>
         </>
       )}

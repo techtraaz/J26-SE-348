@@ -79,7 +79,8 @@ describe("ThinkingTimeline", () => {
     const review = within(chat).getByLabelText("Review agent");
     expect(review.textContent).toContain("Answered");
     expect(review.textContent).toContain("assistant explained the finding");
-    expect(review.textContent).toContain("Wrap-up written by the review agent");
+    expect(review.textContent).toContain("AI summary of this trace.");
+    expect(review.textContent).not.toContain("phi4"); // no model name in the card
     expect(review.textContent).not.toContain("Next steps");
   });
 

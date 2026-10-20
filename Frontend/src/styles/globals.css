@@ -234,3 +234,17 @@ code, .id { font-family: 'JetBrains Mono Variable', monospace; }
   animation: xai-focus 1.8s ease-out;
 }
 
+/* ── Explainability: runs as a divided list ── */
+#xai-panel .xai-run + .xai-run {
+  border-top: 1px solid var(--border-light);
+}
+#xai-panel .xai-run {
+  padding: 4px 0;
+}
+#xai-panel .xai-run-head {
+  transition: background 0.15s ease;
+}
+#xai-panel .xai-run-head:hover {
+  background: var(--sidebar-hover);
+}
+
