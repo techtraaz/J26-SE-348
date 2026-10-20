@@ -1,6 +1,8 @@
 """Review Agent — Component 04's small AI agent.
 
-Runs once an audit or a Copilot chat turn ends. It reads that run's trace (the same steps the
+Runs once an audit or a Copilot chat turn ends. Every review is saved in
+MongoDB (``c04_reviews``, one per run); a run that already has one is never
+reviewed again, so reading the same events twice costs no LLM call. It reads that run's trace (the same steps the
 Thinking timeline shows) and writes a short review at the bottom of the
 run: a verdict, a two-sentence summary and the next steps.
 
@@ -31,8 +33,7 @@ from datetime import UTC, datetime
 import httpx
 
 from app import config
-from app.services import database as db
-from app.services import sse_manager
+from app.services import report_store, review_store, sse_manager
 
 logger = logging.getLogger("c04.review_agent")
 
@@ -184,19 +185,37 @@ def is_faithful(text: str, prompt: str) -> bool:
     return all(n.replace(",", "") in given for n in _NUMBER.findall(t))
 
 
+def _llm_request(prompt: str) -> tuple[str, dict, dict]:
+    """(url, headers, body) for the configured LLM server."""
+    messages = [{"role": "user", "content": prompt}]
+    headers = {"Authorization": f"Bearer {config.LLM_API_KEY}"} if config.LLM_API_KEY else {}
+    if config.LLM_PROVIDER == "openai":
+        url = config.LLM_API_URL.rstrip("/")
+        if not url.endswith("/chat/completions"):
+            url += "/chat/completions"
+        return url, headers, {"model": config.LLM_MODEL, "messages": messages, "temperature": 0,
+                              "max_tokens": 300, "response_format": {"type": "json_object"}}
+    return config.LLM_API_URL, headers, {"model": config.LLM_MODEL, "messages": messages, "stream": False,
+                                         "format": "json", "options": {"temperature": 0}}
+
+
 async def _call_llm(prompt: str) -> str | None:
-    """Ask the shared LLM (Ollama /api/chat). None when it is unavailable."""
+    """Ask the shared LLM for the summary. None when it is unavailable."""
+    url, headers, body = _llm_request(prompt)
     try:
         async with httpx.AsyncClient(timeout=config.LLM_TIMEOUT) as client:
-            resp = await client.post(config.LLM_API_URL, json={
-                "model": config.LLM_MODEL,
-                "messages": [{"role": "user", "content": prompt}],
-                "stream": False,
-                "format": "json",
-                "options": {"temperature": 0},
-            })
+            resp = await client.post(url, json=body, headers=headers)
+            if resp.status_code == 400 and "response_format" in body:
+                # some OpenAI-compatible servers do not support JSON mode: ask again without it
+                body = {k: v for k, v in body.items() if k != "response_format"}
+                resp = await client.post(url, json=body, headers=headers)
             resp.raise_for_status()
-            content = resp.json().get("message", {}).get("content", "").strip()
+            data = resp.json()
+        if config.LLM_PROVIDER == "openai":
+            content = (data.get("choices") or [{}])[0].get("message", {}).get("content") or ""
+        else:
+            content = data.get("message", {}).get("content", "")
+        content = content.strip()
     except Exception as exc:  # noqa: BLE001 - any failure means: use the fixed summary
         logger.warning("Review agent: LLM unavailable (%s)", exc)
         return None
@@ -214,9 +233,20 @@ async def _publish(case_id: str, stream_id: str | None, payload: dict) -> None:
         await sse_manager.broadcast(stream_id, payload)
 
 
+async def _saved(case_id: str, stream_id: str | None, run_key: str) -> dict | None:
+    """A review already made for this run (e.g. the same events read again): stream it as it was."""
+    try:
+        saved = await review_store.get_review(run_key)
+    except report_store.StoreUnavailable:
+        return None
+    if saved:
+        await _publish(case_id, stream_id, saved)
+    return saved
+
+
 async def _deliver(case_id: str, stream_id: str | None, base: dict, verdict: str, headline: str,
                    next_steps: list[str], prompt: str, fallback: str) -> dict:
-    """Explain + fallback, then stream the finished review."""
+    """Explain + fallback, stream the finished review and save it in MongoDB."""
     summary = await _call_llm(prompt)
     source = "ai"
     if summary is None or not is_faithful(summary, prompt):
@@ -224,7 +254,7 @@ async def _deliver(case_id: str, stream_id: str | None, base: dict, verdict: str
             logger.info("Review agent: LLM summary rejected (not faithful): %s", summary[:120])
         summary, source = fallback, "rules"
     review = {
-        **base, "event_type": "insight_summary",
+        **base, "event_type": "insight_summary", "stream_id": stream_id,
         "verdict": verdict, "headline": headline, "summary": summary,
         "next_steps": next_steps, "source": source,
         "model": config.LLM_MODEL if source == "ai" else None,
@@ -233,6 +263,10 @@ async def _deliver(case_id: str, stream_id: str | None, base: dict, verdict: str
     await _publish(case_id, stream_id, review)
     logger.info("Review  case=%s  kind=%s  verdict=%s  source=%s",
                 case_id, base["run_kind"], verdict, source)
+    try:
+        await review_store.save_review(review)
+    except report_store.StoreUnavailable:
+        logger.warning("Review for %s could not be saved to MongoDB (shown live only)", base["run_key"])
     return review
 
 
@@ -241,13 +275,13 @@ async def review_run(case_id: str, run_key: str, total_findings: int,
     """Review one finished audit run and stream the result. Never raises."""
     base = {"case_id": case_id, "run_key": run_key, "run_kind": "audit", "agent_name": AGENT_NAME}
     try:
+        if saved := await _saved(case_id, stream_id, run_key):
+            return saved
         await _publish(case_id, stream_id, {**base, "event_type": "insight_pending"})
         facts = observe(case_id, run_key, total_findings, status)
         verdict, headline, next_steps = decide(facts)
-        review = await _deliver(case_id, stream_id, base, verdict, headline, next_steps,
-                                _prompt(facts, verdict, headline), fallback_summary(facts))
-        await _persist(case_id, review)
-        return review
+        return await _deliver(case_id, stream_id, base, verdict, headline, next_steps,
+                              _prompt(facts, verdict, headline), fallback_summary(facts))
     except Exception:
         logger.exception("Review agent failed for case=%s — non-fatal", case_id)
         return None
@@ -337,9 +371,11 @@ def _prompt_turn(f: TurnFacts, verdict: str, headline: str) -> str:
 
 
 async def review_turn(stream_id: str, run_key: str, status: str | None = None) -> dict | None:
-    """Review one finished Copilot turn and stream the result (live only). Never raises."""
+    """Review one finished Copilot turn, stream and save the result. Never raises."""
     base = {"case_id": stream_id, "run_key": run_key, "run_kind": "copilot", "agent_name": AGENT_NAME}
     try:
+        if saved := await _saved(stream_id, None, run_key):
+            return saved
         await _publish(stream_id, None, {**base, "event_type": "insight_pending"})
         facts = observe_turn(stream_id, run_key, status)
         verdict, headline, next_steps = decide_turn(facts)
@@ -348,18 +384,3 @@ async def review_turn(stream_id: str, run_key: str, status: str | None = None) -
     except Exception:
         logger.exception("Review agent failed for chat=%s — non-fatal", stream_id)
         return None
-
-
-async def _persist(case_id: str, review: dict) -> None:
-    """Keep the review with the run's traces (for the PDF report). Non-fatal."""
-    try:
-        run = await db.get_latest_run(case_id)
-        now = review["generated_at"]
-        await db.insert_trace(
-            run_id=run["id"] if run else 0, case_id=case_id, event_type="ai_review",
-            agent_name=AGENT_NAME, decision_type=review["verdict"],
-            detail=f"{review['headline']}. {review['summary']}", findings_count=None,
-            step_index=0, duration_ms=None, source_timestamp=now, received_at=now,
-            raw_payload=review)
-    except Exception:
-        logger.debug("Review could not be saved (non-fatal)", exc_info=True)

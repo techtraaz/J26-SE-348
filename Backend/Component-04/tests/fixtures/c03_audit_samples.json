@@ -1,0 +1,1549 @@
+[
+ {
+  "_id": "CASE-SAMPLE-01:v1",
+  "case_id": "CASE-SAMPLE-01",
+  "version": 1,
+  "kg_source": "live",
+  "latency_ms": 13452.614,
+  "status": "pending_auditor_review",
+  "findings": [],
+  "trace": [
+   {
+    "agent_name": "data_quality",
+    "decision_type": "gate",
+    "detail": "Data quality: 0 violation(s), 0 review item(s) in 1 document(s).",
+    "seq": 1
+   },
+   {
+    "agent_name": "anomaly",
+    "decision_type": "check",
+    "detail": "Anomaly scan found 0 issue(s).",
+    "seq": 2
+   },
+   {
+    "agent_name": "compliance",
+    "decision_type": "check",
+    "detail": "Compliance ran 5 rule check(s) on 1 document(s): 0 finding(s).",
+    "seq": 3
+   },
+   {
+    "agent_name": "compliance",
+    "decision_type": "skip",
+    "detail": "Not applicable (inputs missing): CHK-007 on dc203ec4-7b98-4d66-8e22-2628da6f3834: missing total_current_assets; CHK-009 on dc203ec4-7b98-4d66-8e22-2628da6f3834: missing closing_cash; CHK-010 on dc203ec4-7b98-4d66-8e22-2628da6f3834: missing closing_equity; CHK-011 on dc203ec4-7b98-4d66-8e22-2628da6f3834: missing inventory_nrv.",
+    "seq": 4
+   },
+   {
+    "agent_name": "reasoning",
+    "decision_type": "merge",
+    "detail": "Case CASE-SAMPLE-01: 0 finding(s), 0 need review, all pending auditor review.",
+    "seq": 5
+   },
+   {
+    "agent_name": "reasoning",
+    "decision_type": "summary",
+    "detail": "The auditor reviewed the company's balance sheet for the week ending October 11, 2026. The balance sheet was found to be accurate and complete, with no discrepancies or issues identified. This means that the company's financial position as of the specified date is correctly reported, which is crucial for stakeholders relying on this information for decision-making. \n\nSince no findings were reported, the auditor can conclude that the balance sheet meets the required standards and rules. However, to ensure ongoing accuracy and compliance, the auditor should continue to monitor the company's financial statements and review them periodically. This will help in identifying any future discrepancies or issues promptly.",
+    "seq": 6
+   },
+   {
+    "agent_name": "evidence_validation",
+    "decision_type": "validate",
+    "detail": "Checked 0 finding(s): 0 values verified, 0 citations exist (no values to check), 0 flagged, 0 with no evidence.",
+    "seq": 7
+   },
+   {
+    "agent_name": "kg",
+    "decision_type": "source",
+    "detail": "Knowledge graph source: live.",
+    "seq": 0
+   }
+  ],
+  "rejected_records": [],
+  "rejected_citations": [],
+  "rejected_findings": [],
+  "rules_applied": [
+   {
+    "kind": "rule_check",
+    "rule_id": "CHK-001",
+    "rule_name": "Accounting equation",
+    "doc_id": "dc203ec4-7b98-4d66-8e22-2628da6f3834",
+    "doc_type": "balance_sheet",
+    "agent": "compliance",
+    "outcome": "passed",
+    "expression": "assets == liabilities + capital",
+    "values": {
+     "assets": 152733375.0,
+     "liabilities": 67133250.0,
+     "capital": 85600125.0
+    },
+    "sides": {
+     "left": "assets",
+     "op": "==",
+     "right": "liabilities + capital",
+     "left_value": 152733375.0,
+     "right_value": 152733375.0
+    },
+    "compared_with": {},
+    "severity": "high",
+    "below_materiality": false,
+    "reason": null,
+    "limit": null,
+    "approvals_required": null,
+    "approvals_signed": null,
+    "detail": "assets 152,733,375.00 vs liabilities + capital 152,733,375.00",
+    "finding_id": null
+   },
+   {
+    "kind": "rule_check",
+    "rule_id": "CHK-007",
+    "rule_name": "Total assets equals current plus non-current",
+    "doc_id": "dc203ec4-7b98-4d66-8e22-2628da6f3834",
+    "doc_type": "balance_sheet",
+    "agent": "compliance",
+    "outcome": "skipped",
+    "expression": "total_assets == total_current_assets + total_non_current_assets",
+    "values": {
+     "total_assets": 152733375.0
+    },
+    "sides": null,
+    "compared_with": {},
+    "severity": "medium",
+    "below_materiality": false,
+    "reason": "missing total_current_assets",
+    "limit": null,
+    "approvals_required": null,
+    "approvals_signed": null,
+    "detail": "",
+    "finding_id": null
+   },
+   {
+    "kind": "rule_check",
+    "rule_id": "CHK-009",
+    "rule_name": "Cash flow closing cash ties to SFP",
+    "doc_id": "dc203ec4-7b98-4d66-8e22-2628da6f3834",
+    "doc_type": "balance_sheet",
+    "agent": "compliance",
+    "outcome": "skipped",
+    "expression": "closing_cash == cash_and_cash_equivalents",
+    "values": {},
+    "sides": null,
+    "compared_with": {},
+    "severity": "high",
+    "below_materiality": false,
+    "reason": "missing closing_cash",
+    "limit": null,
+    "approvals_required": null,
+    "approvals_signed": null,
+    "detail": "",
+    "finding_id": null
+   },
+   {
+    "kind": "rule_check",
+    "rule_id": "CHK-010",
+    "rule_name": "Closing equity ties to SFP",
+    "doc_id": "dc203ec4-7b98-4d66-8e22-2628da6f3834",
+    "doc_type": "balance_sheet",
+    "agent": "compliance",
+    "outcome": "skipped",
+    "expression": "closing_equity == total_equity",
+    "values": {},
+    "sides": null,
+    "compared_with": {},
+    "severity": "high",
+    "below_materiality": false,
+    "reason": "missing closing_equity",
+    "limit": null,
+    "approvals_required": null,
+    "approvals_signed": null,
+    "detail": "",
+    "finding_id": null
+   },
+   {
+    "kind": "rule_check",
+    "rule_id": "CHK-011",
+    "rule_name": "Inventory not above NRV",
+    "doc_id": "dc203ec4-7b98-4d66-8e22-2628da6f3834",
+    "doc_type": "balance_sheet",
+    "agent": "compliance",
+    "outcome": "skipped",
+    "expression": "inventories <= inventory_nrv",
+    "values": {
+     "inventories": 6384900.0
+    },
+    "sides": null,
+    "compared_with": {},
+    "severity": "medium",
+    "below_materiality": false,
+    "reason": "missing inventory_nrv",
+    "limit": null,
+    "approvals_required": null,
+    "approvals_signed": null,
+    "detail": "",
+    "finding_id": null
+   }
+  ],
+  "events_published": true,
+  "created_at": "2026-10-20T14:31:17.802345+00:00",
+  "schema_version": 1,
+  "verdict": "clean",
+  "score": 100,
+  "summary": "1 document audited; 1 rule check: 1 passed (4 not run, inputs missing); 0 rule findings, 0 review items.",
+  "narrative": "The auditor reviewed the company's balance sheet for the week ending October 11, 2026. The balance sheet was found to be accurate and complete, with no discrepancies or issues identified. This means that the company's financial position as of the specified date is correctly reported, which is crucial for stakeholders relying on this information for decision-making. \n\nSince no findings were reported, the auditor can conclude that the balance sheet meets the required standards and rules. However, to ensure ongoing accuracy and compliance, the auditor should continue to monitor the company's financial statements and review them periodically. This will help in identifying any future discrepancies or issues promptly.",
+  "recommendations": [],
+  "case": {
+   "case_id": "CASE-SAMPLE-01",
+   "docs": [
+    {
+     "doc_id": "dc203ec4-7b98-4d66-8e22-2628da6f3834",
+     "case_id": "CASE-SAMPLE-01",
+     "name": "01_Statement_of_Financial_Position_Wk41_2026-10-11.pdf",
+     "doc_type": "balance_sheet",
+     "period_year": 2026,
+     "parent_doc_id": null,
+     "fields": {
+      "intangible_assets": 22140000.0,
+      "total_assets": 152733375.0,
+      "deferred_tax_assets": 1245600.0,
+      "inventories": 6384900.0,
+      "trade_receivables": 38912750.0,
+      "cash_and_cash_equivalents": 21648175.0,
+      "share_capital": 50000000.0,
+      "retained_earnings": 35600125.0,
+      "total_equity": 85600125.0,
+      "financial_liabilities": 6250000.0,
+      "total_liabilities": 67133250.0,
+      "trade_payables": 14826350.0,
+      "approvals": 1.0
+     },
+     "confidences": {
+      "intangible_assets": 1.0,
+      "total_assets": 1.0,
+      "deferred_tax_assets": 1.0,
+      "inventories": 1.0,
+      "trade_receivables": 1.0,
+      "cash_and_cash_equivalents": 1.0,
+      "share_capital": 1.0,
+      "retained_earnings": 1.0,
+      "total_equity": 1.0,
+      "financial_liabilities": 1.0,
+      "total_liabilities": 1.0,
+      "trade_payables": 1.0,
+      "approvals": 1.0
+     },
+     "methods": {
+      "intangible_assets": "c1-verified-v1:b8fe40b0-f1fa-439e-8d56-9bb0160f10ed|c3:rules",
+      "total_assets": "c1-verified-v1:6fb8435e-9e34-42bb-94a0-1f49bfc66860|c3:rules",
+      "deferred_tax_assets": "c1-verified-v1:ca7f8909-75a5-42d2-a1b0-e1c507149a6e|c3:rules",
+      "inventories": "c1-verified-v1:8917e2fa-a3a8-41ce-8c5c-959d27fffe0e|c3:rules",
+      "trade_receivables": "c1-verified-v1:b561fa71-71ff-4573-914e-288fc92dea81|c3:rules",
+      "cash_and_cash_equivalents": "c1-verified-v1:8404e850-1489-4f5b-a2aa-27e3514fa3a8|c3:rules",
+      "share_capital": "c1-verified-v1:d9614f9a-ed4f-434c-b330-371586b7e503|c3:rules",
+      "retained_earnings": "c1-verified-v1:a9669e6e-c4e3-4261-aff6-2322825dbd68|c3:rules",
+      "total_equity": "c1-verified-v1:83881163-4999-4375-872f-479a309717f6|c3:rules",
+      "financial_liabilities": "c1-verified-v1:4b3f1a08-e762-4fc3-92aa-628f78342afd|c3:rules",
+      "total_liabilities": "c1-verified-v1:9626f35e-6795-483a-a790-9cf9308fa962|c3:rules",
+      "trade_payables": "c1-verified-v1:7a48b9dd-c2a7-44f7-a50e-942334c116fd|c3:rules",
+      "approvals": "c3:rules"
+     },
+     "source": {
+      "component": "c1",
+      "document_id": "dc203ec4-7b98-4d66-8e22-2628da6f3834",
+      "run_id": "1b79636b-0ee0-4609-bbf9-b3c8c2a78d9a",
+      "verified_version": 1,
+      "confirmed_by": null
+     }
+    }
+   ],
+   "materiality": null
+  }
+ },
+ {
+  "_id": "CASE-SAMPLE-02:v1",
+  "case_id": "CASE-SAMPLE-02",
+  "version": 1,
+  "kg_source": "live",
+  "latency_ms": 15738.028,
+  "status": "pending_auditor_review",
+  "findings": [
+   {
+    "finding_id": "d71db802-7996-4b94-8ef1-55b38d0a012b-CHK-001",
+    "rule_id": "CHK-001",
+    "category": "ledger",
+    "severity": "high",
+    "message": "Accounting equation failed for 02_Statement_of_Financial_Position_Wk42_2026-10-18.pdf: assets == liabilities + capital is false (assets=164,673,550.00, liabilities=67,832,630.00, capital=84,778,770.00). Difference: 12,062,150.00.",
+    "evidence_ids": [
+     "d71db802-7996-4b94-8ef1-55b38d0a012b"
+    ],
+    "policy_ids": [
+     "CF:4.4"
+    ],
+    "confidence": 1.0,
+    "review_status": "pending_review",
+    "claims": [
+     {
+      "evidence_id": "d71db802-7996-4b94-8ef1-55b38d0a012b",
+      "field": "total_assets",
+      "claimed_value": 164673550.0
+     },
+     {
+      "evidence_id": "d71db802-7996-4b94-8ef1-55b38d0a012b",
+      "field": "total_liabilities",
+      "claimed_value": 67832630.0
+     },
+     {
+      "evidence_id": "d71db802-7996-4b94-8ef1-55b38d0a012b",
+      "field": "total_equity",
+      "claimed_value": 84778770.0
+     }
+    ],
+    "reasoning_chain": [
+     "rule CHK-001 (ledger, high)",
+     "basis: CHK-001 Accounting equation checks `assets == liabilities + capital`. Applies to balance_sheet. It implements EQ-001 Accounting equation (`total_assets == total_liabilities + total_equity`). Source: CF para 4.4 (Conceptual Framework for Financial Reporting, Financial position). Tests the Completeness, Accuracy assertion(s). Addresses: Material misstatement due to error.",
+     "tests: Completeness, Accuracy",
+     "risk: Material misstatement due to error",
+     "check d71db802-7996-4b94-8ef1-55b38d0a012b.total_assets = 164,673,550.00",
+     "check d71db802-7996-4b94-8ef1-55b38d0a012b.total_liabilities = 67,832,630.00",
+     "check d71db802-7996-4b94-8ef1-55b38d0a012b.total_equity = 84,778,770.00",
+     "evidence: d71db802-7996-4b94-8ef1-55b38d0a012b",
+     "source d71db802-7996-4b94-8ef1-55b38d0a012b: C1 verified record v1"
+    ],
+    "evidence_validation": "passed",
+    "citation_unverified": false,
+    "supersedes": null,
+    "created_at": "2026-10-20T14:31:19.380422+00:00"
+   }
+  ],
+  "trace": [
+   {
+    "agent_name": "data_quality",
+    "decision_type": "gate",
+    "detail": "Data quality: 0 violation(s), 0 review item(s) in 1 document(s).",
+    "seq": 1
+   },
+   {
+    "agent_name": "anomaly",
+    "decision_type": "check",
+    "detail": "Anomaly scan found 0 issue(s).",
+    "seq": 2
+   },
+   {
+    "agent_name": "compliance",
+    "decision_type": "check",
+    "detail": "Compliance ran 5 rule check(s) on 1 document(s): 1 finding(s).",
+    "seq": 3
+   },
+   {
+    "agent_name": "compliance",
+    "decision_type": "skip",
+    "detail": "Not applicable (inputs missing): CHK-007 on d71db802-7996-4b94-8ef1-55b38d0a012b: missing total_current_assets; CHK-009 on d71db802-7996-4b94-8ef1-55b38d0a012b: missing closing_cash; CHK-010 on d71db802-7996-4b94-8ef1-55b38d0a012b: missing closing_equity; CHK-011 on d71db802-7996-4b94-8ef1-55b38d0a012b: missing inventory_nrv.",
+    "seq": 4
+   },
+   {
+    "agent_name": "reasoning",
+    "decision_type": "merge",
+    "detail": "Case CASE-SAMPLE-02: 1 finding(s), 0 need review, all pending auditor review.",
+    "seq": 5
+   },
+   {
+    "agent_name": "reasoning",
+    "decision_type": "summary",
+    "detail": "The auditor reviewed the balance sheet for Week 42 of the financial year ending on October 18, 2026. The auditor found a high-severity issue (pending review) related to the accounting equation. The equation states that assets should equal liabilities plus capital. However, the auditor discovered that the reported assets of 164,673,550.00 were not equal to the sum of liabilities (67,832,630.00) and capital (84,778,770.00), resulting in a difference of 12,062,150.00. This discrepancy suggests a potential error in the financial records.\n\nThe auditor should now investigate this discrepancy further to determine if it is due to an error or intentional misstatement. This investigation will help ensure the accuracy and completeness of the financial statements. The auditor should also review related documents and transactions to identify any other potential issues.",
+    "seq": 6
+   },
+   {
+    "agent_name": "evidence_validation",
+    "decision_type": "validate",
+    "detail": "Checked 1 finding(s): 1 values verified, 0 citations exist (no values to check), 0 flagged, 0 with no evidence.",
+    "seq": 7
+   },
+   {
+    "agent_name": "kg",
+    "decision_type": "source",
+    "detail": "Knowledge graph source: live.",
+    "seq": 0
+   }
+  ],
+  "rejected_records": [],
+  "rejected_citations": [],
+  "rejected_findings": [],
+  "rules_applied": [
+   {
+    "kind": "rule_check",
+    "rule_id": "CHK-001",
+    "rule_name": "Accounting equation",
+    "doc_id": "d71db802-7996-4b94-8ef1-55b38d0a012b",
+    "doc_type": "balance_sheet",
+    "agent": "compliance",
+    "outcome": "failed",
+    "expression": "assets == liabilities + capital",
+    "values": {
+     "assets": 164673550.0,
+     "liabilities": 67832630.0,
+     "capital": 84778770.0
+    },
+    "sides": {
+     "left": "assets",
+     "op": "==",
+     "right": "liabilities + capital",
+     "left_value": 164673550.0,
+     "right_value": 152611400.0
+    },
+    "compared_with": {},
+    "severity": "high",
+    "below_materiality": false,
+    "reason": "Accounting equation failed for 02_Statement_of_Financial_Position_Wk42_2026-10-18.pdf: assets == liabilities + capital is false (assets=164,673,550.00, liabilities=67,832,630.00, capital=84,778,770.00). Difference: 12,062,150.00.",
+    "limit": null,
+    "approvals_required": null,
+    "approvals_signed": null,
+    "detail": "assets 164,673,550.00 vs liabilities + capital 152,611,400.00",
+    "finding_id": "d71db802-7996-4b94-8ef1-55b38d0a012b-CHK-001"
+   },
+   {
+    "kind": "rule_check",
+    "rule_id": "CHK-007",
+    "rule_name": "Total assets equals current plus non-current",
+    "doc_id": "d71db802-7996-4b94-8ef1-55b38d0a012b",
+    "doc_type": "balance_sheet",
+    "agent": "compliance",
+    "outcome": "skipped",
+    "expression": "total_assets == total_current_assets + total_non_current_assets",
+    "values": {
+     "total_assets": 164673550.0
+    },
+    "sides": null,
+    "compared_with": {},
+    "severity": "medium",
+    "below_materiality": false,
+    "reason": "missing total_current_assets",
+    "limit": null,
+    "approvals_required": null,
+    "approvals_signed": null,
+    "detail": "",
+    "finding_id": null
+   },
+   {
+    "kind": "rule_check",
+    "rule_id": "CHK-009",
+    "rule_name": "Cash flow closing cash ties to SFP",
+    "doc_id": "d71db802-7996-4b94-8ef1-55b38d0a012b",
+    "doc_type": "balance_sheet",
+    "agent": "compliance",
+    "outcome": "skipped",
+    "expression": "closing_cash == cash_and_cash_equivalents",
+    "values": {},
+    "sides": null,
+    "compared_with": {},
+    "severity": "high",
+    "below_materiality": false,
+    "reason": "missing closing_cash",
+    "limit": null,
+    "approvals_required": null,
+    "approvals_signed": null,
+    "detail": "",
+    "finding_id": null
+   },
+   {
+    "kind": "rule_check",
+    "rule_id": "CHK-010",
+    "rule_name": "Closing equity ties to SFP",
+    "doc_id": "d71db802-7996-4b94-8ef1-55b38d0a012b",
+    "doc_type": "balance_sheet",
+    "agent": "compliance",
+    "outcome": "skipped",
+    "expression": "closing_equity == total_equity",
+    "values": {},
+    "sides": null,
+    "compared_with": {},
+    "severity": "high",
+    "below_materiality": false,
+    "reason": "missing closing_equity",
+    "limit": null,
+    "approvals_required": null,
+    "approvals_signed": null,
+    "detail": "",
+    "finding_id": null
+   },
+   {
+    "kind": "rule_check",
+    "rule_id": "CHK-011",
+    "rule_name": "Inventory not above NRV",
+    "doc_id": "d71db802-7996-4b94-8ef1-55b38d0a012b",
+    "doc_type": "balance_sheet",
+    "agent": "compliance",
+    "outcome": "skipped",
+    "expression": "inventories <= inventory_nrv",
+    "values": {
+     "inventories": 7015300.0
+    },
+    "sides": null,
+    "compared_with": {},
+    "severity": "medium",
+    "below_materiality": false,
+    "reason": "missing inventory_nrv",
+    "limit": null,
+    "approvals_required": null,
+    "approvals_signed": null,
+    "detail": "",
+    "finding_id": null
+   }
+  ],
+  "events_published": true,
+  "created_at": "2026-10-20T14:31:35.116585+00:00",
+  "schema_version": 1,
+  "verdict": "issues_found",
+  "score": 75,
+  "summary": "1 document audited; 1 rule check: 1 failed (4 not run, inputs missing); 1 rule finding (1 high), 0 review items.",
+  "narrative": "The auditor reviewed the balance sheet for Week 42 of the financial year ending on October 18, 2026. The auditor found a high-severity issue (pending review) related to the accounting equation. The equation states that assets should equal liabilities plus capital. However, the auditor discovered that the reported assets of 164,673,550.00 were not equal to the sum of liabilities (67,832,630.00) and capital (84,778,770.00), resulting in a difference of 12,062,150.00. This discrepancy suggests a potential error in the financial records.\n\nThe auditor should now investigate this discrepancy further to determine if it is due to an error or intentional misstatement. This investigation will help ensure the accuracy and completeness of the financial statements. The auditor should also review related documents and transactions to identify any other potential issues.",
+  "recommendations": [
+   {
+    "finding_id": "d71db802-7996-4b94-8ef1-55b38d0a012b-CHK-001",
+    "rule_id": "CHK-001",
+    "severity": "high",
+    "text": "Reconcile the statement: find why total assets differ from liabilities plus equity (unposted or misclassified entries) and correct it."
+   }
+  ],
+  "case": {
+   "case_id": "CASE-SAMPLE-02",
+   "docs": [
+    {
+     "doc_id": "d71db802-7996-4b94-8ef1-55b38d0a012b",
+     "case_id": "CASE-SAMPLE-02",
+     "name": "02_Statement_of_Financial_Position_Wk42_2026-10-18.pdf",
+     "doc_type": "balance_sheet",
+     "period_year": 2026,
+     "parent_doc_id": null,
+     "fields": {
+      "intangible_assets": 21795000.0,
+      "total_assets": 164673550.0,
+      "deferred_tax_assets": 1245600.0,
+      "inventories": 7015300.0,
+      "trade_receivables": 37448620.0,
+      "cash_and_cash_equivalents": 32374910.0,
+      "share_capital": 50000000.0,
+      "retained_earnings": 34778770.0,
+      "total_equity": 84778770.0,
+      "financial_liabilities": 6250000.0,
+      "total_liabilities": 67832630.0,
+      "trade_payables": 15602180.0,
+      "approvals": 1.0
+     },
+     "confidences": {
+      "intangible_assets": 1.0,
+      "total_assets": 1.0,
+      "deferred_tax_assets": 1.0,
+      "inventories": 1.0,
+      "trade_receivables": 1.0,
+      "cash_and_cash_equivalents": 1.0,
+      "share_capital": 1.0,
+      "retained_earnings": 1.0,
+      "total_equity": 1.0,
+      "financial_liabilities": 1.0,
+      "total_liabilities": 1.0,
+      "trade_payables": 1.0,
+      "approvals": 1.0
+     },
+     "methods": {
+      "intangible_assets": "c1-verified-v1:5501ce5b-5a99-4946-96f6-03e2c53db39c|c3:rules",
+      "total_assets": "c1-verified-v1:1f8e8635-4e45-4271-9761-352abd609884|c3:rules",
+      "deferred_tax_assets": "c1-verified-v1:e815df8d-f112-4b3a-bb67-c4722fd38a34|c3:rules",
+      "inventories": "c1-verified-v1:105da14b-42ba-43e8-9499-cf762dacb454|c3:rules",
+      "trade_receivables": "c1-verified-v1:cf494fd8-b59d-4a82-a534-414fa17c3389|c3:rules",
+      "cash_and_cash_equivalents": "c1-verified-v1:c2c71a48-891e-44c3-9a42-65cd61542699|c3:rules",
+      "share_capital": "c1-verified-v1:775abab6-a796-4c2e-a5aa-02e65131593a|c3:rules",
+      "retained_earnings": "c1-verified-v1:9132ab75-d7f6-4b9a-9b3e-2927e51cc321|c3:rules",
+      "total_equity": "c1-verified-v1:46e9b883-cab1-424d-89db-98899e9057d3|c3:rules",
+      "financial_liabilities": "c1-verified-v1:afba64d3-3c83-4001-bd52-0c72450a726f|c3:rules",
+      "total_liabilities": "c1-verified-v1:99af35fa-8293-4b36-a880-94008b36c63f|c3:rules",
+      "trade_payables": "c1-verified-v1:6d0df0a2-d35f-4fdd-a58b-c06e605ebdd0|c3:rules",
+      "approvals": "c3:rules"
+     },
+     "source": {
+      "component": "c1",
+      "document_id": "d71db802-7996-4b94-8ef1-55b38d0a012b",
+      "run_id": "65d69ab2-33a5-45b8-91df-f7ced7e1a930",
+      "verified_version": 1,
+      "confirmed_by": null
+     }
+    }
+   ],
+   "materiality": null
+  }
+ },
+ {
+  "_id": "CASE-SAMPLE-03:v1",
+  "case_id": "CASE-SAMPLE-03",
+  "version": 1,
+  "kg_source": "live",
+  "latency_ms": 9933.164,
+  "status": "pending_auditor_review",
+  "findings": [
+   {
+    "finding_id": "2aed1340-b516-4a4e-b5b2-62baacaa4982-REV004-nofields",
+    "rule_id": "REV-004",
+    "category": "format",
+    "severity": "low",
+    "message": "No values were read from 03b_Goods_Received_Note_GRN-2026-0342.pdf, so no rule checked it. This is expected for a document without amounts (e.g. a goods received note lists only quantities and dates); it stays in the case as supporting evidence. If it should have amounts, check its fields in the Library.",
+    "evidence_ids": [
+     "2aed1340-b516-4a4e-b5b2-62baacaa4982"
+    ],
+    "policy_ids": [],
+    "confidence": 1.0,
+    "review_status": "needs_more_evidence",
+    "claims": [],
+    "reasoning_chain": [
+     "rule REV-004 (format, low)",
+     "evidence: 2aed1340-b516-4a4e-b5b2-62baacaa4982",
+     "source 2aed1340-b516-4a4e-b5b2-62baacaa4982: C1 verified record v1"
+    ],
+    "evidence_validation": "existence_only",
+    "citation_unverified": false,
+    "supersedes": null,
+    "created_at": "2026-10-20T14:31:50.264190+00:00"
+   }
+  ],
+  "trace": [
+   {
+    "agent_name": "data_quality",
+    "decision_type": "gate",
+    "detail": "Data quality: 0 violation(s), 1 review item(s) in 3 document(s).",
+    "seq": 1
+   },
+   {
+    "agent_name": "anomaly",
+    "decision_type": "check",
+    "detail": "Anomaly scan found 0 issue(s).",
+    "seq": 2
+   },
+   {
+    "agent_name": "anomaly",
+    "decision_type": "skip",
+    "detail": "Not applicable (inputs missing): CHK-005 on b062f680-a072-43fd-9051-c98a063eb2ea: missing cash_out; CHK-003 on 2aed1340-b516-4a4e-b5b2-62baacaa4982: missing child.amount.",
+    "seq": 3
+   },
+   {
+    "agent_name": "compliance",
+    "decision_type": "check",
+    "detail": "Compliance ran 0 rule check(s) on 3 document(s): 0 finding(s).",
+    "seq": 4
+   },
+   {
+    "agent_name": "reasoning",
+    "decision_type": "merge",
+    "detail": "Case CASE-SAMPLE-03: 1 finding(s), 1 need review, all pending auditor review.",
+    "seq": 5
+   },
+   {
+    "agent_name": "reasoning",
+    "decision_type": "summary",
+    "detail": "The auditor reviewed three documents related to a tax invoice for the year 2026. The documents are a tax invoice (b062f680-a072-43fd-9051-c98a063eb2ea), a purchase order (7b9ea568-ad7f-4a33-acbd-626ba1886937), and a goods received note (2aed1340-b516-4a4e-b5b2-62baacaa4982). The goods received note was found to have no values read from it, which is expected since it only lists quantities and dates. This finding is considered low risk and needs more evidence. The auditor should check the fields in the Library to ensure the goods received note should have amounts. The other documents passed the review.",
+    "seq": 6
+   },
+   {
+    "agent_name": "evidence_validation",
+    "decision_type": "validate",
+    "detail": "Checked 1 finding(s): 0 values verified, 1 citations exist (no values to check), 0 flagged, 0 with no evidence.",
+    "seq": 7
+   },
+   {
+    "agent_name": "kg",
+    "decision_type": "source",
+    "detail": "Knowledge graph source: live.",
+    "seq": 0
+   }
+  ],
+  "rejected_records": [],
+  "rejected_citations": [],
+  "rejected_findings": [],
+  "rules_applied": [
+   {
+    "kind": "rule_check",
+    "rule_id": "CHK-003",
+    "rule_name": "Child amount matches parent",
+    "doc_id": "2aed1340-b516-4a4e-b5b2-62baacaa4982",
+    "doc_type": "goods_received_note",
+    "agent": "anomaly",
+    "outcome": "skipped",
+    "expression": "child.amount == parent.amount",
+    "values": {},
+    "sides": null,
+    "compared_with": {
+     "child": "2aed1340-b516-4a4e-b5b2-62baacaa4982",
+     "parent": "b062f680-a072-43fd-9051-c98a063eb2ea"
+    },
+    "severity": "high",
+    "below_materiality": false,
+    "reason": "missing child.amount",
+    "limit": null,
+    "approvals_required": null,
+    "approvals_signed": null,
+    "detail": "",
+    "finding_id": null
+   },
+   {
+    "kind": "rule_check",
+    "rule_id": "CHK-003",
+    "rule_name": "Child amount matches parent",
+    "doc_id": "7b9ea568-ad7f-4a33-acbd-626ba1886937",
+    "doc_type": "purchase_order",
+    "agent": "anomaly",
+    "outcome": "passed",
+    "expression": "child.amount == parent.amount",
+    "values": {
+     "child.amount": 2562724.0,
+     "parent.amount": 2562724.0
+    },
+    "sides": {
+     "left": "child.amount",
+     "op": "==",
+     "right": "parent.amount",
+     "left_value": 2562724.0,
+     "right_value": 2562724.0
+    },
+    "compared_with": {
+     "child": "7b9ea568-ad7f-4a33-acbd-626ba1886937",
+     "parent": "b062f680-a072-43fd-9051-c98a063eb2ea"
+    },
+    "severity": "high",
+    "below_materiality": false,
+    "reason": null,
+    "limit": null,
+    "approvals_required": null,
+    "approvals_signed": null,
+    "detail": "child.amount 2,562,724.00 vs parent.amount 2,562,724.00",
+    "finding_id": null
+   },
+   {
+    "kind": "rule_check",
+    "rule_id": "CHK-005",
+    "rule_name": "Cash out without asset in",
+    "doc_id": "b062f680-a072-43fd-9051-c98a063eb2ea",
+    "doc_type": "invoice",
+    "agent": "anomaly",
+    "outcome": "skipped",
+    "expression": "not (cash_out > 0 and purchase_basis == 'credit' and asset_in == 0)",
+    "values": {},
+    "sides": null,
+    "compared_with": {},
+    "severity": "high",
+    "below_materiality": false,
+    "reason": "missing cash_out",
+    "limit": null,
+    "approvals_required": null,
+    "approvals_signed": null,
+    "detail": "",
+    "finding_id": null
+   },
+   {
+    "kind": "policy_check",
+    "rule_id": "POL-07",
+    "rule_name": "Purchases above Rs. 100,000 need dual approval.",
+    "doc_id": "b062f680-a072-43fd-9051-c98a063eb2ea",
+    "doc_type": "invoice",
+    "agent": "compliance",
+    "outcome": "passed",
+    "expression": "amount <= 100000",
+    "values": {
+     "amount": 2562724.0
+    },
+    "sides": null,
+    "compared_with": {},
+    "severity": null,
+    "below_materiality": false,
+    "reason": null,
+    "limit": 100000.0,
+    "approvals_required": 2,
+    "approvals_signed": 2.0,
+    "detail": "amount 2,562,724.00 > limit 100,000.00; 2 of 2 approvals signed",
+    "finding_id": null
+   }
+  ],
+  "events_published": true,
+  "created_at": "2026-10-20T14:32:00.202703+00:00",
+  "schema_version": 1,
+  "verdict": "needs_review",
+  "score": 98,
+  "summary": "3 documents audited; 2 rule checks: 2 passed (2 not run, inputs missing); 0 rule findings, 1 review item.",
+  "narrative": "The auditor reviewed three documents related to a tax invoice for the year 2026. The documents are a tax invoice (b062f680-a072-43fd-9051-c98a063eb2ea), a purchase order (7b9ea568-ad7f-4a33-acbd-626ba1886937), and a goods received note (2aed1340-b516-4a4e-b5b2-62baacaa4982). The goods received note was found to have no values read from it, which is expected since it only lists quantities and dates. This finding is considered low risk and needs more evidence. The auditor should check the fields in the Library to ensure the goods received note should have amounts. The other documents passed the review.",
+  "recommendations": [
+   {
+    "finding_id": "2aed1340-b516-4a4e-b5b2-62baacaa4982-REV004-nofields",
+    "rule_id": "REV-004",
+    "severity": "low",
+    "text": "Check the document was read correctly in the Library; if it has no amounts, keep it as supporting evidence."
+   }
+  ],
+  "case": {
+   "case_id": "CASE-SAMPLE-03",
+   "docs": [
+    {
+     "doc_id": "b062f680-a072-43fd-9051-c98a063eb2ea",
+     "case_id": "CASE-SAMPLE-03",
+     "name": "03_Tax_Invoice_LDS-INV-2026-04317.pdf",
+     "doc_type": "invoice",
+     "period_year": 2026,
+     "parent_doc_id": null,
+     "fields": {
+      "amount": 2562724.0,
+      "approvals": 2.0
+     },
+     "confidences": {
+      "amount": 1.0,
+      "approvals": 1.0
+     },
+     "methods": {
+      "amount": "c1-verified-v1:8dbe2e1f-b326-4aea-8ee1-d2778ca018d5|c3:rules",
+      "approvals": "c3:rules"
+     },
+     "source": {
+      "component": "c1",
+      "document_id": "b062f680-a072-43fd-9051-c98a063eb2ea",
+      "run_id": "bf125cb2-0259-466e-8b58-c50dbd607c20",
+      "verified_version": 1,
+      "confirmed_by": null
+     }
+    },
+    {
+     "doc_id": "7b9ea568-ad7f-4a33-acbd-626ba1886937",
+     "case_id": "CASE-SAMPLE-03",
+     "name": "03a_Purchase_Order_PO-2026-0187.pdf",
+     "doc_type": "purchase_order",
+     "period_year": 2026,
+     "parent_doc_id": "b062f680-a072-43fd-9051-c98a063eb2ea",
+     "fields": {
+      "amount": 2562724.0
+     },
+     "confidences": {
+      "amount": 1.0
+     },
+     "methods": {
+      "amount": "c1-verified-v1:0555f964-fc85-4f55-aa69-807d34d8f220|c3:rules"
+     },
+     "source": {
+      "component": "c1",
+      "document_id": "7b9ea568-ad7f-4a33-acbd-626ba1886937",
+      "run_id": "a046d810-322a-4417-88cf-1e7b50a08d19",
+      "verified_version": 1,
+      "confirmed_by": null
+     }
+    },
+    {
+     "doc_id": "2aed1340-b516-4a4e-b5b2-62baacaa4982",
+     "case_id": "CASE-SAMPLE-03",
+     "name": "03b_Goods_Received_Note_GRN-2026-0342.pdf",
+     "doc_type": "goods_received_note",
+     "period_year": 2026,
+     "parent_doc_id": "b062f680-a072-43fd-9051-c98a063eb2ea",
+     "fields": {},
+     "confidences": {},
+     "methods": {},
+     "source": {
+      "component": "c1",
+      "document_id": "2aed1340-b516-4a4e-b5b2-62baacaa4982",
+      "run_id": "9d199561-f1b7-451e-944d-0695668e323f",
+      "verified_version": 1,
+      "confirmed_by": null
+     }
+    }
+   ],
+   "materiality": null
+  }
+ },
+ {
+  "_id": "CASE-SAMPLE-04:v1",
+  "case_id": "CASE-SAMPLE-04",
+  "version": 1,
+  "kg_source": "live",
+  "latency_ms": 10820.45,
+  "status": "pending_auditor_review",
+  "findings": [
+   {
+    "finding_id": "08a3cbe1-dc49-4eac-9add-41eed2a64600-POL-07",
+    "rule_id": "POL-07",
+    "category": "compliance",
+    "severity": "high",
+    "message": "Purchases above Rs. 100,000 need dual approval. 04_Tax_Invoice_COI-INV-26-1158.pdf has amount 636,256.00 above the limit 100,000.00 but only 1 of 2 required approvals is signed on the document.",
+    "evidence_ids": [
+     "08a3cbe1-dc49-4eac-9add-41eed2a64600"
+    ],
+    "policy_ids": [
+     "POL-07"
+    ],
+    "confidence": 1.0,
+    "review_status": "pending_review",
+    "claims": [
+     {
+      "evidence_id": "08a3cbe1-dc49-4eac-9add-41eed2a64600",
+      "field": "amount",
+      "claimed_value": 636256.0
+     },
+     {
+      "evidence_id": "08a3cbe1-dc49-4eac-9add-41eed2a64600",
+      "field": "approvals",
+      "claimed_value": 1.0
+     }
+    ],
+    "reasoning_chain": [
+     "rule POL-07 (compliance, high)",
+     "basis: POL-07: Purchases above Rs. 100,000 need dual approval. Limit 100,000. Applies to invoice.",
+     "check 08a3cbe1-dc49-4eac-9add-41eed2a64600.amount = 636,256.00",
+     "check 08a3cbe1-dc49-4eac-9add-41eed2a64600.approvals = 1.00",
+     "evidence: 08a3cbe1-dc49-4eac-9add-41eed2a64600",
+     "source 08a3cbe1-dc49-4eac-9add-41eed2a64600: C1 verified record v1"
+    ],
+    "evidence_validation": "passed",
+    "citation_unverified": false,
+    "supersedes": null,
+    "created_at": "2026-10-20T14:32:01.106248+00:00"
+   }
+  ],
+  "trace": [
+   {
+    "agent_name": "data_quality",
+    "decision_type": "gate",
+    "detail": "Data quality: 0 violation(s), 0 review item(s) in 1 document(s).",
+    "seq": 1
+   },
+   {
+    "agent_name": "anomaly",
+    "decision_type": "check",
+    "detail": "Anomaly scan found 0 issue(s).",
+    "seq": 2
+   },
+   {
+    "agent_name": "anomaly",
+    "decision_type": "skip",
+    "detail": "Not applicable (inputs missing): CHK-005 on 08a3cbe1-dc49-4eac-9add-41eed2a64600: missing cash_out.",
+    "seq": 3
+   },
+   {
+    "agent_name": "compliance",
+    "decision_type": "check",
+    "detail": "Compliance ran 0 rule check(s) on 1 document(s): 1 finding(s).",
+    "seq": 4
+   },
+   {
+    "agent_name": "reasoning",
+    "decision_type": "merge",
+    "detail": "Case CASE-SAMPLE-04: 1 finding(s), 0 need review, all pending auditor review.",
+    "seq": 5
+   },
+   {
+    "agent_name": "reasoning",
+    "decision_type": "summary",
+    "detail": "The auditor reviewed an invoice dated 2026 with an amount of 636,256.00. According to the company's policy (POL-07), any purchases above Rs. 100,000 require dual approval. However, this invoice only has one approval signed, which is a high-severity finding and is pending review. This matters because it indicates a potential violation of internal control procedures, which could lead to financial discrepancies or fraud. The auditor should next verify if the missing approval can be accounted for and ensure that the invoice is processed correctly according to the company's policies.",
+    "seq": 6
+   },
+   {
+    "agent_name": "evidence_validation",
+    "decision_type": "validate",
+    "detail": "Checked 1 finding(s): 1 values verified, 0 citations exist (no values to check), 0 flagged, 0 with no evidence.",
+    "seq": 7
+   },
+   {
+    "agent_name": "kg",
+    "decision_type": "source",
+    "detail": "Knowledge graph source: live.",
+    "seq": 0
+   }
+  ],
+  "rejected_records": [],
+  "rejected_citations": [],
+  "rejected_findings": [],
+  "rules_applied": [
+   {
+    "kind": "rule_check",
+    "rule_id": "CHK-005",
+    "rule_name": "Cash out without asset in",
+    "doc_id": "08a3cbe1-dc49-4eac-9add-41eed2a64600",
+    "doc_type": "invoice",
+    "agent": "anomaly",
+    "outcome": "skipped",
+    "expression": "not (cash_out > 0 and purchase_basis == 'credit' and asset_in == 0)",
+    "values": {},
+    "sides": null,
+    "compared_with": {},
+    "severity": "high",
+    "below_materiality": false,
+    "reason": "missing cash_out",
+    "limit": null,
+    "approvals_required": null,
+    "approvals_signed": null,
+    "detail": "",
+    "finding_id": null
+   },
+   {
+    "kind": "policy_check",
+    "rule_id": "POL-07",
+    "rule_name": "Purchases above Rs. 100,000 need dual approval.",
+    "doc_id": "08a3cbe1-dc49-4eac-9add-41eed2a64600",
+    "doc_type": "invoice",
+    "agent": "compliance",
+    "outcome": "failed",
+    "expression": "amount <= 100000",
+    "values": {
+     "amount": 636256.0
+    },
+    "sides": null,
+    "compared_with": {},
+    "severity": "high",
+    "below_materiality": false,
+    "reason": "Purchases above Rs. 100,000 need dual approval. 04_Tax_Invoice_COI-INV-26-1158.pdf has amount 636,256.00 above the limit 100,000.00 but only 1 of 2 required approvals is signed on the document.",
+    "limit": 100000.0,
+    "approvals_required": 2,
+    "approvals_signed": 1.0,
+    "detail": "amount 636,256.00 > limit 100,000.00; 1 of 2 approvals signed",
+    "finding_id": "08a3cbe1-dc49-4eac-9add-41eed2a64600-POL-07"
+   }
+  ],
+  "events_published": true,
+  "created_at": "2026-10-20T14:32:11.924985+00:00",
+  "schema_version": 1,
+  "verdict": "issues_found",
+  "score": 75,
+  "summary": "1 document audited; 1 rule check: 1 failed (1 not run, inputs missing); 1 rule finding (1 high), 0 review items.",
+  "narrative": "The auditor reviewed an invoice dated 2026 with an amount of 636,256.00. According to the company's policy (POL-07), any purchases above Rs. 100,000 require dual approval. However, this invoice only has one approval signed, which is a high-severity finding and is pending review. This matters because it indicates a potential violation of internal control procedures, which could lead to financial discrepancies or fraud. The auditor should next verify if the missing approval can be accounted for and ensure that the invoice is processed correctly according to the company's policies.",
+  "recommendations": [
+   {
+    "finding_id": "08a3cbe1-dc49-4eac-9add-41eed2a64600-POL-07",
+    "rule_id": "POL-07",
+    "severity": "high",
+    "text": "Get the missing approval signed before payment, and record who approved it and when."
+   }
+  ],
+  "case": {
+   "case_id": "CASE-SAMPLE-04",
+   "docs": [
+    {
+     "doc_id": "08a3cbe1-dc49-4eac-9add-41eed2a64600",
+     "case_id": "CASE-SAMPLE-04",
+     "name": "04_Tax_Invoice_COI-INV-26-1158.pdf",
+     "doc_type": "invoice",
+     "period_year": 2026,
+     "parent_doc_id": null,
+     "fields": {
+      "amount": 636256.0,
+      "approvals": 1.0
+     },
+     "confidences": {
+      "amount": 1.0,
+      "approvals": 1.0
+     },
+     "methods": {
+      "amount": "c1-verified-v1:d34f6e1a-5356-4c4b-bcd5-7c2e99b33451|c3:rules",
+      "approvals": "c3:rules"
+     },
+     "source": {
+      "component": "c1",
+      "document_id": "08a3cbe1-dc49-4eac-9add-41eed2a64600",
+      "run_id": "514f438f-2dc1-4317-b822-38f8fcaebb11",
+      "verified_version": 1,
+      "confirmed_by": null
+     }
+    }
+   ],
+   "materiality": null
+  }
+ },
+ {
+  "_id": "CASE-SAMPLE-05:v1",
+  "case_id": "CASE-SAMPLE-05",
+  "version": 1,
+  "kg_source": "live",
+  "latency_ms": 8769.827,
+  "status": "pending_auditor_review",
+  "findings": [
+   {
+    "finding_id": "d71db802-7996-4b94-8ef1-55b38d0a012b-CHK-001",
+    "rule_id": "CHK-001",
+    "category": "ledger",
+    "severity": "low",
+    "message": "Accounting equation failed for 02_Statement_of_Financial_Position_Wk42_2026-10-18.pdf: assets == liabilities + capital is false (assets=164,673,550.00, liabilities=67,832,630.00, capital=84,778,770.00). Difference: 12,062,150.00. The difference is below the case materiality 20,000,000.00; C2 rates this rule high.",
+    "evidence_ids": [
+     "d71db802-7996-4b94-8ef1-55b38d0a012b"
+    ],
+    "policy_ids": [
+     "CF:4.4"
+    ],
+    "confidence": 1.0,
+    "review_status": "pending_review",
+    "claims": [
+     {
+      "evidence_id": "d71db802-7996-4b94-8ef1-55b38d0a012b",
+      "field": "total_assets",
+      "claimed_value": 164673550.0
+     },
+     {
+      "evidence_id": "d71db802-7996-4b94-8ef1-55b38d0a012b",
+      "field": "total_liabilities",
+      "claimed_value": 67832630.0
+     },
+     {
+      "evidence_id": "d71db802-7996-4b94-8ef1-55b38d0a012b",
+      "field": "total_equity",
+      "claimed_value": 84778770.0
+     }
+    ],
+    "reasoning_chain": [
+     "rule CHK-001 (ledger, low)",
+     "basis: CHK-001 Accounting equation checks `assets == liabilities + capital`. Applies to balance_sheet. It implements EQ-001 Accounting equation (`total_assets == total_liabilities + total_equity`). Source: CF para 4.4 (Conceptual Framework for Financial Reporting, Financial position). Tests the Completeness, Accuracy assertion(s). Addresses: Material misstatement due to error.",
+     "tests: Completeness, Accuracy",
+     "risk: Material misstatement due to error",
+     "check d71db802-7996-4b94-8ef1-55b38d0a012b.total_assets = 164,673,550.00",
+     "check d71db802-7996-4b94-8ef1-55b38d0a012b.total_liabilities = 67,832,630.00",
+     "check d71db802-7996-4b94-8ef1-55b38d0a012b.total_equity = 84,778,770.00",
+     "evidence: d71db802-7996-4b94-8ef1-55b38d0a012b",
+     "source d71db802-7996-4b94-8ef1-55b38d0a012b: C1 verified record v1"
+    ],
+    "evidence_validation": "passed",
+    "citation_unverified": false,
+    "supersedes": null,
+    "created_at": "2026-10-20T14:32:12.819950+00:00"
+   }
+  ],
+  "trace": [
+   {
+    "agent_name": "data_quality",
+    "decision_type": "gate",
+    "detail": "Data quality: 0 violation(s), 0 review item(s) in 2 document(s).",
+    "seq": 1
+   },
+   {
+    "agent_name": "anomaly",
+    "decision_type": "check",
+    "detail": "Anomaly scan found 0 issue(s).",
+    "seq": 2
+   },
+   {
+    "agent_name": "anomaly",
+    "decision_type": "materiality",
+    "detail": "Case materiality 20,000,000.00: 0 finding(s) below it kept at low severity (not dropped).",
+    "seq": 3
+   },
+   {
+    "agent_name": "compliance",
+    "decision_type": "check",
+    "detail": "Compliance ran 10 rule check(s) on 2 document(s): 1 finding(s).",
+    "seq": 4
+   },
+   {
+    "agent_name": "compliance",
+    "decision_type": "materiality",
+    "detail": "Case materiality 20,000,000.00: 1 finding(s) below it kept at low severity (not dropped).",
+    "seq": 5
+   },
+   {
+    "agent_name": "compliance",
+    "decision_type": "skip",
+    "detail": "Not applicable (inputs missing): CHK-007 on dc203ec4-7b98-4d66-8e22-2628da6f3834: missing total_current_assets; CHK-009 on dc203ec4-7b98-4d66-8e22-2628da6f3834: missing closing_cash; CHK-010 on dc203ec4-7b98-4d66-8e22-2628da6f3834: missing closing_equity; CHK-011 on dc203ec4-7b98-4d66-8e22-2628da6f3834: missing inventory_nrv; CHK-007 on d71db802-7996-4b94-8ef1-55b38d0a012b: missing total_current_assets; CHK-009 on d71db802-7996-4b94-8ef1-55b38d0a012b: missing closing_cash; CHK-010 on d71db802-7996-4b94-8ef1-55b38d0a012b: missing closing_equity; CHK-011 on d71db802-7996-4b94-8ef1-55b38d0a012b: missing inventory_nrv.",
+    "seq": 6
+   },
+   {
+    "agent_name": "reasoning",
+    "decision_type": "merge",
+    "detail": "Case CASE-SAMPLE-05: 1 finding(s), 0 need review, all pending auditor review.",
+    "seq": 7
+   },
+   {
+    "agent_name": "reasoning",
+    "decision_type": "summary",
+    "detail": "The auditor checked the accounting equation for the balance sheet dated 2026-10-18. The equation states that assets should equal liabilities plus capital. The auditor found that the equation did not hold true for this balance sheet. The assets were reported as 164,673,550.00, liabilities as 67,832,630.00, and capital as 84,778,770.00. The difference between the assets and the sum of liabilities plus capital is 12,062,150.00. This difference is below the case materiality of 20,000,000.00, but the auditor rated this finding as high due to the potential for material misstatement due to error.\n\nThe auditor should now review the underlying documents and transactions to understand why the accounting equation failed. They should also assess whether this discrepancy is indicative of a broader issue with the company's financial reporting processes. Further investigation into the completeness and accuracy of the financial statements is necessary to ensure there are no material misstatements.",
+    "seq": 8
+   },
+   {
+    "agent_name": "evidence_validation",
+    "decision_type": "validate",
+    "detail": "Checked 1 finding(s): 1 values verified, 0 citations exist (no values to check), 0 flagged, 0 with no evidence.",
+    "seq": 9
+   },
+   {
+    "agent_name": "kg",
+    "decision_type": "source",
+    "detail": "Knowledge graph source: live.",
+    "seq": 0
+   }
+  ],
+  "rejected_records": [],
+  "rejected_citations": [],
+  "rejected_findings": [],
+  "rules_applied": [
+   {
+    "kind": "rule_check",
+    "rule_id": "CHK-001",
+    "rule_name": "Accounting equation",
+    "doc_id": "d71db802-7996-4b94-8ef1-55b38d0a012b",
+    "doc_type": "balance_sheet",
+    "agent": "compliance",
+    "outcome": "failed",
+    "expression": "assets == liabilities + capital",
+    "values": {
+     "assets": 164673550.0,
+     "liabilities": 67832630.0,
+     "capital": 84778770.0
+    },
+    "sides": {
+     "left": "assets",
+     "op": "==",
+     "right": "liabilities + capital",
+     "left_value": 164673550.0,
+     "right_value": 152611400.0
+    },
+    "compared_with": {},
+    "severity": "low",
+    "below_materiality": true,
+    "reason": "Accounting equation failed for 02_Statement_of_Financial_Position_Wk42_2026-10-18.pdf: assets == liabilities + capital is false (assets=164,673,550.00, liabilities=67,832,630.00, capital=84,778,770.00). Difference: 12,062,150.00. The difference is below the case materiality 20,000,000.00; C2 rates this rule high.",
+    "limit": null,
+    "approvals_required": null,
+    "approvals_signed": null,
+    "detail": "assets 164,673,550.00 vs liabilities + capital 152,611,400.00",
+    "finding_id": "d71db802-7996-4b94-8ef1-55b38d0a012b-CHK-001"
+   },
+   {
+    "kind": "rule_check",
+    "rule_id": "CHK-007",
+    "rule_name": "Total assets equals current plus non-current",
+    "doc_id": "d71db802-7996-4b94-8ef1-55b38d0a012b",
+    "doc_type": "balance_sheet",
+    "agent": "compliance",
+    "outcome": "skipped",
+    "expression": "total_assets == total_current_assets + total_non_current_assets",
+    "values": {
+     "total_assets": 164673550.0
+    },
+    "sides": null,
+    "compared_with": {},
+    "severity": "medium",
+    "below_materiality": false,
+    "reason": "missing total_current_assets",
+    "limit": null,
+    "approvals_required": null,
+    "approvals_signed": null,
+    "detail": "",
+    "finding_id": null
+   },
+   {
+    "kind": "rule_check",
+    "rule_id": "CHK-009",
+    "rule_name": "Cash flow closing cash ties to SFP",
+    "doc_id": "d71db802-7996-4b94-8ef1-55b38d0a012b",
+    "doc_type": "balance_sheet",
+    "agent": "compliance",
+    "outcome": "skipped",
+    "expression": "closing_cash == cash_and_cash_equivalents",
+    "values": {},
+    "sides": null,
+    "compared_with": {},
+    "severity": "high",
+    "below_materiality": false,
+    "reason": "missing closing_cash",
+    "limit": null,
+    "approvals_required": null,
+    "approvals_signed": null,
+    "detail": "",
+    "finding_id": null
+   },
+   {
+    "kind": "rule_check",
+    "rule_id": "CHK-010",
+    "rule_name": "Closing equity ties to SFP",
+    "doc_id": "d71db802-7996-4b94-8ef1-55b38d0a012b",
+    "doc_type": "balance_sheet",
+    "agent": "compliance",
+    "outcome": "skipped",
+    "expression": "closing_equity == total_equity",
+    "values": {},
+    "sides": null,
+    "compared_with": {},
+    "severity": "high",
+    "below_materiality": false,
+    "reason": "missing closing_equity",
+    "limit": null,
+    "approvals_required": null,
+    "approvals_signed": null,
+    "detail": "",
+    "finding_id": null
+   },
+   {
+    "kind": "rule_check",
+    "rule_id": "CHK-011",
+    "rule_name": "Inventory not above NRV",
+    "doc_id": "d71db802-7996-4b94-8ef1-55b38d0a012b",
+    "doc_type": "balance_sheet",
+    "agent": "compliance",
+    "outcome": "skipped",
+    "expression": "inventories <= inventory_nrv",
+    "values": {
+     "inventories": 7015300.0
+    },
+    "sides": null,
+    "compared_with": {},
+    "severity": "medium",
+    "below_materiality": false,
+    "reason": "missing inventory_nrv",
+    "limit": null,
+    "approvals_required": null,
+    "approvals_signed": null,
+    "detail": "",
+    "finding_id": null
+   },
+   {
+    "kind": "rule_check",
+    "rule_id": "CHK-001",
+    "rule_name": "Accounting equation",
+    "doc_id": "dc203ec4-7b98-4d66-8e22-2628da6f3834",
+    "doc_type": "balance_sheet",
+    "agent": "compliance",
+    "outcome": "passed",
+    "expression": "assets == liabilities + capital",
+    "values": {
+     "assets": 152733375.0,
+     "liabilities": 67133250.0,
+     "capital": 85600125.0
+    },
+    "sides": {
+     "left": "assets",
+     "op": "==",
+     "right": "liabilities + capital",
+     "left_value": 152733375.0,
+     "right_value": 152733375.0
+    },
+    "compared_with": {},
+    "severity": "high",
+    "below_materiality": false,
+    "reason": null,
+    "limit": null,
+    "approvals_required": null,
+    "approvals_signed": null,
+    "detail": "assets 152,733,375.00 vs liabilities + capital 152,733,375.00",
+    "finding_id": null
+   },
+   {
+    "kind": "rule_check",
+    "rule_id": "CHK-007",
+    "rule_name": "Total assets equals current plus non-current",
+    "doc_id": "dc203ec4-7b98-4d66-8e22-2628da6f3834",
+    "doc_type": "balance_sheet",
+    "agent": "compliance",
+    "outcome": "skipped",
+    "expression": "total_assets == total_current_assets + total_non_current_assets",
+    "values": {
+     "total_assets": 152733375.0
+    },
+    "sides": null,
+    "compared_with": {},
+    "severity": "medium",
+    "below_materiality": false,
+    "reason": "missing total_current_assets",
+    "limit": null,
+    "approvals_required": null,
+    "approvals_signed": null,
+    "detail": "",
+    "finding_id": null
+   },
+   {
+    "kind": "rule_check",
+    "rule_id": "CHK-009",
+    "rule_name": "Cash flow closing cash ties to SFP",
+    "doc_id": "dc203ec4-7b98-4d66-8e22-2628da6f3834",
+    "doc_type": "balance_sheet",
+    "agent": "compliance",
+    "outcome": "skipped",
+    "expression": "closing_cash == cash_and_cash_equivalents",
+    "values": {},
+    "sides": null,
+    "compared_with": {},
+    "severity": "high",
+    "below_materiality": false,
+    "reason": "missing closing_cash",
+    "limit": null,
+    "approvals_required": null,
+    "approvals_signed": null,
+    "detail": "",
+    "finding_id": null
+   },
+   {
+    "kind": "rule_check",
+    "rule_id": "CHK-010",
+    "rule_name": "Closing equity ties to SFP",
+    "doc_id": "dc203ec4-7b98-4d66-8e22-2628da6f3834",
+    "doc_type": "balance_sheet",
+    "agent": "compliance",
+    "outcome": "skipped",
+    "expression": "closing_equity == total_equity",
+    "values": {},
+    "sides": null,
+    "compared_with": {},
+    "severity": "high",
+    "below_materiality": false,
+    "reason": "missing closing_equity",
+    "limit": null,
+    "approvals_required": null,
+    "approvals_signed": null,
+    "detail": "",
+    "finding_id": null
+   },
+   {
+    "kind": "rule_check",
+    "rule_id": "CHK-011",
+    "rule_name": "Inventory not above NRV",
+    "doc_id": "dc203ec4-7b98-4d66-8e22-2628da6f3834",
+    "doc_type": "balance_sheet",
+    "agent": "compliance",
+    "outcome": "skipped",
+    "expression": "inventories <= inventory_nrv",
+    "values": {
+     "inventories": 6384900.0
+    },
+    "sides": null,
+    "compared_with": {},
+    "severity": "medium",
+    "below_materiality": false,
+    "reason": "missing inventory_nrv",
+    "limit": null,
+    "approvals_required": null,
+    "approvals_signed": null,
+    "detail": "",
+    "finding_id": null
+   }
+  ],
+  "events_published": true,
+  "created_at": "2026-10-20T14:32:21.590580+00:00",
+  "schema_version": 1,
+  "verdict": "issues_found",
+  "score": 97,
+  "summary": "2 documents audited; 2 rule checks: 1 passed, 1 failed (8 not run, inputs missing); 1 rule finding (1 low), 0 review items.",
+  "narrative": "The auditor checked the accounting equation for the balance sheet dated 2026-10-18. The equation states that assets should equal liabilities plus capital. The auditor found that the equation did not hold true for this balance sheet. The assets were reported as 164,673,550.00, liabilities as 67,832,630.00, and capital as 84,778,770.00. The difference between the assets and the sum of liabilities plus capital is 12,062,150.00. This difference is below the case materiality of 20,000,000.00, but the auditor rated this finding as high due to the potential for material misstatement due to error.\n\nThe auditor should now review the underlying documents and transactions to understand why the accounting equation failed. They should also assess whether this discrepancy is indicative of a broader issue with the company's financial reporting processes. Further investigation into the completeness and accuracy of the financial statements is necessary to ensure there are no material misstatements.",
+  "recommendations": [
+   {
+    "finding_id": "d71db802-7996-4b94-8ef1-55b38d0a012b-CHK-001",
+    "rule_id": "CHK-001",
+    "severity": "low",
+    "text": "Reconcile the statement: find why total assets differ from liabilities plus equity (unposted or misclassified entries) and correct it."
+   }
+  ],
+  "case": {
+   "case_id": "CASE-SAMPLE-05",
+   "docs": [
+    {
+     "doc_id": "dc203ec4-7b98-4d66-8e22-2628da6f3834",
+     "case_id": "CASE-SAMPLE-05",
+     "name": "01_Statement_of_Financial_Position_Wk41_2026-10-11.pdf",
+     "doc_type": "balance_sheet",
+     "period_year": 2026,
+     "parent_doc_id": null,
+     "fields": {
+      "intangible_assets": 22140000.0,
+      "total_assets": 152733375.0,
+      "deferred_tax_assets": 1245600.0,
+      "inventories": 6384900.0,
+      "trade_receivables": 38912750.0,
+      "cash_and_cash_equivalents": 21648175.0,
+      "share_capital": 50000000.0,
+      "retained_earnings": 35600125.0,
+      "total_equity": 85600125.0,
+      "financial_liabilities": 6250000.0,
+      "total_liabilities": 67133250.0,
+      "trade_payables": 14826350.0,
+      "approvals": 1.0
+     },
+     "confidences": {
+      "intangible_assets": 1.0,
+      "total_assets": 1.0,
+      "deferred_tax_assets": 1.0,
+      "inventories": 1.0,
+      "trade_receivables": 1.0,
+      "cash_and_cash_equivalents": 1.0,
+      "share_capital": 1.0,
+      "retained_earnings": 1.0,
+      "total_equity": 1.0,
+      "financial_liabilities": 1.0,
+      "total_liabilities": 1.0,
+      "trade_payables": 1.0,
+      "approvals": 1.0
+     },
+     "methods": {
+      "intangible_assets": "c1-verified-v1:b8fe40b0-f1fa-439e-8d56-9bb0160f10ed|c3:rules",
+      "total_assets": "c1-verified-v1:6fb8435e-9e34-42bb-94a0-1f49bfc66860|c3:rules",
+      "deferred_tax_assets": "c1-verified-v1:ca7f8909-75a5-42d2-a1b0-e1c507149a6e|c3:rules",
+      "inventories": "c1-verified-v1:8917e2fa-a3a8-41ce-8c5c-959d27fffe0e|c3:rules",
+      "trade_receivables": "c1-verified-v1:b561fa71-71ff-4573-914e-288fc92dea81|c3:rules",
+      "cash_and_cash_equivalents": "c1-verified-v1:8404e850-1489-4f5b-a2aa-27e3514fa3a8|c3:rules",
+      "share_capital": "c1-verified-v1:d9614f9a-ed4f-434c-b330-371586b7e503|c3:rules",
+      "retained_earnings": "c1-verified-v1:a9669e6e-c4e3-4261-aff6-2322825dbd68|c3:rules",
+      "total_equity": "c1-verified-v1:83881163-4999-4375-872f-479a309717f6|c3:rules",
+      "financial_liabilities": "c1-verified-v1:4b3f1a08-e762-4fc3-92aa-628f78342afd|c3:rules",
+      "total_liabilities": "c1-verified-v1:9626f35e-6795-483a-a790-9cf9308fa962|c3:rules",
+      "trade_payables": "c1-verified-v1:7a48b9dd-c2a7-44f7-a50e-942334c116fd|c3:rules",
+      "approvals": "c3:rules"
+     },
+     "source": {
+      "component": "c1",
+      "document_id": "dc203ec4-7b98-4d66-8e22-2628da6f3834",
+      "run_id": "1b79636b-0ee0-4609-bbf9-b3c8c2a78d9a",
+      "verified_version": 1,
+      "confirmed_by": null
+     }
+    },
+    {
+     "doc_id": "d71db802-7996-4b94-8ef1-55b38d0a012b",
+     "case_id": "CASE-SAMPLE-05",
+     "name": "02_Statement_of_Financial_Position_Wk42_2026-10-18.pdf",
+     "doc_type": "balance_sheet",
+     "period_year": 2026,
+     "parent_doc_id": null,
+     "fields": {
+      "intangible_assets": 21795000.0,
+      "total_assets": 164673550.0,
+      "deferred_tax_assets": 1245600.0,
+      "inventories": 7015300.0,
+      "trade_receivables": 37448620.0,
+      "cash_and_cash_equivalents": 32374910.0,
+      "share_capital": 50000000.0,
+      "retained_earnings": 34778770.0,
+      "total_equity": 84778770.0,
+      "financial_liabilities": 6250000.0,
+      "total_liabilities": 67832630.0,
+      "trade_payables": 15602180.0,
+      "approvals": 1.0
+     },
+     "confidences": {
+      "intangible_assets": 1.0,
+      "total_assets": 1.0,
+      "deferred_tax_assets": 1.0,
+      "inventories": 1.0,
+      "trade_receivables": 1.0,
+      "cash_and_cash_equivalents": 1.0,
+      "share_capital": 1.0,
+      "retained_earnings": 1.0,
+      "total_equity": 1.0,
+      "financial_liabilities": 1.0,
+      "total_liabilities": 1.0,
+      "trade_payables": 1.0,
+      "approvals": 1.0
+     },
+     "methods": {
+      "intangible_assets": "c1-verified-v1:5501ce5b-5a99-4946-96f6-03e2c53db39c|c3:rules",
+      "total_assets": "c1-verified-v1:1f8e8635-4e45-4271-9761-352abd609884|c3:rules",
+      "deferred_tax_assets": "c1-verified-v1:e815df8d-f112-4b3a-bb67-c4722fd38a34|c3:rules",
+      "inventories": "c1-verified-v1:105da14b-42ba-43e8-9499-cf762dacb454|c3:rules",
+      "trade_receivables": "c1-verified-v1:cf494fd8-b59d-4a82-a534-414fa17c3389|c3:rules",
+      "cash_and_cash_equivalents": "c1-verified-v1:c2c71a48-891e-44c3-9a42-65cd61542699|c3:rules",
+      "share_capital": "c1-verified-v1:775abab6-a796-4c2e-a5aa-02e65131593a|c3:rules",
+      "retained_earnings": "c1-verified-v1:9132ab75-d7f6-4b9a-9b3e-2927e51cc321|c3:rules",
+      "total_equity": "c1-verified-v1:46e9b883-cab1-424d-89db-98899e9057d3|c3:rules",
+      "financial_liabilities": "c1-verified-v1:afba64d3-3c83-4001-bd52-0c72450a726f|c3:rules",
+      "total_liabilities": "c1-verified-v1:99af35fa-8293-4b36-a880-94008b36c63f|c3:rules",
+      "trade_payables": "c1-verified-v1:6d0df0a2-d35f-4fdd-a58b-c06e605ebdd0|c3:rules",
+      "approvals": "c3:rules"
+     },
+     "source": {
+      "component": "c1",
+      "document_id": "d71db802-7996-4b94-8ef1-55b38d0a012b",
+      "run_id": "65d69ab2-33a5-45b8-91df-f7ced7e1a930",
+      "verified_version": 1,
+      "confirmed_by": null
+     }
+    }
+   ],
+   "materiality": 20000000.0
+  }
+ }
+]

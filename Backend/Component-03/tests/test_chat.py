@@ -164,3 +164,18 @@ def test_copilot_reply_keeps_its_trace_id_for_explain(kg, acme, chats):
     reply = [m for m in chats.messages("ACME-1") if m.role == "copilot"][-1]
     assert r.data["trace_id"] and reply.data["trace_id"] == r.data["trace_id"]
     assert all(not m.data.get("trace_id") for m in chats.messages("ACME-1") if m.role == "user")
+
+
+def test_deleting_a_chat_deletes_its_copilot_traces_but_not_audit_traces(kg, acme):
+    from app import config
+    client = mongomock.MongoClient()
+    chats = MongoChatStore(MongoConnection(uri="mongodb://fake", db_name="t", client=client))
+    say(kg, acme, chats, "show the high severity findings")
+    traces = client["t"][config.CALLBACK_TRACES_COLLECTION]
+    traces.insert_many([
+        {"case_id": "ACME-1", "run_kind": "copilot", "event_type": "copilot_start"},
+        {"case_id": "ACME-1", "run_kind": "audit", "event_type": "pipeline_start"},
+        {"case_id": "OTHER", "run_kind": "copilot", "event_type": "copilot_start"}])
+    assert chats.delete_session("ACME-1")
+    left = sorted((t["case_id"], t["run_kind"]) for t in traces.find())
+    assert left == [("ACME-1", "audit"), ("OTHER", "copilot")]

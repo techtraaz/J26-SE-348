@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Ellipsis, PanelLeft, Plus, Trash2, UserRound } from "lucide-react";
 import { c3, chat } from "@/lib/apiClient";
+import { env } from "@/config/env";
 import { useUI } from "@/store/ui";
 import { IconButton } from "@/components/ui/IconButton";
 import type { CaseSummary } from "@/types/audit";
@@ -198,9 +199,14 @@ function ChatMenu({ sessionId, title, onClose }: { sessionId: string; title: str
   async function clear() {
     setWorking(true);
     try {
-      await chat.clear(sessionId);
+      await chat.clear(sessionId); // C3: the chat's messages and its Copilot traces
     } catch {
       // nothing saved yet for this chat
+    }
+    if (env.c4Base) {
+      // C4: the chat's saved reviews and its live history in the Explainability panel
+      await fetch(`${env.c4Base}/xai/history/${encodeURIComponent(sessionId)}`, { method: "DELETE" })
+        .catch(() => undefined);
     }
     await qc.invalidateQueries({ queryKey: ["chat", sessionId] });
     setWorking(false);

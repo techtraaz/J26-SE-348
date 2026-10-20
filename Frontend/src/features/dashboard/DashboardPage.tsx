@@ -6,6 +6,8 @@ import { useUI } from "@/store/ui";
 import { FindingCard } from "@/components/audit/FindingCard";
 import { Plus, Sparkles } from "lucide-react";
 import { IconButton } from "@/components/ui/IconButton";
+import { ReportFileCard } from "@/components/ui/report/ReportFileCard";
+import { findReportLink } from "@/components/ui/report/reportLink";
 import type { ChatMessage, Finding } from "@/types/audit";
 
 const STARTERS = [
@@ -210,6 +212,7 @@ function Message({ m, showSuggestions, busy, onPick }: {
   const [all, setAll] = useState(false);
   const user = m.role === "user";
   const shown = all ? m.findings : m.findings.slice(0, SHOWN_FINDINGS);
+  const report = !user && m.role === "copilot" ? findReportLink(m.text) : null;
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: user ? "flex-end" : "flex-start", gap: "8px" }}>
       {m.role === "report" || m.role === "system" ? (
@@ -227,10 +230,11 @@ function Message({ m, showSuggestions, busy, onPick }: {
         </div>
       ) : (
         <Bubble user={user}>
-          {user ? m.text : replyText(m.text, m.findings)}
+          {user ? m.text : replyText(report ? report.text : m.text, m.findings)}
           {m.data.attached_docs ? <div style={{ fontSize: "12px", opacity: 0.75, marginTop: "4px" }}>+ {m.data.attached_docs} document(s)</div> : null}
         </Bubble>
       )}
+      {report && <ReportFileCard url={report.url} filename={report.filename} caseId={m.case_id} />}
       {!user && typeof m.data.trace_id === "string" && <ExplainButton runKey={m.data.trace_id} />}
       {m.findings.length > 0 && (
         <div style={{ width: "85%", display: "flex", flexDirection: "column", gap: "6px" }}>

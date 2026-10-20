@@ -24,6 +24,19 @@ MONGODB_URI: str = os.getenv(
 )
 MONGODB_DB_NAME: str = os.getenv("C04_MONGODB_DB_NAME", "nomos_xai")
 C03_TRACES_COLLECTION: str = "c03_callback_traces"
+AUDIT_RESULTS_COLLECTION: str = "c03_audit_results"  # C03's saved audits (read-only)
+REPORTS_COLLECTION: str = "c04_reports"              # C04's report index (no files)
+REVIEWS_COLLECTION: str = "c04_reviews"              # Review Agent results, one per run
+READER_STATE_COLLECTION: str = "c04_reader_state"    # how far the trace reader has read
+
+# ---------------------------------------------------------------------------
+# Object storage (S3-compatible Garage) — where the report PDFs are kept
+# ---------------------------------------------------------------------------
+GARAGE_ENDPOINT: str = os.getenv("GARAGE_ENDPOINT", "")
+GARAGE_ACCESS_KEY: str = os.getenv("GARAGE_ACCESS_KEY", "")
+GARAGE_SECRET_KEY: str = os.getenv("GARAGE_SECRET_KEY", "")
+GARAGE_BUCKET: str = os.getenv("GARAGE_BUCKET", "uploads")
+REPORTS_PREFIX: str = os.getenv("C04_REPORTS_PREFIX", "c04-reports")  # folder in the shared bucket
 TRACE_POLL_INTERVAL_MS: int = int(os.getenv("C04_TRACE_POLL_MS", "300"))
 
 # ---------------------------------------------------------------------------
@@ -46,4 +59,8 @@ LLM_API_URL: str = os.getenv(
     "http://localhost:11434/api/chat",
 )
 LLM_MODEL: str = os.getenv("C04_LLM_MODEL", "phi4")
+# "ollama" (C04_LLM_API_URL = .../api/chat) or "openai" for any OpenAI-compatible
+# server such as vLLM (C04_LLM_API_URL = .../v1); C04_LLM_API_KEY if it needs one.
+LLM_PROVIDER: str = os.getenv("C04_LLM_PROVIDER", "ollama").strip().lower()
+LLM_API_KEY: str = os.getenv("C04_LLM_API_KEY", "")
 LLM_TIMEOUT: int = int(os.getenv("C04_LLM_TIMEOUT", "60"))
