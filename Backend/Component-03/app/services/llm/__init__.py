@@ -1,6 +1,8 @@
 """One door to the self-hosted LLM, independent of which model or server runs it.
 
 The LLM never decides a verdict. It is used for:
+- explain():       the auditor-facing summary of a case, written from facts C3
+                   built in code; every number in it must be one of those facts
 - narrate():       one short trace line (falls back to fixed text)
 - complete_json(): structured reading of a request, validated against a
                    Pydantic model; anything that does not fit raises LLMError
@@ -20,15 +22,16 @@ from app import config
 from app.services import xai_trace
 from app.services.llm.providers import PROVIDERS, LLMError, LLMProvider
 
-__all__ = ["LLMError", "LLMProvider", "available", "complete_json", "is_safe", "narrate",
-           "use_provider"]
+__all__ = ["LLMError", "LLMProvider", "available", "complete_json", "explain", "is_safe",
+           "narrate", "use_provider"]
 
 logger = logging.getLogger("c03.llm")
 
 # Words the small model must never introduce in a trace line.
 BANNED_WORDS = ("gdpr", "segregation", "sox", "hipaa", "money laundering",
                 "tax fraud", "ifrs", "gaap", "pci")
-_NUMBER = re.compile(r"\d+(?:\.\d+)?")
+# A number as written: "164,673,550.00", "2,562,724", "0.30", "12".
+_NUMBER = re.compile(r"\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?")
 _JSON_OBJECT = re.compile(r"\{.*\}", re.DOTALL)
 
 _lock = threading.Lock()
@@ -108,15 +111,44 @@ def complete_json[T: BaseModel](system: str, user: str, model: type[T], timeout:
         raise LLMError(f"LLM reply did not match the schema: {exc}") from exc
 
 
-def is_safe(text: str, prompt: str) -> bool:
-    """Short, no banned words, and every number in it was given in the prompt."""
+def _numbers(text: str) -> set[float]:
+    return {float(n.replace(",", "")) for n in _NUMBER.findall(text)}
+
+
+def is_safe(text: str, prompt: str, max_chars: int = 200) -> bool:
+    """Not too long, no banned words, and every number in it was given in the
+    prompt (compared by value, so 164,673,550 matches 164,673,550.00)."""
     t = text.strip()
-    if not t or len(t) > 200:
+    if not t or len(t) > max_chars:
         return False
     if any(w in t.lower() for w in BANNED_WORDS):
         return False
-    given = set(_NUMBER.findall(prompt))
-    return all(n in given for n in _NUMBER.findall(t))
+    given = _numbers(prompt)
+    return all(n in given for n in _numbers(t))
+
+
+EXPLAIN_SYSTEM = (
+    "You are an internal audit assistant for a Sri Lankan company. From the audit facts "
+    "below, write a clear summary for the auditor in plain English: what was checked, what "
+    "each finding means and why it matters (use the rule, the standard and the risk given), "
+    "and what the auditor should check next. Write a few short paragraphs or '-' bullet "
+    "points (no numbered lists). "
+    "Use only the facts given: never add numbers, laws, names, dates or facts that are not "
+    "in them, and never change a finding, its severity or its status. If there are no "
+    "findings, say what passed and what could not be checked.")
+
+
+def explain(facts: str) -> tuple[str | None, str | None]:
+    """(summary, None), or (None, why not): the LLM is off or failed, or wrote
+    something unsafe (a number not in the facts, a banned word, too long)."""
+    try:
+        text = _chat(EXPLAIN_SYSTEM, facts, None, config.LLM_SUMMARY_TIMEOUT)
+    except LLMError as exc:
+        return None, str(exc)
+    text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()  # reasoning models
+    if not is_safe(text, facts, config.LLM_SUMMARY_MAX_CHARS):
+        return None, "the LLM's summary used a number or word not in the facts, or was too long"
+    return text, None
 
 
 def narrate(prompt: str, fallback: str) -> str:

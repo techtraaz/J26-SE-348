@@ -37,6 +37,11 @@ class ResultStore:
     def trace_exporter(self):
         """The background writer for XAI trace events, or None (no tracing)."""
 
+    def set_events(self, case_id: str, version: int, published: bool,
+                   note: str | None) -> None:
+        """Record whether every XAI step was queued for C4, known after pipeline_end."""
+        raise NotImplementedError
+
 
 def _record(case: AuditCase, result: AuditResult) -> dict:
     return {"_id": f"{result.case_id}:v{result.version}", **result.model_dump(),
@@ -44,6 +49,10 @@ def _record(case: AuditCase, result: AuditResult) -> dict:
 
 
 
+
+
+def _events_entry(note: str) -> dict:
+    return TraceEntry(agent_name="events", decision_type="events", detail=note).model_dump()
 
 
 def _summary(rec: dict) -> dict:
@@ -82,6 +91,13 @@ class MemoryStore(ResultStore):
             if result.version in runs:
                 raise StoreError(f"version {result.version} of {result.case_id} already saved")
             runs[result.version] = _record(case, result)
+
+    def set_events(self, case_id, version, published, note):
+        with self._lock:
+            rec = self._records[case_id][version]
+            rec["events_published"] = published
+            if note:
+                rec["trace"] = [*rec["trace"], _events_entry(note)]
 
 
 
@@ -172,6 +188,13 @@ class MongoStore(ResultStore):
 
     def save(self, case, result):
         self._run(lambda db: db[config.RESULTS_COLLECTION].insert_one(_record(case, result)))
+
+    def set_events(self, case_id, version, published, note):
+        change: dict = {"$set": {"events_published": published}}
+        if note:
+            change["$push"] = {"trace": _events_entry(note)}
+        self._run(lambda db: db[config.RESULTS_COLLECTION].update_one(
+            {"_id": f"{case_id}:v{version}"}, change))
 
     def traces_collection(self):
         """Return the callback traces collection for XAITracerCallback."""

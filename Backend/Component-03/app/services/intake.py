@@ -86,6 +86,9 @@ def _doc(raw: dict, case_id: str, where: str, seen: set[str]) -> AuditDocument:
     methods = raw.get("methods") or {}
     if not isinstance(confidences, dict) or not isinstance(methods, dict):
         raise IntakeError(f"{where}: confidences and methods must be objects")
+    name = raw.get("name")
+    if name is not None and (not isinstance(name, str) or len(name) > 255):
+        raise IntakeError(f"{where}: name must be text of at most 255 characters")
     source = raw.get("source")
     if source is not None:
         try:
@@ -93,7 +96,8 @@ def _doc(raw: dict, case_id: str, where: str, seen: set[str]) -> AuditDocument:
         except ValidationError as exc:
             raise IntakeError(f"{where}: invalid source: {exc.errors()[0]['msg']}") from None
     return AuditDocument(
-        doc_id=doc_id, case_id=case_id, doc_type=doc_type, period_year=year,
+        doc_id=doc_id, case_id=case_id, name=(name or "").strip() or None,
+        doc_type=doc_type, period_year=year,
         parent_doc_id=parent, fields=fields,
         confidences={str(k): _confidence(v, f"{where}.{k}") for k, v in confidences.items()},
         methods={str(k): str(v) for k, v in methods.items()}, source=source)

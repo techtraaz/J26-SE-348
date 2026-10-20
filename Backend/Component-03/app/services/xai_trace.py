@@ -68,8 +68,12 @@ class TraceExporter:
         _exporters.add(self)
 
     def submit(self, doc: dict) -> bool:
-        """Queue one event. False (and counted) when the queue is full."""
+        """Queue one event. False (and counted) when the queue is full, or while
+        MongoDB is in its retry pause (the writer would only drop it then)."""
         self._ensure_thread()
+        if time.monotonic() < self._blocked_until:
+            self.dropped += 1
+            return False
         try:
             self._queue.put_nowait(doc)
             return True
@@ -158,10 +162,21 @@ class RunTracer:
         self._exporter = exporter
         self._seq = itertools.count(1)
         self._lock = threading.Lock()
+        self.dropped = 0  # this run's events the exporter refused
 
     @property
     def enabled(self) -> bool:
         return self._exporter is not None
+
+    def note(self) -> str | None:
+        """Why C4's timeline of this run may be incomplete, or None when every
+        event was queued (writing finishes in the background)."""
+        if not self.enabled:
+            return "XAI tracing is off (no MongoDB trace store); C4 has no timeline for this run."
+        if self.dropped:
+            return (f"{self.dropped} XAI step(s) were dropped (trace queue full or MongoDB "
+                    f"unavailable); C4's timeline for this run is incomplete. The audit is unaffected.")
+        return None
 
     def emit(self, event: dict) -> None:
         if self._exporter is None:
@@ -174,8 +189,10 @@ class RunTracer:
                              schema=SCHEMA_VERSION, seq=next(self._seq))
                 if self.stream_id:
                     event["stream_id"] = self.stream_id
-                self._exporter.submit(event)
+                if not self._exporter.submit(event):
+                    self.dropped += 1
         except Exception:
+            self.dropped += 1
             logger.debug("XAI event skipped (non-fatal)", exc_info=True)
 
 

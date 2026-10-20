@@ -74,6 +74,15 @@ def test_kg_mock_file_points_the_app_at_a_snapshot(snapshot, monkeypatch):
     assert default_kg().mock_note == "committed mock data"
 
 
+def test_missing_snapshot_uses_the_committed_mock_and_says_so(tmp_path, monkeypatch, store):
+    monkeypatch.setattr(config, "KG_MOCK_FILE", str(tmp_path / "not_taken_yet.json"))
+    kg = default_kg()
+    result = orchestrator.run_case(_case(), kg, store=store)
+    assert any(f.rule_id == "CHK-001" for f in result.findings)  # rules still come from the mock
+    note = next(t.detail for t in result.trace if t.agent_name == "kg")
+    assert "not_taken_yet.json not found, so committed mock data" in note
+
+
 def test_c2_down_saves_nothing(tmp_path):
     from app.services.kg_client import KGUnavailable
 

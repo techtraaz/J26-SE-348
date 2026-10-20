@@ -21,6 +21,7 @@ class DocumentSource(BaseModel):
 class AuditDocument(BaseModel):
     doc_id: str
     case_id: str
+    name: str | None = None  # what people call it, e.g. C1's file name; never used in checks
     doc_type: str = "unknown"  # a C2 DocumentType code, or unknown
     period_year: int
     parent_doc_id: str | None = None  # the document this one supports

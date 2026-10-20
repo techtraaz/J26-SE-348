@@ -162,5 +162,5 @@ def test_mongo_chat_store_round_trip(kg, acme):
 def test_copilot_reply_keeps_its_trace_id_for_explain(kg, acme, chats):
     r = say(kg, acme, chats, "show the high severity findings")
     reply = [m for m in chats.messages("ACME-1") if m.role == "copilot"][-1]
-    assert r.data["trace_id"] and reply.data == {"trace_id": r.data["trace_id"]}
+    assert r.data["trace_id"] and reply.data["trace_id"] == r.data["trace_id"]
     assert all(not m.data.get("trace_id") for m in chats.messages("ACME-1") if m.role == "user")

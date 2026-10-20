@@ -55,7 +55,7 @@ def test_dq_stops_when_nothing_is_checkable_and_says_why():
 def test_compliance_resolves_c2_aliases_and_claims_actual_field(kg):
     c = case(doc("BS", "balance_sheet", {"total_assets": 100, "liabilities": 30, "equity": 20},
                  confidences={"total_assets": 0.8, "equity": 0.6}))
-    f, trace = compliance.run(c, kg)
+    f, trace, _ = compliance.run(c, kg)
     chk = next(x for x in f if x.rule_id == "CHK-001")
     assert chk.category == "ledger" and chk.severity == "high"
     assert {c.field for c in chk.claims} == {"total_assets", "liabilities", "equity"}
@@ -64,7 +64,7 @@ def test_compliance_resolves_c2_aliases_and_claims_actual_field(kg):
 
 
 def test_policy_limit_carries_confidence_and_claim(kg):
-    f, _ = compliance.run(case(doc("I", "invoice", {"amount": 150000}, confidences={"amount": 0.4})), kg)
+    f, _, _ = compliance.run(case(doc("I", "invoice", {"amount": 150000}, confidences={"amount": 0.4})), kg)
     pol = next(x for x in f if x.rule_id == "POL-07")
     assert pol.confidence == 0.4 and pol.claims[0].claimed_value == 150000.0
 
@@ -73,7 +73,7 @@ def test_kg_outage_in_live_mode_is_visible_not_clean():
     def down(path, params):
         raise KGUnavailable("refused")
     kg = FallbackKGClient(mode="live", live=LiveKGClient("http://c2", transport=down))
-    f, _ = compliance.run(case(doc("I", "invoice", {"amount": 5})), kg)
+    f, _, _ = compliance.run(case(doc("I", "invoice", {"amount": 5})), kg)
     assert ids(f) == ["REV-007"] and f[0].severity == "medium"
 
 
@@ -82,7 +82,7 @@ def test_kg_outage_in_live_mode_is_visible_not_clean():
 def test_year_change_uses_prior_year(kg):
     c = case(doc("B25", "balance_sheet", {"assets": 100}, year=2025),
              doc("B26", "balance_sheet", {"assets": 200}))
-    f, _ = anomaly.run(c, kg)
+    f, _, _ = anomaly.run(c, kg)
     yoy = next(x for x in f if x.rule_id == "CHK-004")
     assert yoy.evidence_ids == ["B26", "B25"] and len(yoy.claims) == 2
 
@@ -91,7 +91,7 @@ def test_ambiguous_prior_year_is_skipped_visibly(kg):
     c = case(doc("A25", "balance_sheet", {"assets": 1}, year=2025),
              doc("B25", "balance_sheet", {"assets": 2}, year=2025),
              doc("B26", "balance_sheet", {"assets": 200}))
-    f, trace = anomaly.run(c, kg)
+    f, trace, _ = anomaly.run(c, kg)
     assert "CHK-004" not in ids(f)
     assert any("several balance_sheet" in t.detail for t in trace)
 
@@ -100,7 +100,7 @@ def test_child_parent_and_fraud_pattern(kg):
     c = case(doc("INV", "invoice", {"amount": 100, "cash_out": 100, "purchase_basis": "credit",
                                     "asset_in": 0}),
              doc("RC", "receipt", {"amount": 90}, parent_doc_id="INV"))
-    f, _ = anomaly.run(c, kg)
+    f, _, _ = anomaly.run(c, kg)
     assert ids(f) == ["CHK-003", "CHK-005"]
     assert next(x for x in f if x.rule_id == "CHK-005").category == "possible_fraud"
 
@@ -158,7 +158,7 @@ def test_amount_difference_only_for_plain_amount_comparisons():
 def test_below_materiality_is_kept_at_low_severity(kg):
     small = case(doc("BS", "balance_sheet", {"assets": 100005, "liabilities": 60000, "capital": 40000}))
     small.materiality = 1000
-    f, trace = compliance.run(small, kg)
+    f, trace, _ = compliance.run(small, kg)
     chk = next(x for x in f if x.rule_id == "CHK-001")
     assert chk.severity == "low" and "below the case materiality 1,000.00" in chk.message
     assert "C2 rates this rule high" in chk.message
@@ -197,7 +197,7 @@ def test_materiality_is_validated_and_kept_on_append(kg, store):
 ])
 def test_policy_limit_checks_signed_approvals(kg, approvals, expect):
     fields = {"amount": 636256.0, **({"approvals": approvals} if approvals is not None else {})}
-    f, _ = compliance.run(case(doc("I", "invoice", fields, confidences={"amount": 0.9, "approvals": 0.7})), kg)
+    f, _, _ = compliance.run(case(doc("I", "invoice", fields, confidences={"amount": 0.9, "approvals": 0.7})), kg)
     pol = [x for x in f if x.rule_id == "POL-07"]
     if expect is None:
         assert pol == []

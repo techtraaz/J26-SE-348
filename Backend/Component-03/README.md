@@ -243,10 +243,18 @@ independent set written by other people is needed for the dissertation figure.
 
 - MongoDB `nomos_xai.c03_audit_results`: one record per run, `_id`
   `"<case_id>:v<version>"`, every `AuditResult` field plus `case` (the input).
-  Saved **before** `pipeline_end` is published.
-- Redis `nomos:trace_events`: `pipeline_start`, `agent_end` ×5, `pipeline_end`.
-  These are C4's shapes, plus `version` (start/end), `status` (end) and
-  `traces` (all trace lines of an agent).
+  Saved **before** `pipeline_end` is queued. It includes `rules_applied` (every
+  KG rule run on every document, passed ones too, with the same facts as its live
+  `rule_check` / `policy_check` step), each document's `name` (C1's file name) and
+  `events_published` (True when every XAI step of the run was queued for C4; when
+  False a trace line says why).
+- MongoDB `nomos_xai.c03_callback_traces` (kept `C03_CALLBACK_TTL_DAYS` days),
+  written in the background so tracing never slows an audit: `pipeline_start`,
+  `chain_start` / `chain_end` per agent, `step` events (`evidence_read`,
+  `dq_check`, `kg_fetch`, `rule_check`, `policy_check`, `standard_check`,
+  `evidence_link`, `citation_check`, `llm_call`, ...), `pipeline_end`; Copilot
+  turns add `copilot_start`, `copilot_nlu` (with the full `routing`) and
+  `copilot_end`.
 
 ## Locked rules
 

@@ -33,6 +33,7 @@ class C1Input(BaseModel):
     verified: C1VerifiedRecord | None = None
     extraction: C1Extraction | None = None
     doc_type: str | None = None  # the reviewer's choice; suggested when absent
+    name: str | None = Field(None, max_length=255)  # C1's file name, shown in reports
 
     @model_validator(mode="after")
     def _one_source(self):
@@ -111,7 +112,7 @@ def preview(case_id: str, documents: list[C1Input], kg: KGClient) -> list[dict]:
                 "alternatives": f.alternatives})
         doc_type = doc.doc_type or (mapping.doc_type.value if mapping.doc_type else "unknown")
         out.append({
-            "document_id": source.document_id, "source": source.model_dump(),
+            "document_id": source.document_id, "name": doc.name, "source": source.model_dump(),
             "human_verified": source.human_verified,
             "suggestions": {
                 "doc_type": mapping.doc_type.__dict__ if mapping.doc_type else None,
@@ -196,7 +197,8 @@ def confirm(case_id: str, documents: list[ReviewedDocument], kg: KGClient) -> li
             confidences[d.field] = conf
             methods[d.field] = (f"{_origin(line, source)}|" if line else "") + f"c3:{how}"
         raw_docs.append({
-            "doc_id": doc.doc_id or source.document_id, "doc_type": doc.doc_type or "unknown",
+            "doc_id": doc.doc_id or source.document_id, "name": doc.name,
+            "doc_type": doc.doc_type or "unknown",
             "period_year": doc.period_year, "parent_doc_id": doc.parent_doc_id,
             "fields": fields, "confidences": confidences, "methods": methods,
             "source": source.model_dump()})
