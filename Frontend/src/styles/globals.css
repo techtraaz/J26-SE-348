@@ -299,3 +299,11 @@ code, .id { font-family: 'JetBrains Mono Variable', monospace; }
   background: var(--sidebar-hover) !important;
   color: var(--text-h) !important;
 }
+
+/* Report tab buttons */
+#xai-panel .report-btn {
+  transition: opacity 0.15s ease, background 0.15s ease;
+}
+#xai-panel .report-btn:hover {
+  opacity: 0.88;
+}
