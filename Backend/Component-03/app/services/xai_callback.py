@@ -75,6 +75,7 @@ class XAITracerCallback(BaseCallbackHandler):
         self._col = traces_col
         self._seq = 0
         self._timers: dict[str, float] = {}
+        self._agents: dict[str, str] = {}   # run_id -> node name, for end/error events
 
     # ── Core emit — fire-and-forget ───────────────────────────────────
 
@@ -97,7 +98,7 @@ class XAITracerCallback(BaseCallbackHandler):
 
     def on_chain_start(
         self,
-        serialized: dict[str, Any],
+        serialized: dict[str, Any] | None,
         inputs: dict[str, Any],
         *,
         run_id: UUID,
@@ -106,9 +107,15 @@ class XAITracerCallback(BaseCallbackHandler):
     ) -> None:
         rid = str(run_id)
         self._timers[rid] = time.perf_counter()
+        # LangGraph passes serialized=None; the node name arrives in kwargs instead.
+        agent = (kwargs.get("name")
+                 or (kwargs.get("metadata") or {}).get("langgraph_node")
+                 or (serialized or {}).get("name")
+                 or "unknown")
+        self._agents[rid] = agent
         self._emit({
             "event_type": "chain_start",
-            "agent": serialized.get("name", "unknown"),
+            "agent": agent,
             "run_id": rid,
             "parent_run_id": str(parent_run_id) if parent_run_id else None,
             "ts": _now(),
@@ -127,6 +134,7 @@ class XAITracerCallback(BaseCallbackHandler):
         duration_ms = round((time.perf_counter() - elapsed) * 1000, 2) if elapsed else None
         self._emit({
             "event_type": "chain_end",
+            "agent": self._agents.pop(rid, None),
             "run_id": rid,
             "parent_run_id": str(parent_run_id) if parent_run_id else None,
             "duration_ms": duration_ms,
@@ -147,6 +155,7 @@ class XAITracerCallback(BaseCallbackHandler):
         duration_ms = round((time.perf_counter() - elapsed) * 1000, 2) if elapsed else None
         self._emit({
             "event_type": "chain_error",
+            "agent": self._agents.pop(rid, None),
             "run_id": rid,
             "parent_run_id": str(parent_run_id) if parent_run_id else None,
             "duration_ms": duration_ms,
@@ -158,7 +167,7 @@ class XAITracerCallback(BaseCallbackHandler):
 
     def on_llm_start(
         self,
-        serialized: dict[str, Any],
+        serialized: dict[str, Any] | None,
         prompts: list[str],
         *,
         run_id: UUID,
@@ -169,7 +178,7 @@ class XAITracerCallback(BaseCallbackHandler):
         self._timers[rid] = time.perf_counter()
         self._emit({
             "event_type": "llm_start",
-            "model": serialized.get("name", serialized.get("id", ["unknown"])[-1]),
+            "model": (serialized or {}).get("name") or ((serialized or {}).get("id") or ["unknown"])[-1],
             "prompt_preview": prompts[0][:500] if prompts else "",
             "run_id": rid,
             "parent_run_id": str(parent_run_id) if parent_run_id else None,

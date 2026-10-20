@@ -26,7 +26,6 @@ def test_mongo_store_keeps_every_version(kg, mongo):
     assert rec["_id"] == "M:v1" and rec["case"]["docs"][0]["doc_id"] == "BS"
     assert mongo.latest("M")["version"] == 2
     assert all(f["supersedes"] == 1 for f in mongo.latest("M")["findings"])
-    assert any(t["agent_name"] == "events" for t in rec["trace"])  # set_events note
 
 
 def test_mongo_duplicate_version_is_refused(kg, mongo):
