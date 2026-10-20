@@ -101,6 +101,16 @@ async def _run(fn, *args):
         raise StoreUnavailable(f"Object storage error: {type(exc).__name__}") from exc
 
 
+def database() -> Any:
+    """The shared nomos_xai database (other C04 stores use the same connection)."""
+    return _database()
+
+
+async def run(fn, *args):
+    """Run a blocking MongoDB / storage call in a worker thread; errors -> StoreUnavailable."""
+    return await _run(fn, *args)
+
+
 # ── Audit records (Component-03, read-only) ───────────────────────────
 
 def _get_audit(audit_id: str) -> dict | None:

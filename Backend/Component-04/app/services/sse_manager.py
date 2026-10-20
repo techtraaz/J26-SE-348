@@ -65,6 +65,21 @@ async def broadcast(case_id: str, data: dict[str, Any]) -> None:
             logger.warning("Dropped event for a slow SSE client on case=%s", case_id)
 
 
+def seed(case_id: str, older: list[dict[str, Any]]) -> None:
+    """Put older, stored events in front of the stream's live history."""
+    live = list(_history.get(case_id, ()))
+    events = deque(older + live, maxlen=HISTORY_PER_STREAM)
+    _history[case_id] = events
+    _history.move_to_end(case_id)
+    while len(_history) > HISTORY_STREAMS:
+        _history.popitem(last=False)
+
+
+def clear(case_id: str) -> None:
+    """Forget a stream's history (e.g. its chat was deleted)."""
+    _history.pop(case_id, None)
+
+
 def history(case_id: str) -> list[dict[str, Any]]:
     """The stream's recent events, oldest first."""
     return list(_history.get(case_id, ()))

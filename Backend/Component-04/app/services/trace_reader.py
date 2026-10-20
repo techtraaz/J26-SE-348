@@ -9,6 +9,13 @@ Runs as a long-lived asyncio background task that:
   5. Persists the event into the local SQLite Middle DB (steps in one
      transaction per poll, so the live stream never waits on SQLite).
 
+Traces are kept permanently, so the reader never re-reads them all: it saves
+how far it has read (``c04_reader_state``) and continues from there after a
+restart. Older history is shown on demand: when the panel opens a stream that
+this process has not seen yet, ``load_history`` replays that stream's stored
+events in a side-effect-free mode (render only — no database writes, no new
+Review Agent calls; saved reviews are added from ``c04_reviews``).
+
 Design principles:
   - **Non-blocking**: runs inside ``asyncio.create_task`` so the FastAPI
     event loop is never stalled.
@@ -22,6 +29,7 @@ Design principles:
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import logging
 from datetime import datetime, timezone
 
@@ -30,9 +38,13 @@ from pymongo import MongoClient
 from app import config
 from app.schemas.callback_events import CallbackEvent, parse_callback_event
 from app.services import database as db
-from app.services import review_agent
-from app.services import sse_manager
-from app.services import step_renderer
+from app.services import (
+    report_store,
+    review_agent,
+    review_store,
+    sse_manager,
+    step_renderer,
+)
 
 logger = logging.getLogger("c04.trace_reader")
 
@@ -50,14 +62,30 @@ _run_ids: dict[str, int] = {}
 # ── Step rows waiting to be written in one transaction (see flush) ────
 _pending_rows: list[dict] = []
 
+# ── History replay (load_history): payloads are collected, nothing is written ──
+_replay: contextvars.ContextVar[list | None] = contextvars.ContextVar("trace_replay", default=None)
+_replay_steps: contextvars.ContextVar[dict | None] = contextvars.ContextVar("trace_replay_steps",
+                                                                            default=None)
+
+
+def _replaying() -> bool:
+    return _replay.get() is not None
+
+
+def _counters() -> dict[str, int]:
+    """Step counters: the live ones, or the replay's own (a replay never touches live state)."""
+    own = _replay_steps.get()
+    return _step_counters if own is None else own
+
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
 def _next_step(case_id: str) -> int:
-    _step_counters[case_id] = _step_counters.get(case_id, 0) + 1
-    return _step_counters[case_id]
+    counters = _counters()
+    counters[case_id] = counters.get(case_id, 0) + 1
+    return counters[case_id]
 
 
 def _sse_event_type(evt: CallbackEvent) -> str:
@@ -90,6 +118,10 @@ async def _publish(evt: CallbackEvent, payload: dict) -> None:
         version=evt.version,
         seq=evt.seq,
     )
+    sink = _replay.get()
+    if sink is not None:  # history replay: collect, do not broadcast
+        sink.append(payload)
+        return
     await sse_manager.broadcast(evt.case_id, payload)
     if evt.stream_id and evt.stream_id != evt.case_id:
         await sse_manager.broadcast(evt.stream_id, payload)
@@ -108,7 +140,7 @@ async def _latest_run_id(case_id: str) -> int:
 
 async def _handle_pipeline_start(evt: CallbackEvent) -> None:
     """Broadcast the start, then create an audit_run row for later events."""
-    _step_counters[evt.case_id] = 0
+    _counters()[evt.case_id] = 0
     detail = f"Pipeline started with {evt.doc_count or 0} document(s)."
     await _publish(evt, {
         "event_type": "pipeline_start",
@@ -116,6 +148,8 @@ async def _handle_pipeline_start(evt: CallbackEvent) -> None:
         "doc_count": evt.doc_count or 0,
         "detail": detail,
     })
+    if _replaying():
+        return
     run_id = await db.insert_audit_run(
         case_id=evt.case_id,
         doc_count=evt.doc_count or 0,
@@ -169,6 +203,8 @@ async def _handle_chain_end(evt: CallbackEvent) -> None:
         "duration_ms": evt.duration_ms,
         "step_index": step,
     })
+    if _replaying():
+        return
     await flush_pending()  # the agent's steps land in the DB before its summary
     await db.insert_trace(
         run_id=_run_ids.get(evt.case_id) or await _latest_run_id(evt.case_id),
@@ -199,6 +235,8 @@ async def _handle_chain_error(evt: CallbackEvent) -> None:
         "duration_ms": evt.duration_ms,
         "step_index": step,
     })
+    if _replaying():
+        return
     await flush_pending()
     await db.insert_trace(
         run_id=_run_ids.get(evt.case_id) or await _latest_run_id(evt.case_id),
@@ -219,7 +257,7 @@ async def _handle_chain_error(evt: CallbackEvent) -> None:
 
 async def _handle_pipeline_end(evt: CallbackEvent) -> None:
     """Broadcast the end, finalise the audit run row, clean up in-memory state."""
-    step = (_step_counters.pop(evt.case_id, 0)) + 1
+    step = (_counters().pop(evt.case_id, 0)) + 1
     detail = f"Pipeline completed with {evt.total_findings or 0} finding(s)."
     await _publish(evt, {
         "event_type": "pipeline_end",
@@ -228,6 +266,8 @@ async def _handle_pipeline_end(evt: CallbackEvent) -> None:
         "step_index": step,
         "detail": detail,
     })
+    if _replaying():
+        return
     await flush_pending()  # the run's steps are in the DB before it is closed
 
     await db.complete_audit_run(
@@ -265,6 +305,8 @@ async def _handle_step(evt: CallbackEvent) -> None:
     payload = {"event_type": "step", **_stage(evt.agent), **row,
                "duration_ms": evt.duration_ms, "step_index": step}
     await _publish(evt, payload)
+    if _replaying():
+        return
     _pending_rows.append({
         "run_id": _run_ids.get(evt.case_id, 0),
         "case_id": evt.case_id,
@@ -326,9 +368,12 @@ async def _handle_copilot(evt: CallbackEvent) -> None:
         await _publish(evt, {"event_type": "run_end", "detail": detail, "intent": evt.intent,
                              "status": evt.status, "duration_ms": evt.duration_ms,
                              "step_index": step})
-        # Fire-and-forget: the Review Agent wraps up the chat turn
-        asyncio.create_task(review_agent.review_turn(evt.case_id, evt.run_key, evt.status))
+        if not _replaying():
+            # Fire-and-forget: the Review Agent wraps up the chat turn
+            asyncio.create_task(review_agent.review_turn(evt.case_id, evt.run_key, evt.status))
 
+    if _replaying():
+        return
     # Then persist to SQLite (non-fatal if it fails)
     try:
         await flush_pending()
@@ -405,12 +450,94 @@ async def process_batch(docs: list[dict]) -> int:
     return new_count
 
 
+# ── History (older events, shown on demand) ───────────────────────────
+
+HISTORY_EVENTS = 800        # stored events replayed per stream
+_loaded: set[str] = set()   # streams whose history this process has loaded
+_reader_started = asyncio.Event()  # set once run_reader knows where it starts
+_reader_running = False
+
+
+def _history_query(stream_id: str) -> dict:
+    query: dict = {"$or": [{"case_id": stream_id}, {"stream_id": stream_id}]}
+    if _start_oid is not None:  # newer events reach the panel live
+        query["_id"] = {"$lte": _start_oid}
+    return query
+
+
+def _find_history(stream_id: str) -> list[dict]:
+    col = report_store.database()[config.C03_TRACES_COLLECTION]
+    docs = list(col.find(_history_query(stream_id), sort=[("_id", -1)], limit=HISTORY_EVENTS))
+    docs.reverse()
+    return docs
+
+
+async def render_history(docs: list[dict]) -> list[dict]:
+    """The SSE payloads those stored events produce, with no side effects."""
+    payloads: list[dict] = []
+    t1 = _replay.set(payloads)
+    t2 = _replay_steps.set({})
+    try:
+        for doc in docs:
+            await _dispatch(doc)
+    finally:
+        _replay.reset(t1)
+        _replay_steps.reset(t2)
+    return payloads
+
+
+async def load_history(stream_id: str) -> None:
+    """Before a stream's first subscriber in this process: put its older,
+    stored events (and their saved reviews) in front of its live history."""
+    if stream_id in _loaded:
+        return
+    if _reader_running and not _reader_started.is_set():
+        # the split between "history" and "live" is where the reader starts: wait for it
+        try:
+            await asyncio.wait_for(_reader_started.wait(), timeout=10)
+        except TimeoutError:
+            logger.info("History for %s not loaded yet: the trace reader has not started", stream_id)
+            return
+    _loaded.add(stream_id)
+    try:
+        docs = await report_store.run(_find_history, stream_id)
+        payloads = await render_history(docs)
+        keys = {p.get("run_key") for p in payloads}
+        reviews = [r for r in await review_store.reviews_for_stream(stream_id) if r.get("run_key") in keys]
+    except report_store.StoreUnavailable as exc:
+        _loaded.discard(stream_id)  # try again on the next connection
+        logger.warning("History for %s not loaded: %s", stream_id, exc)
+        return
+    sse_manager.seed(stream_id, payloads + reviews)
+    logger.info("History loaded  stream=%s  events=%d  reviews=%d", stream_id, len(docs), len(reviews))
+
+
+def forget_history(stream_id: str) -> None:
+    """After a chat is deleted: drop what this process holds for it."""
+    _loaded.discard(stream_id)
+    sse_manager.clear(stream_id)
+
+
 # ── Main reader loop ──────────────────────────────────────────────────
 
 # Track the last MongoDB ObjectId we've seen — so we only query newer docs.
 from bson import ObjectId as _ObjectId
 
 _last_oid: _ObjectId | None = None
+_start_oid: _ObjectId | None = None   # where this process started reading
+
+
+async def _starting_point(col) -> _ObjectId | None:
+    """Continue from the saved position; on a first start, from the newest event
+    (older events are shown on demand by load_history, never re-processed)."""
+    try:
+        saved = await review_store.get_position()
+    except report_store.StoreUnavailable:
+        saved = None
+    if saved is not None:
+        return saved
+    newest = await asyncio.to_thread(lambda: col.find_one({}, sort=[("_id", -1)], projection={"_id": 1}))
+    return newest["_id"] if newest else None
 
 
 async def run_reader() -> None:
@@ -420,8 +547,10 @@ async def run_reader() -> None:
     during FastAPI's lifespan.  It retries on connection failures with
     exponential backoff so a MongoDB outage never kills the server.
     """
-    global _last_oid
+    global _last_oid, _start_oid, _reader_running
     backoff = 1  # seconds, doubles on each failure up to a cap
+    client = None
+    _reader_running = True
 
     while True:
         try:
@@ -438,6 +567,10 @@ async def run_reader() -> None:
             logger.info("✓ Connected — polling '%s' every %dms",
                         config.C03_TRACES_COLLECTION, config.TRACE_POLL_INTERVAL_MS)
             backoff = 1  # reset on success
+            if _last_oid is None:
+                _last_oid = _start_oid = await _starting_point(col)
+                logger.info("Reading traces after %s", _last_oid)
+            _reader_started.set()
 
             while True:
                 try:
@@ -446,17 +579,19 @@ async def run_reader() -> None:
                     if _last_oid is not None:
                         query["_id"] = {"$gt": _last_oid}
 
-                    docs = list(col.find(
-                        query,
-                        sort=[("_id", 1)],
-                        limit=200,
-                    ))
-                    if docs and docs[-1].get("_id") is not None:
-                        _last_oid = docs[-1]["_id"]  # update the global cursor
-                    new_count = await process_batch(docs)
-
-                    if new_count:
-                        logger.debug("Processed %d new trace events", new_count)
+                    # pymongo blocks: query in a worker thread so the event loop stays free
+                    docs = await asyncio.to_thread(
+                        lambda q=query, c=col: list(c.find(q, sort=[("_id", 1)], limit=200)))
+                    if docs:
+                        new_count = await process_batch(docs)
+                        if docs[-1].get("_id") is not None:
+                            _last_oid = docs[-1]["_id"]  # processed: move the cursor on
+                            try:
+                                await review_store.set_position(_last_oid)
+                            except report_store.StoreUnavailable:
+                                logger.debug("Reader position not saved this time", exc_info=True)
+                        if new_count:
+                            logger.debug("Processed %d new trace events", new_count)
 
                 except Exception:
                     logger.warning("MongoDB poll query failed — will retry", exc_info=True)
@@ -465,8 +600,13 @@ async def run_reader() -> None:
 
         except asyncio.CancelledError:
             logger.info("Trace reader task cancelled — shutting down cleanly.")
+            if client is not None:
+                client.close()
             return
         except Exception:
             logger.exception("MongoDB connection lost — retrying in %ss", backoff)
+            if client is not None:
+                client.close()
+                client = None
             await asyncio.sleep(backoff)
             backoff = min(backoff * 2, 30)

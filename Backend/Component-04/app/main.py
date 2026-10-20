@@ -27,7 +27,7 @@ from sse_starlette.sse import EventSourceResponse
 
 from app.reporting import report_service
 from app.services import database as db
-from app.services import report_store, sse_manager, trace_reader
+from app.services import report_store, review_store, sse_manager, trace_reader
 
 # ── Logging ────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -133,6 +133,8 @@ async def stream_xai(case_id: str, request: Request):
     broadcast here in real time.
     """
 
+    await trace_reader.load_history(case_id)  # older stored events, once per process
+
     async def _event_generator():
         async for payload in sse_manager.subscribe(case_id):
             if await request.is_disconnected():
@@ -143,6 +145,18 @@ async def stream_xai(case_id: str, request: Request):
             }
 
     return EventSourceResponse(_event_generator())
+
+
+@app.delete("/xai/history/{stream_id}")
+async def delete_chat_history(stream_id: str):
+    """After the user deletes a chat (C3 removes its messages and Copilot traces):
+    remove the chat's saved reviews and forget its live history here."""
+    try:
+        removed = await review_store.delete_chat_reviews(stream_id)
+    except report_store.StoreUnavailable as exc:
+        raise HTTPException(status_code=503, detail=f"The review store is unavailable: {exc}") from exc
+    trace_reader.forget_history(stream_id)
+    return {"stream_id": stream_id, "reviews_deleted": removed}
 
 
 # Legacy SSE endpoint — kept for backward compatibility
