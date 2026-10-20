@@ -26,6 +26,8 @@ async def _fresh_state():
                   trace_reader._run_ids, sse_manager._history):
         state.clear()
     trace_reader._pending_rows.clear()
+    trace_reader._loaded.clear()
+    trace_reader._start_oid = None
     with patch.object(trace_reader.review_agent, "review_run", AsyncMock()), \
             patch.object(trace_reader.review_agent, "review_turn", AsyncMock()):
         yield
@@ -120,3 +122,74 @@ async def test_every_finished_chat_turn_is_sent_to_the_review_agent():
     turns = [e for e in _events() if e["event_type"] == "copilot_end"]
     assert review_turn.await_count == len(turns) == 2
     assert {c.args[0] for c in review_turn.await_args_list} == {"ACME-1", GENERAL_CHAT}
+
+
+# --- history on demand (traces are kept permanently, never all re-read) ----------
+
+def _without_times(payloads: list[dict]) -> list[dict]:
+    return [{k: v for k, v in p.items() if k != "received_at"} for p in payloads]
+
+
+async def test_history_replay_renders_the_same_payloads_without_side_effects():
+    events = [e for e in _events() if e["case_id"] == "ACME-1"]
+    replayed = await trace_reader.render_history(events)
+
+    assert trace_reader._step_counters == {}               # live state untouched
+    assert await db.get_runs() == []                       # nothing written to SQLite
+    trace_reader.review_agent.review_run.assert_not_awaited()   # no Review Agent runs
+    trace_reader.review_agent.review_turn.assert_not_awaited()
+
+    await trace_reader.process_batch(events)               # the same events, live
+    assert _without_times(replayed) == _without_times(sse_manager.history("ACME-1"))
+
+
+async def test_a_streams_history_is_loaded_once_with_its_saved_reviews(_in_memory_mongo):
+    from app import config
+    _in_memory_mongo[config.C03_TRACES_COLLECTION].insert_many(_events())
+    audit_key = next(e["trace_id"] for e in _events() if e["case_id"] == "ACME-1" and e["run_kind"] == "audit")
+    _in_memory_mongo[config.REVIEWS_COLLECTION].insert_one({
+        "_id": audit_key, "event_type": "insight_summary", "case_id": "ACME-1", "run_key": audit_key,
+        "run_kind": "audit", "verdict": "action_required", "summary": "Saved before the restart.",
+        "generated_at": "2026-10-21T08:00:00+00:00"})
+
+    await trace_reader.load_history("ACME-1")
+    history = sse_manager.history("ACME-1")
+    assert history[0]["event_type"] == "pipeline_start"
+    assert {p["run_kind"] for p in history} == {"audit", "copilot"}
+    assert history[-1]["summary"] == "Saved before the restart."
+
+    await trace_reader.load_history("ACME-1")              # once per process
+    assert len(sse_manager.history("ACME-1")) == len(history)
+
+
+async def test_deleting_a_chat_removes_its_reviews_and_history_but_keeps_audit_reviews(_in_memory_mongo):
+    import httpx
+
+    from app import config
+    from app.main import app
+    reviews = _in_memory_mongo[config.REVIEWS_COLLECTION]
+    reviews.insert_many([
+        {"_id": "turn-1", "case_id": GENERAL_CHAT, "run_kind": "copilot", "run_key": "turn-1"},
+        {"_id": "audit-1", "case_id": "NEW-1", "stream_id": GENERAL_CHAT, "run_kind": "audit",
+         "run_key": "audit-1"}])
+    await trace_reader.process_batch([e for e in _events() if e["case_id"] == GENERAL_CHAT])
+    assert sse_manager.history(GENERAL_CHAT)
+
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+        resp = await client.delete(f"/xai/history/{GENERAL_CHAT}")
+    assert resp.json()["reviews_deleted"] == 1
+    assert [r["_id"] for r in reviews.find()] == ["audit-1"]
+    assert sse_manager.history(GENERAL_CHAT) == []
+
+
+async def test_reader_continues_from_its_saved_position(_in_memory_mongo):
+    from app import config
+    from app.services import review_store
+    col = _in_memory_mongo[config.C03_TRACES_COLLECTION]
+    col.insert_many([{"n": i} for i in range(3)])
+    ids = [d["_id"] for d in col.find(sort=[("_id", 1)])]
+
+    assert await trace_reader._starting_point(col) == ids[-1]   # first start: newest, no replay
+    assert await review_store.get_position() == ids[-1]         # ...and saved at once
+    await review_store.set_position(ids[0])
+    assert await trace_reader._starting_point(col) == ids[0]    # restart: where it stopped

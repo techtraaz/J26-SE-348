@@ -20,14 +20,14 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
-from app.reporting import pdf_renderer
+from app.reporting import report_service
 from app.services import database as db
-from app.services import sse_manager
-from app.services import trace_reader
+from app.services import report_store, review_store, sse_manager, trace_reader
 
 # ── Logging ────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -133,6 +133,8 @@ async def stream_xai(case_id: str, request: Request):
     broadcast here in real time.
     """
 
+    await trace_reader.load_history(case_id)  # older stored events, once per process
+
     async def _event_generator():
         async for payload in sse_manager.subscribe(case_id):
             if await request.is_disconnected():
@@ -145,6 +147,18 @@ async def stream_xai(case_id: str, request: Request):
     return EventSourceResponse(_event_generator())
 
 
+@app.delete("/xai/history/{stream_id}")
+async def delete_chat_history(stream_id: str):
+    """After the user deletes a chat (C3 removes its messages and Copilot traces):
+    remove the chat's saved reviews and forget its live history here."""
+    try:
+        removed = await review_store.delete_chat_reviews(stream_id)
+    except report_store.StoreUnavailable as exc:
+        raise HTTPException(status_code=503, detail=f"The review store is unavailable: {exc}") from exc
+    trace_reader.forget_history(stream_id)
+    return {"stream_id": stream_id, "reviews_deleted": removed}
+
+
 # Legacy SSE endpoint — kept for backward compatibility
 @app.get("/traces/stream/{case_id}")
 async def stream_traces(case_id: str, request: Request):
@@ -152,40 +166,69 @@ async def stream_traces(case_id: str, request: Request):
     return await stream_xai(case_id, request)
 
 
-# ── PDF Report generation ─────────────────────────────────────────────
+# ── Final audit report (PDF, stored in MongoDB) ───────────────────────
+
+class ReportRequest(BaseModel):
+    """C3's request (Component-03/docs/c4_report_contract.md)."""
+    audit_id: str | None = None   # "<case_id>:v<version>"
+    case_id: str | None = None
+    version: int | None = None
+
+
+async def _generate(audit_id: str | None, case_id: str | None, version: int | None) -> dict:
+    try:
+        return await report_service.generate(audit_id, case_id, version)
+    except report_service.ReportError as exc:
+        raise HTTPException(status_code=exc.status, detail=exc.detail) from exc
+
+
+@app.post("/report/generate")
+async def generate_report(body: ReportRequest):
+    """Build the PDF for exactly the audit C3 names; reply with its download link."""
+    return await _generate(body.audit_id, body.case_id, body.version)
+
 
 @app.post("/report/generate/{case_id}")
-async def generate_report(case_id: str):
-    """Generate a deterministic PDF audit report for the given case.
-
-    Fetches verified traces from the Middle DB, fills the Jinja2 template,
-    and renders a PDF via WeasyPrint.  Returns metadata with a download URL.
-    """
-    try:
-        result = await pdf_renderer.generate_report(case_id)
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
-
-    return {
-        "status": "report_ready",
-        "case_id": result["case_id"],
-        "filename": result["filename"],
-        "generated_at": result["generated_at"],
-        "download_url": f"/report/download/{result['filename']}",
-    }
+async def generate_latest_report(case_id: str):
+    """Older form (case id only): the report of the case's latest audit version."""
+    return await _generate(None, case_id, None)
 
 
 @app.get("/report/download/{filename}")
-async def download_report(filename: str):
-    """Serve a previously generated PDF report as a file download."""
-    reports_dir = Path(__file__).resolve().parent.parent / "reports"
-    file_path = reports_dir / filename
+async def download_report(filename: str, download: bool = False):
+    """Serve a report from object storage: shown in the browser, or saved with ?download=1.
 
-    if not file_path.is_file():
+    The link stays on C04, so C3 and the browser never need the storage address or keys."""
+    if not report_store.REPORT_FILE.match(filename):
         raise HTTPException(status_code=404, detail=f"Report '{filename}' not found.")
+    try:
+        doc = await report_store.get_report(filename)
+    except report_store.StoreUnavailable as exc:
+        raise HTTPException(status_code=503, detail=f"The report store is unavailable: {exc}") from exc
+    if doc is None:
+        raise HTTPException(status_code=404, detail=f"Report '{filename}' not found.")
+    try:
+        chunks = await report_store.open_report(doc)
+    except report_store.StoreUnavailable as exc:
+        raise HTTPException(status_code=502, detail=f"Could not read the report from storage: {exc}") from exc
+    if chunks is None:
+        raise HTTPException(status_code=404, detail=f"Report '{filename}' is missing from storage.")
+    disposition = "attachment" if download else "inline"
+    headers = {"Content-Disposition": f'{disposition}; filename="{filename}"',
+               "Cache-Control": "private, max-age=3600"}
+    if doc.get("size_bytes"):
+        headers["Content-Length"] = str(doc["size_bytes"])
+    return StreamingResponse(chunks, media_type="application/pdf", headers=headers)
 
-    return FileResponse(
-        path=str(file_path),
-        media_type="application/pdf",
-        filename=filename,
-    )
+
+@app.get("/report/list/{case_id}")
+async def list_reports(case_id: str, limit: int = 20):
+    """Reports already generated for a case, newest first (no file contents)."""
+    try:
+        reports = await report_store.list_reports(case_id, min(max(limit, 1), 100))
+    except report_store.StoreUnavailable as exc:
+        raise HTTPException(status_code=503, detail=f"The report store is unavailable: {exc}") from exc
+    return {"case_id": case_id, "reports": [
+        {**{k: v for k, v in r.items()
+            if k not in ("_id", "sha256", "content_type", "bucket", "object_key", "storage")},
+         "download_url": f"/report/download/{r['filename']}"} for r in reports]}

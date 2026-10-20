@@ -8,6 +8,8 @@ import { Markdown } from "@/components/chat/Markdown";
 import { ReplyBlocks } from "@/components/chat/ReplyBlocks";
 import { Plus, Sparkles } from "lucide-react";
 import { IconButton } from "@/components/ui/IconButton";
+import { ReportFileCard } from "@/components/ui/report/ReportFileCard";
+import { findReportLink } from "@/components/ui/report/reportLink";
 import type { ChatMessage, Finding } from "@/types/audit";
 
 const STARTERS = [
@@ -213,7 +215,13 @@ function Message({ m, showSuggestions, busy, onPick }: {
 }) {
   const [all, setAll] = useState(false);
   const user = m.role === "user";
-  const blocks = !user && m.blocks?.length ? m.blocks : null; // newer Copilot replies
+  // A C4 report link is drawn as a file card: from the reply's link block when it has
+  // blocks, else from the text (older replies).
+  const reportBlock = m.blocks?.find((b) => b.type === "link" && findReportLink(b.url) !== null);
+  const report = user || m.role !== "copilot" ? null
+    : reportBlock?.type === "link" ? findReportLink(reportBlock.url) : findReportLink(m.text);
+  const others = m.blocks?.filter((b) => b !== reportBlock) ?? [];
+  const blocks = !user && others.length ? others : null; // newer Copilot replies
   const shown = all ? m.findings : m.findings.slice(0, SHOWN_FINDINGS);
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: user ? "flex-end" : "flex-start", gap: "8px" }}>
@@ -234,10 +242,11 @@ function Message({ m, showSuggestions, busy, onPick }: {
         <Bubble user={user}>
           {user ? m.text
             : blocks ? <ReplyBlocks blocks={blocks} findings={m.findings} onPick={onPick} disabled={busy} />
-            : <Markdown text={replyText(m.text, m.findings)} />}
+            : <Markdown text={replyText(report && !reportBlock ? report.text : m.text, m.findings)} />}
           {m.data.attached_docs ? <div style={{ fontSize: "12px", opacity: 0.75, marginTop: "4px" }}>+ {m.data.attached_docs} document(s)</div> : null}
         </Bubble>
       )}
+      {report && <ReportFileCard url={report.url} filename={report.filename} caseId={m.case_id} />}
       {!user && typeof m.data.trace_id === "string" && <ExplainButton runKey={m.data.trace_id} />}
       {!blocks && m.findings.length > 0 && (
         <div style={{ width: "85%", display: "flex", flexDirection: "column", gap: "6px" }}>

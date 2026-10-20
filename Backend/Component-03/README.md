@@ -248,7 +248,8 @@ independent set written by other people is needed for the dissertation figure.
   `rule_check` / `policy_check` step), each document's `name` (C1's file name) and
   `events_published` (True when every XAI step of the run was queued for C4; when
   False a trace line says why).
-- MongoDB `nomos_xai.c03_callback_traces` (kept `C03_CALLBACK_TTL_DAYS` days),
+- MongoDB `nomos_xai.c03_callback_traces` (kept permanently; deleting a chat deletes
+  its Copilot-turn traces, audit traces stay with their audit),
   written in the background so tracing never slows an audit: `pipeline_start`,
   `chain_start` / `chain_end` per agent, `step` events (`evidence_read`,
   `dq_check`, `kg_fetch`, `rule_check`, `policy_check`, `standard_check`,

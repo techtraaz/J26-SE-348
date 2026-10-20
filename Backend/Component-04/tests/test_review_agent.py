@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from app import config
 from app.services import database as db
 from app.services import review_agent, sse_manager, trace_reader
 
@@ -76,8 +77,40 @@ async def test_review_of_an_audit_started_from_a_chat_reaches_that_chat():
     with _llm(None):
         await review_agent.review_run("NEW-1", _run_key("NEW-1"), 1, stream_id=GENERAL_CHAT)
     assert any(e["event_type"] == "insight_summary" for e in sse_manager.history(GENERAL_CHAT))
-    rows = await db.get_traces_for_case("NEW-1")
-    assert [r["event_type"] for r in rows if r["agent_name"] == "review_agent"] == ["ai_review"]
+
+
+async def test_reviews_are_saved_in_mongodb_and_never_made_twice(_in_memory_mongo):
+    key = _run_key("ACME-1")
+    with _llm("The balance sheet does not balance.") as first:
+        made = await review_agent.review_run("ACME-1", key, 3)
+    saved = _in_memory_mongo[config.REVIEWS_COLLECTION].find_one({"_id": key})
+    assert (saved["verdict"], saved["summary"], saved["run_kind"]) == (
+        "action_required", "The balance sheet does not balance.", "audit")
+    assert first.await_count == 1
+
+    # the same run reviewed again (e.g. its events read again after a restart): no LLM call
+    with _llm("A different text.") as second:
+        again = await review_agent.review_run("ACME-1", key, 3)
+    assert second.await_count == 0
+    assert again["summary"] == made["summary"]
+
+
+async def test_chat_reviews_are_saved_too(_in_memory_mongo):
+    key = _turn_key("ACME-1")
+    with _llm(None):
+        await review_agent.review_turn("ACME-1", key, "done")
+    assert _in_memory_mongo[config.REVIEWS_COLLECTION].find_one({"_id": key})["run_kind"] == "copilot"
+
+
+def test_openai_compatible_server_request(monkeypatch):
+    monkeypatch.setattr(config, "LLM_PROVIDER", "openai")
+    monkeypatch.setattr(config, "LLM_API_URL", "https://gpu-pod.example/v1")
+    monkeypatch.setattr(config, "LLM_MODEL", "qwen2.5-14b-instruct")
+    monkeypatch.setattr(config, "LLM_API_KEY", "k")
+    url, headers, body = review_agent._llm_request("facts")
+    assert url == "https://gpu-pod.example/v1/chat/completions"
+    assert headers == {"Authorization": "Bearer k"}
+    assert body["model"] == "qwen2.5-14b-instruct" and body["messages"][0]["content"] == "facts"
 
 
 def test_clean_run_is_all_clear():
