@@ -119,7 +119,7 @@ export function CasePanel() {
             </p>
           )}
           {docs.map((d) => (
-            <Row key={d.doc_id} title={d.doc_id}
+            <Row key={d.doc_id} title={d.name || d.doc_id}
                  meta={`${d.doc_type.replace(/_/g, " ")} · ${d.period_year} · ${Object.keys(d.fields).length} field(s)`
                        + (d.parent_doc_id ? ` · supports ${d.parent_doc_id}` : "")}
                  onRemove={() => unstage(selectedCase, d.doc_id)} />

@@ -69,6 +69,7 @@ class AuditState(TypedDict):
     final_findings: list
     rejected_citations: list
     rejected_findings: list
+    rules_applied: Annotated[list, operator.add]  # compliance + anomaly
 
 
 def _ctx(run_config: RunnableConfig | None) -> RunContext:
@@ -107,15 +108,15 @@ def route_after_dq(state: AuditState):
 def n_compliance(state: AuditState, config: RunnableConfig) -> dict:
     ctx = _ctx(config)
     with ctx.agent("compliance") as kg:
-        f, t = compliance.run(_checkable(state), kg)
-    return _finish(ctx, "compliance", f, {"findings": f, "trace": t})
+        f, t, applied = compliance.run(_checkable(state), kg)
+    return _finish(ctx, "compliance", f, {"findings": f, "trace": t, "rules_applied": applied})
 
 
 def n_anomaly(state: AuditState, config: RunnableConfig) -> dict:
     ctx = _ctx(config)
     with ctx.agent("anomaly") as kg:
-        f, t = anomaly.run(_checkable(state), kg)
-    return _finish(ctx, "anomaly", f, {"findings": f, "trace": t})
+        f, t, applied = anomaly.run(_checkable(state), kg)
+    return _finish(ctx, "anomaly", f, {"findings": f, "trace": t, "rules_applied": applied})
 
 
 def n_reasoning(state: AuditState, config: RunnableConfig) -> dict:
@@ -155,7 +156,7 @@ GRAPH = build_graph()
 def _initial(case: AuditCase) -> dict:
     return {"case": case, "findings": [], "trace": [], "rejected_records": [],
             "early_stop": False, "reasoned": [], "final_findings": [],
-            "rejected_citations": [], "rejected_findings": []}
+            "rejected_citations": [], "rejected_findings": [], "rules_applied": []}
 
 
 def _result(case: AuditCase, final: dict, version: int, previous: dict | None,
@@ -180,7 +181,8 @@ def _result(case: AuditCase, final: dict, version: int, previous: dict | None,
                                                  detail=kg_note)],
         rejected_records=list(final["rejected_records"]),
         rejected_citations=[] if early else list(final["rejected_citations"]),
-        rejected_findings=[] if early else list(final["rejected_findings"]))
+        rejected_findings=[] if early else list(final["rejected_findings"]),
+        rules_applied=[] if early else sorted(final["rules_applied"], key=lambda a: (a.doc_id, a.rule_id)))
 
 
 def _execute(case: AuditCase, kg: KGClient | None,
@@ -219,6 +221,11 @@ def _execute(case: AuditCase, kg: KGClient | None,
     tracer.emit({"event_type": "pipeline_end",
                  "total_findings": len(result.findings),
                  "status": result.status, "ts": now_iso()})
+    result.events_published = tracer.enabled and tracer.dropped == 0
+    note = tracer.note()
+    if note:
+        result.trace.append(TraceEntry(agent_name="events", decision_type="events", detail=note))
+    store.set_events(case.case_id, version, result.events_published, note)
     yield "result", result
 
 

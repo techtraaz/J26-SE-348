@@ -110,6 +110,8 @@ def answer(q: CopilotQuery, kg: KGClient | None = None, store: ResultStore | Non
         "detail": f"Intent: {nlu.intent} (method: {nlu.method})",
         "intent": nlu.intent,
         "nlu_method": nlu.method,
+        # why: the rules' guess and scores, whether they were sure, the LLM's choice or error
+        "routing": nlu.as_dict(),
         "ts": datetime.now(UTC).isoformat(),
     })
 

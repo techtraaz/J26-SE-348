@@ -465,12 +465,57 @@ def standard_search(turn: Turn) -> Reply:
     return Reply("\n".join(lines), {"search": hits, "kg_source": turn.kg.source})
 
 
+# --- conversation ------------------------------------------------------------------
+# Greetings and thanks match only when they are the whole message, so
+# "hi, list the findings" still goes to list_findings.
+CONVERSATION = ("greeting", "thanks", "out_of_scope", "help")
+
+
+def _case_hint(turn: Turn) -> str:
+    rec = turn.record() if turn.case_id else None
+    if rec is None:
+        return "Pick a case in the Library, or ask me about a rule or a standard."
+    rule = [f for f in rec.get("findings", []) if not str(f.get("rule_id", "")).startswith("REV-")]
+    return (f"We are on case {turn.case_id} (version {rec['version']}, {len(rule)} rule finding(s)). "
+            f"Ask me to summarise it or explain a finding.")
+
+
+@intent("greeting", group="other",
+        description="The user greets the Copilot (hi, hello, good morning).",
+        examples=("hey", "good morning"),
+        patterns={r"^\W*(hi+|hey+|hello+|hiya|ayubowan|good\s+(morning|afternoon|evening))"
+                  r"(\s+(there|team|copilot|nomos))?\W*$": 3.0},
+        follow_ups=("Summarise this case", "What can you do?"))
+def greeting(turn: Turn) -> Reply:
+    return Reply(f"Hello! I'm the NOMOS Audit Copilot. {_case_hint(turn)}")
+
+
+@intent("thanks", group="other",
+        description="The user says thanks or acknowledges an answer (thanks, ok, great).",
+        examples=("thanks", "ok great"),
+        patterns={r"^(?=.*[a-z])\W*((ok(ay)?|great|nice|cool|perfect)[\s,!.]*)*"
+                  r"(thanks|thank\s+you|thx|ty|cheers)?(\s+(a\s+lot|so\s+much|very\s+much))?\W*$": 3.0},
+        follow_ups=("Summarise this case", "What can you do?"))
+def thanks(turn: Turn) -> Reply:
+    return Reply("You're welcome! Anything else on this audit?")
+
+
+@intent("out_of_scope", group="other",
+        description="The request is not about audits, findings, rules or accounting standards "
+                    "(weather, jokes, general knowledge).",
+        examples=("what's the weather today?", "tell me a joke"),
+        follow_ups=("What can you do?", "Summarise this case"))
+def out_of_scope(turn: Turn) -> Reply:
+    return Reply("I can't help with that. I answer questions about this audit: its findings, the "
+                 "rules behind them and the accounting standards. Ask \"what can you do?\" for examples.")
+
+
 @intent("help", group="other",
-        description="The user asks what the Copilot can do, or the request fits nothing else.",
+        description="The user asks what the Copilot can do.",
         examples=("help", "what can you do?"),
         patterns={r"\b(help|what can you do|how do i|commands|options)\b": 2.0},
         follow_ups=("Summarise this case", "Which rules apply to invoices?", "I paid Rs 150,000 cash but booked it on credit, is that ok?"))
 def help_intent(turn: Turn) -> Reply:
     lines = [f"- {s.description} e.g. \"{s.examples[0]}\""
-             for s in REGISTRY.values() if s.name != "help"]
+             for s in REGISTRY.values() if s.name not in CONVERSATION]
     return Reply("I can:\n" + "\n".join(lines))
