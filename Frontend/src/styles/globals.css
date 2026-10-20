@@ -224,14 +224,60 @@ code, .id { font-family: 'JetBrains Mono Variable', monospace; }
   background: color-mix(in srgb, var(--danger) 10%, transparent) !important;
 }
 
-/* ── A run opened from a chat reply's "Explain" ── */
-@keyframes xai-focus {
-  0%, 60% { box-shadow: 0 0 0 2px color-mix(in srgb, var(--text-muted) 45%, transparent); }
-  100% { box-shadow: 0 0 0 2px transparent; }
+/* ── A run opened from a chat reply's "Explain" ──
+   A soft gradient ring (theme info / success / warning colours) sweeps once
+   around the run, 6px outside it, with a faint glow, then fades away. */
+@property --xai-ring-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+@keyframes xai-ring-sweep {
+  to { --xai-ring-angle: 360deg; }
+}
+@keyframes xai-ring-fade {
+  0% { opacity: 0; }
+  12%, 72% { opacity: 1; }
+  100% { opacity: 0; }
 }
 #xai-panel .xai-focused {
-  border-radius: var(--radius);
-  animation: xai-focus 1.8s ease-out;
+  position: relative;
+  isolation: isolate; /* keeps the glow (z-index -1) above the panel background */
+  scroll-margin-top: 14px;
+}
+#xai-panel .xai-focused::before,
+#xai-panel .xai-focused::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border-radius: 16px;
+  pointer-events: none;
+  opacity: 0;
+  animation: xai-ring-fade 2.6s ease-out forwards;
+}
+/* the ring: a 2px gradient border, cut out of a filled box with a mask */
+#xai-panel .xai-focused::before {
+  padding: 2px;
+  background: conic-gradient(from var(--xai-ring-angle),
+    var(--info), var(--success), var(--warning), var(--info));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  animation: xai-ring-fade 2.6s ease-out forwards, xai-ring-sweep 2.6s linear;
+}
+/* the glow: a faint coloured halo and tint behind the run */
+#xai-panel .xai-focused::after {
+  z-index: -1;
+  background: color-mix(in srgb, var(--info) 5%, transparent);
+  box-shadow:
+    0 0 14px color-mix(in srgb, var(--info) 22%, transparent),
+    0 0 26px color-mix(in srgb, var(--success) 12%, transparent);
+}
+@media (prefers-reduced-motion: reduce) {
+  #xai-panel .xai-focused::before {
+    animation: xai-ring-fade 2.6s ease-out forwards;
+  }
 }
 
 /* ── Explainability: runs as a divided list ── */

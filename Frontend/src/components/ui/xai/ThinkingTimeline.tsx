@@ -102,7 +102,7 @@ function RunBlock({ run, latest, focused = false }: { run: Run; latest: boolean;
 
   return (
     <section ref={ref} aria-label={runTitle(run)} className={`xai-run${focused ? " xai-focused" : ""}`}
-             style={{ ...font, scrollMarginTop: 8 }}>
+             style={{ ...font, scrollMarginTop: 14 }}>
       <button
         type="button"
         className="xai-run-head"
