@@ -70,6 +70,7 @@ async def test_traces_endpoint_returns_traces():
         detail="Found 1 anomaly",
         findings_count=1,
         step_index=1,
+        duration_ms=None,
         source_timestamp="2026-01-01T00:00:01Z",
         received_at="2026-01-01T00:00:02Z",
         raw_payload={"agent": "anomaly"},
