@@ -24,6 +24,8 @@ MONGODB_URI: str = os.getenv(
 )
 MONGODB_DB_NAME: str = os.getenv("C04_MONGODB_DB_NAME", "nomos_xai")
 C03_TRACES_COLLECTION: str = "c03_callback_traces"
+AUDIT_RESULTS_COLLECTION: str = "c03_audit_results"  # C03's saved audits (read-only)
+REPORTS_COLLECTION: str = "c04_reports"              # C04's generated PDFs
 TRACE_POLL_INTERVAL_MS: int = int(os.getenv("C04_TRACE_POLL_MS", "300"))
 
 # ---------------------------------------------------------------------------
