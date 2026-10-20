@@ -59,9 +59,21 @@ def test_every_sample_audit_makes_a_complete_report(audit_id):
 def test_report_shows_the_verdict_score_and_the_failed_rule():
     pdf = _text(BY_ID[ISSUES])
     assert b"Issues found" in pdf and b"75" in pdf
-    assert b"POL-07" in pdf and b"FAILED" in pdf
+    assert b"POL-07" in pdf and b"(Failed)" in pdf
     assert b"04_Tax_Invoice_COI-INV-26-1158.pdf" in pdf          # scope lists the document
     assert b"Get the missing approval signed before payment" in pdf  # C3's recommendation
+
+
+def test_page_one_is_the_overview_and_the_detail_starts_on_page_two():
+    pdf = _text(BY_ID["CASE-SAMPLE-05:v1"])
+    pages = pdf.split(b"endstream")  # one content stream per page, in page order
+
+    def page_of(text: bytes) -> int:
+        return next(i for i, p in enumerate(pages) if text in p)
+
+    assert page_of(b"Executive summary") == page_of(b"Analyst commentary") == 0
+    assert page_of(b"Scope and evidence") == 1
+    assert page_of(b"Auditor sign-off") >= page_of(b"Recommendations") >= 1
 
 
 def test_clean_audit_says_no_action_is_needed():
