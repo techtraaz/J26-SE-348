@@ -12,7 +12,7 @@ import { VerifiedDocumentPicker } from "./VerifiedDocumentPicker";
 export function CasePanel() {
   const qc = useQueryClient();
   const navigate = useNavigate();
-  const { selectedCase, setCase, newCase, draftCases, staged, unstage, clearStaged } = useUI();
+  const { selectedCase, setCase, newCase, draftCases, staged, unstage, clearStaged, setParent } = useUI();
   const cases = useQuery({ queryKey: ["c3-cases"], queryFn: c3.cases, retry: false });
   const [notice, setNotice] = useState<{ text: string; error?: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -120,9 +120,25 @@ export function CasePanel() {
           )}
           {docs.map((d) => (
             <Row key={d.doc_id} title={d.name || d.doc_id}
-                 meta={`${d.doc_type.replace(/_/g, " ")} · ${d.period_year} · ${Object.keys(d.fields).length} field(s)`
-                       + (d.parent_doc_id ? ` · supports ${d.parent_doc_id}` : "")}
-                 onRemove={() => unstage(selectedCase, d.doc_id)} />
+                 meta={`${d.doc_type.replace(/_/g, " ")} · ${d.period_year} · ${Object.keys(d.fields).length} field(s)`}
+                 onRemove={() => unstage(selectedCase, d.doc_id)}>
+              {docs.length > 1 && (
+                // A supporting document (PO, GRN, receipt) links to the one it supports, so
+                // cross-document rules such as CHK-003 (amount matches) can run.
+                <label style={{ display: "flex", alignItems: "center", gap: "6px", marginTop: "6px",
+                                fontSize: "12px", color: "var(--text-muted)" }}>
+                  Supports
+                  <select aria-label={`${d.name || d.doc_id} supports`} value={d.parent_doc_id ?? ""}
+                          onChange={(e) => setParent(selectedCase, d.doc_id, e.target.value || null)}
+                          style={{ ...selectStyle, height: "28px", fontSize: "12px", flex: 1, minWidth: 0 }}>
+                    <option value="">nothing (stands alone)</option>
+                    {docs.filter((o) => o.doc_id !== d.doc_id).map((o) => (
+                      <option key={o.doc_id} value={o.doc_id}>{o.name || o.doc_id}</option>
+                    ))}
+                  </select>
+                </label>
+              )}
+            </Row>
           ))}
           <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginTop: "16px" }}>
             {docs.length > 0 && (
@@ -151,12 +167,14 @@ const pillButton: React.CSSProperties = {
   cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
 };
 
-function Row({ title, meta, onRemove }: { title: string; meta: string; onRemove: () => void }) {
+function Row({ title, meta, onRemove, children }:
+  { title: string; meta: string; onRemove: () => void; children?: React.ReactNode }) {
   return (
     <div style={{ display: "flex", alignItems: "flex-start", gap: "10px", padding: "10px 0", borderBottom: "1px solid var(--border-light)" }}>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div className="id" style={{ fontWeight: 500, fontSize: "13px", color: "var(--text-h)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</div>
         <div style={{ fontSize: "12px", color: "var(--text-muted)", marginTop: "2px" }}>{meta}</div>
+        {children}
       </div>
       <button onClick={onRemove} title="Remove" aria-label={`Remove ${title}`}
               style={{ flexShrink: 0, background: "none", border: "none", cursor: "pointer", color: "var(--text-soft)", padding: "2px" }}>

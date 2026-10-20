@@ -14,7 +14,7 @@ import uuid
 from app.schemas.chat import ChatMessage, ChatSession, ExternalMessage, MessageRefs
 from app.schemas.copilot import CopilotQuery, CopilotResponse
 from app.schemas.findings import AuditResult, Finding, now_iso
-from app.services import copilot
+from app.services import audit_reply, copilot
 from app.services.chat_store import ChatStore
 from app.services.copilot import memory as memory_rules
 from app.services.kg_client import KGClient
@@ -73,22 +73,9 @@ def converse(q: CopilotQuery, kg: KGClient, store: ResultStore, chats: ChatStore
     return response.model_copy(update={"session_id": session.session_id})
 
 
-def audit_text(result: AuditResult) -> str:
-    if result.status == "not_auditable":
-        return f"Case {result.case_id} version {result.version} is not auditable. The reasons are below."
-    rule = [f for f in result.findings if not f.rule_id.startswith("REV-")]
-    reviews = sum(f.review_status == "needs_more_evidence" for f in result.findings)
-    high = sum(f.severity == "high" for f in rule)
-    text = (f"Case {result.case_id} version {result.version} saved: {len(rule)} rule finding(s) "
-            f"({high} high), {reviews} need review.")
-    if result.rejected_records:
-        text += f" Rejected documents: {', '.join(result.rejected_records)}."
-    return text
-
-
-def record_audit(chats: ChatStore, session_id: str, result: AuditResult) -> None:
+def record_audit(chats: ChatStore, session_id: str, result: AuditResult, store: ResultStore) -> None:
     """An audit run outside the chat (e.g. from the Library) shows up in it."""
-    text = audit_text(result)
+    text = audit_reply.describe_saved(result, store)
     session = open_session(chats, session_id, result.case_id)
     chats.add_message(ChatMessage(
         message_id=_id(), session_id=session_id, case_id=result.case_id, role="copilot", text=text,

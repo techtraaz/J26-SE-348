@@ -16,4 +16,5 @@ def health(request: Request, engine: Annotated[OCREngine, Depends(get_engine)]) 
         "engine": info.name,
         "engine_version": info.version,
         "worker_running": bool(worker and worker.is_alive()),
+        "storage": request.app.state.settings.storage_backend,  # local | s3
     }

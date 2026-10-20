@@ -19,7 +19,7 @@ from app.db.session import create_db_engine, create_session_factory
 from app.jobs.worker import JobWorker
 from app.services.factory import create_engine
 from app.services.ocr.paddle import PaddleSettings
-from app.services.storage.local import LocalStorage
+from app.services.storage.factory import create_storage
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +34,9 @@ async def lifespan(app: FastAPI):
     app.state.db_engine = db_engine
     app.state.session_factory = create_session_factory(db_engine)
 
-    app.state.storage = LocalStorage(settings.storage_root)
+    storage = create_storage(settings)
+    storage.check()  # fail fast if the object store is unreachable or the keys are wrong
+    app.state.storage = storage
     app.state.engine = create_engine(
         settings.engine,
         settings=PaddleSettings(),

@@ -26,7 +26,7 @@ from langgraph.graph import END, START, StateGraph
 from app import config as settings
 from app.schemas.case import AuditCase
 from app.schemas.findings import AuditResult, Finding, TraceEntry, now_iso
-from app.services import intake, xai_trace
+from app.services import intake, verdict, xai_trace
 from app.services.agents import (
     anomaly,
     compliance,
@@ -216,6 +216,7 @@ def _execute(case: AuditCase, kg: KGClient | None,
         raise OrchestratorConfigError("Graph produced no final state.")
     result = _result(case, final, version, previous,
                      kg, round((time.perf_counter() - start) * 1000, 3))
+    verdict.fill(result, len(case.docs))  # verdict, score, summary, recommendations
     store.save(case, result)
 
     tracer.emit({"event_type": "pipeline_end",

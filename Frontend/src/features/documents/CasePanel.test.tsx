@@ -126,4 +126,24 @@ describe("CasePanel", () => {
 
     expect(screen.queryByText("INV-001")).not.toBeInTheDocument();
   });
+
+  it("links a supporting document to the one it supports before the audit", async () => {
+    const invoice = { ...DOC, name: "03_Tax_Invoice.pdf" };
+    const po: AuditDocument = { ...DOC, doc_id: "PO-001", doc_type: "purchase_order", name: "03a_Purchase_Order.pdf" };
+    useUI.setState({ staged: { "CASE-1": [invoice, po] } });
+    vi.mocked(c3.run).mockResolvedValue(RESULT);
+    renderPanel();
+
+    await userEvent.selectOptions(screen.getByLabelText("03a_Purchase_Order.pdf supports"), "INV-001");
+    await userEvent.click(screen.getByRole("button", { name: "Audit 2 document(s)" }));
+
+    expect(c3.run).toHaveBeenCalledWith(
+      { case_id: "CASE-1", docs: [invoice, { ...po, parent_doc_id: "INV-001" }] }, "CASE-1");
+  });
+
+  it("shows no supports choice for a single document", () => {
+    useUI.setState({ staged: { "CASE-1": [DOC] } });
+    renderPanel();
+    expect(screen.queryByLabelText(/supports/)).not.toBeInTheDocument();
+  });
 });
