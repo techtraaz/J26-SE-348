@@ -15,6 +15,14 @@ Event types:
   - copilot_start   : copilot query received
   - copilot_nlu     : intent classification complete
   - copilot_end     : copilot response ready
+  - step            : one granular decision step inside an agent or Copilot
+                      turn (document read, KG lookup, rule check ...); its
+                      ``kind``/``status``/``facts`` are rendered by
+                      ``app.services.step_renderer``
+
+Schema 2 adds run identity: ``trace_id`` (unique per audit run / Copilot
+turn), ``run_kind`` (audit | copilot) and an optional ``stream_id`` (a
+second live stream to show the run on, e.g. the chat that started it).
 """
 
 from __future__ import annotations
@@ -29,6 +37,7 @@ EventType = Literal[
     "chain_start", "chain_end", "chain_error",
     "llm_start", "llm_end", "llm_error",
     "copilot_start", "copilot_nlu", "copilot_end",
+    "step",
 ]
 
 
@@ -40,6 +49,11 @@ class CallbackEvent(BaseModel):
     version: int = 1
     seq: int = 0
     ts: str = ""
+
+    # run identity (schema 2)
+    trace_id: str | None = None
+    run_kind: str | None = None
+    stream_id: str | None = None
 
     # chain events
     agent: str | None = None
@@ -65,6 +79,15 @@ class CallbackEvent(BaseModel):
     detail: str | None = None
     intent: str | None = None
     nlu_method: str | None = None
+
+    # step events
+    kind: str | None = None
+    facts: dict[str, Any] = Field(default_factory=dict)
+
+    @property
+    def run_key(self) -> str:
+        """Identifies one audit run or Copilot turn (older events: case + version)."""
+        return self.trace_id or f"{self.case_id}:v{self.version}"
 
 
 def parse_callback_event(raw: dict[str, Any]) -> CallbackEvent:

@@ -152,6 +152,31 @@ async def insert_trace(
         return cursor.lastrowid  # type: ignore[return-value]
 
 
+async def insert_traces(rows: list[dict]) -> int:
+    """Persist many trace rows in one transaction (same keys as insert_trace).
+
+    Used for granular steps: one commit per poll instead of one per step, so
+    a burst of a few hundred steps never delays the live stream."""
+    if not rows:
+        return 0
+    async with _connect() as conn:
+        await conn.executemany(
+            """INSERT INTO traces
+               (run_id, case_id, event_type, agent_name, decision_type,
+                detail, findings_count, step_index, duration_ms,
+                source_timestamp, received_at, raw_payload)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            [(
+                r["run_id"], r["case_id"], r["event_type"], r.get("agent_name"),
+                r.get("decision_type"), r.get("detail"), r.get("findings_count"),
+                r["step_index"], r.get("duration_ms"), r["source_timestamp"],
+                r["received_at"], json.dumps(r["raw_payload"], default=str),
+            ) for r in rows],
+        )
+        await conn.commit()
+    return len(rows)
+
+
 # ── Read operations ───────────────────────────────────────────────────
 
 async def get_runs(limit: int = 50) -> list[dict]:

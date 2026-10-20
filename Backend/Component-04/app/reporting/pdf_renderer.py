@@ -115,6 +115,8 @@ async def generate_report(case_id: str) -> dict:
     traces = await db.get_traces_for_case(case_id)
     if not traces and run is None:
         raise ValueError(f"No audit data found for case_id={case_id!r}")
+    # Granular XAI steps are for the live timeline; the report keeps one row per agent
+    traces = [t for t in traces if t.get("event_type") != "step"]
 
     # 2. Build the template context
     context = _build_context(case_id, run, traces)
