@@ -8,7 +8,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from app import config
-from app.schemas.chat import ExternalMessage
+from app.schemas.chat import ChatRename, ExternalMessage
 from app.schemas.copilot import SESSION_ID_PATTERN, CopilotQuery
 from app.services import c1_fetch, c1_review, chat, copilot, intake, orchestrator, rules
 from app.services.chat_store import default_chat_store
@@ -222,6 +222,12 @@ def chat_messages(session_id: SessionId, before: int | None = None, limit: int =
     rows = _store_call(chat.history, default_chat_store(), default_store(), session_id,
                        before, max(1, min(limit, 200)))
     return {"session_id": session_id, "messages": [m.model_dump() for m in rows]}
+
+
+@app.patch("/chat/{session_id}")
+def chat_rename(session_id: SessionId, body: ChatRename):
+    """Rename a chat (a case's chat has session_id == case_id). Empty title = default."""
+    return _store_call(chat.rename, default_chat_store(), session_id, body.title, body.case_id).model_dump()
 
 
 @app.delete("/chat/{session_id}")

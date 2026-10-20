@@ -10,6 +10,7 @@ get the same number.
 MongoStore fails loudly (StoreError) when MongoDB cannot be used; the API then
 answers 503 instead of returning a result that was not saved.
 """
+import re
 import threading
 
 from app import config
@@ -62,12 +63,39 @@ def _summary(rec: dict) -> dict:
             "verdict": rec.get("verdict"), "score": rec.get("score")}  # absent in records before the report block
 
 
+def doc_title(doc: dict) -> str:
+    """What an auditor calls a document: its file name without the dataset number
+    prefix, extension and underscores ("04_Tax_Invoice_X.pdf" -> "Tax Invoice X"),
+    else its document type."""
+    stem = re.sub(r"\.[A-Za-z0-9]{2,5}$", "", doc.get("name") or "")
+    stem = re.sub(r"^\d+[A-Za-z]?[_\- ]+", "", stem).replace("_", " ").strip()
+    return stem or (doc.get("doc_type") or "document").replace("_", " ").capitalize()
+
+
+SUPPORTING_TYPES = {"purchase_order", "goods_received_note", "receipt", "payment_voucher"}
+
+
+def case_title(docs: list[dict]) -> str:
+    """A case named after its main document plus a count. The main document is the one
+    the others support, else the first that is not a supporting document (PO, GRN...).
+    The frontend names unaudited drafts the same way (lib/caseList.ts)."""
+    if not docs:
+        return "Empty case"
+    parents = {d.get("parent_doc_id") for d in docs}
+    main = (next((d for d in docs if d["doc_id"] in parents), None)
+            or next((d for d in docs if d.get("doc_type") not in SUPPORTING_TYPES), docs[0]))
+    more = len(docs) - 1
+    return doc_title(main) + (f" + {more} more" if more else "")
+
+
 def case_summary(rec: dict) -> dict:
-    """One line per case for lists: newest version, status and finding counts."""
+    """One line per case for lists: a readable title, newest version, verdict and finding counts."""
     findings = rec.get("findings", [])
     rule = [f for f in findings if not f["rule_id"].startswith("REV-")]
-    return {"case_id": rec["case_id"], "version": rec["version"], "status": rec["status"],
-            "created_at": rec["created_at"], "docs": len(rec.get("case", {}).get("docs", [])),
+    docs = rec.get("case", {}).get("docs", [])
+    return {"case_id": rec["case_id"], "title": case_title(docs), "version": rec["version"],
+            "status": rec["status"], "verdict": rec.get("verdict"), "score": rec.get("score"),
+            "created_at": rec["created_at"], "docs": len(docs),
             "materiality": rec.get("case", {}).get("materiality"),
             "findings": len(rule), "high": sum(f["severity"] == "high" for f in rule),
             "needs_review": sum(f["review_status"] == "needs_more_evidence" for f in findings)}

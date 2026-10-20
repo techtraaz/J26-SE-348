@@ -7,7 +7,6 @@ type UIState = {
   theme: "light" | "dark";
   selectedCase: string | null; // a case's chat (session_id = case_id); null = general chat
   generalSessionId: string; // this browser's general-questions chat
-  draftCases: string[]; // started here, not audited yet
   staged: Record<string, AuditDocument[]>; // documents waiting to be sent, per case
   xaiPanelOpen: boolean;
   sidebarOpen: boolean; // the Cases sidebar in Chat
@@ -16,6 +15,7 @@ type UIState = {
   xaiFocus: { runKey: string; at: number } | null;
   toggleTheme: () => void;
   setCase: (id: string | null) => void;
+  // Opens a blank case; it is listed only once it holds documents or messages (lib/caseList).
   newCase: () => string;
   stageDocs: (caseId: string, docs: AuditDocument[]) => void;
   unstage: (caseId: string, docId: string) => void;
@@ -40,7 +40,6 @@ export const useUI = create<UIState>()(
       theme: "light",
       selectedCase: null,
       generalSessionId: `GEN-${stamp()}-${random()}`,
-      draftCases: [],
       staged: {},
       xaiPanelOpen: false,
       sidebarOpen: true,
@@ -50,7 +49,7 @@ export const useUI = create<UIState>()(
       setCase: (id) => set({ selectedCase: id }),
       newCase: () => {
         const id = `CASE-${stamp()}-${random()}`;
-        set((s) => ({ selectedCase: id, draftCases: [id, ...s.draftCases] }));
+        set({ selectedCase: id });
         return id;
       },
       stageDocs: (caseId, docs) =>
@@ -72,13 +71,15 @@ export const useUI = create<UIState>()(
     }),
     {
       name: "nomos-ui",
-      version: 2, // v1 kept chat messages here; they now live on the server
+      // v1 kept chat messages here (now on the server); v2 kept a list of empty draft cases.
+      version: 3,
       storage: createJSONStorage(() => localStorage),
       partialize: (s) => ({ theme: s.theme, selectedCase: s.selectedCase, generalSessionId: s.generalSessionId,
-                            draftCases: s.draftCases, staged: s.staged, sidebarOpen: s.sidebarOpen }),
+                            staged: s.staged, sidebarOpen: s.sidebarOpen }),
       migrate: (old) => {
-        const { messages: _dropped, ...rest } = (old ?? {}) as Record<string, unknown>;
-        void _dropped;
+        const { messages: _m, draftCases: _d, ...rest } = (old ?? {}) as Record<string, unknown>;
+        void _m;
+        void _d;
         return rest as unknown as UIState;
       },
     },

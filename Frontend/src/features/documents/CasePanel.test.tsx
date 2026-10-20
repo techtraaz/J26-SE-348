@@ -22,6 +22,7 @@ afterEach(() => vi.unstubAllGlobals());
 
 vi.mock("@/lib/apiClient", () => ({
   c3: { cases: vi.fn(), run: vi.fn(), appendEvidence: vi.fn() },
+  chat: { sessions: vi.fn(async () => []) },
 }));
 
 const DOC: AuditDocument = {
@@ -47,7 +48,7 @@ function renderPanel() {
 beforeEach(() => {
   vi.mocked(c3.cases).mockResolvedValue([]);
   vi.mocked(c3.run).mockReset();
-  useUI.setState({ selectedCase: "CASE-1", draftCases: ["CASE-1"], staged: {} });
+  useUI.setState({ selectedCase: "CASE-1", staged: {} });
 });
 
 describe("CasePanel", () => {

@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { c3 } from "@/lib/apiClient";
 import { auditSummary } from "@/lib/documents";
+import { refreshCaseList, useCaseList } from "@/lib/caseList";
 import { useUI } from "@/store/ui";
 import { routes } from "@/config/routes";
 import { VerifiedDocumentPicker } from "./VerifiedDocumentPicker";
@@ -12,7 +13,8 @@ import { VerifiedDocumentPicker } from "./VerifiedDocumentPicker";
 export function CasePanel() {
   const qc = useQueryClient();
   const navigate = useNavigate();
-  const { selectedCase, setCase, newCase, draftCases, staged, unstage, clearStaged, setParent } = useUI();
+  const { selectedCase, setCase, newCase, staged, unstage, clearStaged, setParent } = useUI();
+  const { entries, blank, startNewCase } = useCaseList();
   const cases = useQuery({ queryKey: ["c3-cases"], queryFn: c3.cases, retry: false });
   const [notice, setNotice] = useState<{ text: string; error?: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -21,7 +23,6 @@ export function CasePanel() {
   const [pickingFor, setPickingFor] = useState<string | null>(null);
 
   const audited = new Set((cases.data ?? []).map((c) => c.case_id));
-  const caseOptions = [...draftCases.filter((id) => !audited.has(id)), ...audited];
   const docs = selectedCase ? staged[selectedCase] ?? [] : [];
   const savedMateriality = cases.data?.find((c) => c.case_id === selectedCase)?.materiality ?? null;
   // What the auditor typed for this case, else the case's saved materiality.
@@ -47,8 +48,7 @@ export function CasePanel() {
         : await c3.run({ case_id: selectedCase, docs, ...(amount !== undefined ? { materiality: amount } : {}) },
                        selectedCase);
       clearStaged(selectedCase);
-      await Promise.all([qc.invalidateQueries({ queryKey: ["c3-cases"] }),
-                         qc.invalidateQueries({ queryKey: ["chat", selectedCase] })]);
+      await Promise.all([refreshCaseList(qc), qc.invalidateQueries({ queryKey: ["chat", selectedCase] })]);
       setNotice({ text: auditSummary(result) });
     } catch (e) {
       setNotice({ text: e instanceof Error ? e.message : "Audit failed.", error: true });
@@ -67,9 +67,12 @@ export function CasePanel() {
         <select aria-label="Case" value={selectedCase ?? ""} onChange={(e) => setCase(e.target.value || null)}
                 style={{ ...selectStyle, flex: 1, minWidth: 0 }}>
           <option value="">Choose a case…</option>
-          {caseOptions.map((id) => <option key={id} value={id}>{id}{audited.has(id) ? "" : " (new)"}</option>)}
+          {blank && selectedCase && <option value={selectedCase}>New case</option>}
+          {entries.map((e) => (
+            <option key={e.case_id} value={e.case_id}>{e.title}{e.summary ? "" : " (not audited)"}</option>
+          ))}
         </select>
-        <button onClick={() => newCase()} style={pillButton}>New case</button>
+        <button onClick={startNewCase} style={pillButton}>New case</button>
       </div>
 
       {selectedCase && (

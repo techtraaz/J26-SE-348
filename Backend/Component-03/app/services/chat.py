@@ -38,6 +38,15 @@ def open_session(chats: ChatStore, session_id: str, case_id: str | None = None) 
     return session
 
 
+def rename(chats: ChatStore, session_id: str, title: str, case_id: str | None = None) -> ChatSession:
+    """Set the chat's title; an empty title puts the default back."""
+    session = open_session(chats, session_id, case_id)
+    session.title = " ".join(title.split()) or session.case_id or GENERAL_TITLE
+    session.updated_at = now_iso()
+    chats.save_session(session)
+    return session
+
+
 def _refs(response: CopilotResponse) -> tuple[MessageRefs | None, list[Finding]]:
     """Saved findings by reference; unsaved (what-if) findings inline."""
     data = response.data or {}

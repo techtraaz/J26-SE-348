@@ -221,7 +221,67 @@ code, .id { font-family: 'JetBrains Mono Variable', monospace; }
   opacity: 0;
 }
 .menu-item:hover:not(:disabled) {
+  background: var(--sidebar-hover) !important;
+}
+.menu-item-danger:hover:not(:disabled) {
   background: color-mix(in srgb, var(--danger) 10%, transparent) !important;
+}
+
+/* ── Sidebar case list: date groups, search, rename, verdict dot ── */
+.side-group {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-soft);
+  padding: 16px 10px 6px;
+  margin: 0;
+}
+.side-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 12px 0 0;
+  padding: 0 10px;
+  height: 32px;
+  border: 1px solid var(--border-light);
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--text-soft);
+}
+.side-search:focus-within {
+  border-color: var(--border-strong);
+}
+.side-search input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--text-h);
+  font: inherit;
+  font-size: 13px;
+}
+.side-rename {
+  width: 100%;
+  height: 46px;
+  padding: 0 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text-h);
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+}
+.side-rename:focus {
+  border-color: var(--text-muted);
+}
+/* The verdict colour as a dot; the inset shadow paints over the tone's soft background. */
+.tone-dot {
+  width: 7px;
+  height: 7px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 4px currentColor;
 }
 
 /* ── A run opened from a chat reply's "Explain" ──

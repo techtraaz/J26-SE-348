@@ -83,6 +83,9 @@ export interface AuditResult {
 
 export interface CaseSummary {
   case_id: string;
+  title: string; // named after its main document by C3
+  verdict?: AuditResult["verdict"] | null; // absent in records saved before the report block
+  score?: number | null;
   version: number;
   status: AuditStatus;
   created_at: string;

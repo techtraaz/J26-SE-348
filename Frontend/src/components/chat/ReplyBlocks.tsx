@@ -1,13 +1,8 @@
 import { FindingCard } from "@/components/audit/FindingCard";
 import type { Finding, ListItem, ReplyBlock, Tone } from "@/types/audit";
+import { VERDICT } from "@/lib/verdict";
 import { Markdown } from "./Markdown";
 
-const VERDICT: Record<string, { label: string; tone: Tone }> = {
-  clean: { label: "Clean", tone: "passed" },
-  issues_found: { label: "Issues found", tone: "failed" },
-  needs_review: { label: "Needs review", tone: "review" },
-  not_auditable: { label: "Not auditable", tone: "skipped" },
-};
 const TONE_LABEL: Partial<Record<Tone, string>> = {
   passed: "passed", failed: "failed", review: "needs confirmation", skipped: "not checked",
   high: "high", medium: "medium", low: "low",

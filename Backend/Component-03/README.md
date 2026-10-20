@@ -34,7 +34,7 @@ result is never returned unless it was saved.
 | POST | `/audit/run` | run and save the next version |
 | POST | `/audit/run/stream` | NDJSON: one line per finished agent, then the result |
 | POST | `/audit/{case_id}/evidence` | add docs to the latest version and re-run |
-| GET | `/audit/cases` | audited cases, newest first (latest version, status, counts) |
+| GET | `/audit/cases` | audited cases, newest first (title from the documents, latest version, status, verdict, score, counts) |
 | GET | `/audit/{case_id}/versions` | every saved version (summary) |
 | GET | `/audit/{case_id}/versions/{v}` | one saved version, with its input case |
 | GET | `/audit/{case_id}/latest` | newest saved version |
@@ -42,6 +42,7 @@ result is never returned unless it was saved.
 | GET | `/kg/rules/{doc_type}` | the KG rules C3 would apply |
 | GET | `/chat/sessions[?case_id=]` | saved chats, most recently active first |
 | GET | `/chat/{session_id}/messages[?before=<seq>&limit=]` | history, oldest first, findings filled in |
+| PATCH | `/chat/{session_id}` | rename a chat, body `{title, case_id}`; empty title = default name |
 | DELETE | `/chat/{session_id}` | delete a chat (audit results are kept) |
 | POST | `/chat/case/{case_id}/messages` | another component posts into a case's chat (C4 report ready) |
 

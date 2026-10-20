@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { c3, chat } from "@/lib/apiClient";
+import { refreshCaseList, useCaseList } from "@/lib/caseList";
 import { VerifiedDocumentPicker } from "@/features/documents/VerifiedDocumentPicker";
 import { useUI } from "@/store/ui";
 import { FindingCard } from "@/components/audit/FindingCard";
@@ -36,6 +37,7 @@ function replyText(content: string, findings: Finding[]): string {
 export function DashboardPage() {
   const qc = useQueryClient();
   const { selectedCase, newCase, generalSessionId, staged, clearStaged } = useUI();
+  const { titleOf } = useCaseList();
   const [input, setInput] = useState("");
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -78,9 +80,7 @@ export function DashboardPage() {
       await qc.invalidateQueries({ queryKey: ["chat", sessionId] });
       dropLocal(key);
       if (docs.length && selectedCase && r.data?.version) clearStaged(selectedCase);
-      if (r.group === "fresh_audit" || r.group === "evidence_append") {
-        await qc.invalidateQueries({ queryKey: ["c3-cases"] });
-      }
+      await refreshCaseList(qc); // a first message lists a new case; an audit changes its verdict
     } catch (e) {
       addLocal({ key: crypto.randomUUID(), role: "error",
                  text: e instanceof Error ? e.message : "Request failed." });
@@ -105,7 +105,7 @@ export function DashboardPage() {
                 {history.isError
                   ? `Chat history unavailable: ${(history.error as Error).message}`
                   : selectedCase
-                    ? `Ask about case ${selectedCase}, or add verified documents to audit them.`
+                    ? `Ask about “${titleOf(selectedCase)}”, or add verified documents to audit them.`
                     : "Ask about rules, standards or your cases, or describe a transaction to check it."}
               </p>
               <Chips items={STARTERS} onPick={(t) => send(t)} disabled={busy} />
@@ -139,7 +139,7 @@ export function DashboardPage() {
           {attached.length > 0 && (
             <div style={{ display: "flex", gap: "8px", alignItems: "center", marginBottom: "8px", fontSize: "12px", flexWrap: "wrap" }}>
               <span style={{ border: "1px solid var(--border)", borderRadius: "var(--radius-pill)", padding: "3px 10px", color: "var(--text-h)" }}>
-                {attached.length} document(s) attached to {selectedCase}
+                {attached.length} document(s) attached to this case
                 <button onClick={() => selectedCase && clearStaged(selectedCase)} title="Remove"
                         style={{ marginLeft: "6px", background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)" }}>×</button>
               </span>

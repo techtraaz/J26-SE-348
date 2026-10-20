@@ -48,6 +48,12 @@ class ChatSession(BaseModel):
     context: SessionContext = Field(default_factory=SessionContext)
 
 
+class ChatRename(BaseModel):
+    """A new chat title from the auditor; empty puts the default back (the case id)."""
+    title: str = Field(default="", max_length=80)
+    case_id: str | None = None  # the case the chat belongs to, for a chat not saved yet
+
+
 class MessageRefs(BaseModel):
     """Findings the message is about, by reference into a saved audit version."""
     version: int | None = None
