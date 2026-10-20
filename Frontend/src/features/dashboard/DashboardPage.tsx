@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { c3, chat } from "@/lib/apiClient";
-import { isJsonFile, readJsonDocuments } from "@/lib/documents";
+import { VerifiedDocumentPicker } from "@/features/documents/VerifiedDocumentPicker";
 import { useUI } from "@/store/ui";
 import { FindingCard } from "@/components/audit/FindingCard";
 import type { CaseSummary, ChatMessage, Finding } from "@/types/audit";
@@ -38,12 +38,12 @@ function replyText(content: string, findings: Finding[]): string {
 
 export function DashboardPage() {
   const qc = useQueryClient();
-  const { selectedCase, setCase, newCase, draftCases, generalSessionId, staged, stageDocs, clearStaged } = useUI();
+  const { selectedCase, setCase, newCase, draftCases, generalSessionId, staged, clearStaged } = useUI();
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
-  const [attachError, setAttachError] = useState("");
+  // Case documents come only from verified Component-01 documents (D16), picked here.
+  const [pickingFor, setPickingFor] = useState<string | null>(null);
   const [local, setLocal] = useState<Record<string, LocalMessage[]>>({});
-  const fileRef = useRef<HTMLInputElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
 
   const sessionId = selectedCase ?? generalSessionId; // a case's chat id is its case id
@@ -98,21 +98,6 @@ export function DashboardPage() {
     }
     setLocal((s) => ({ ...s, [sessionId]: [] }));
     await qc.invalidateQueries({ queryKey: ["chat", sessionId] });
-  }
-
-  async function attach(files: FileList) {
-    setAttachError("");
-    const caseId = selectedCase ?? newCase();
-    try {
-      const docs = [];
-      for (const f of Array.from(files)) {
-        if (!isJsonFile(f)) throw new Error(`${f.name}: attach JSON documents here; send scans through the Library.`);
-        docs.push(...await readJsonDocuments(f));
-      }
-      stageDocs(caseId, docs);
-    } catch (e) {
-      setAttachError(e instanceof Error ? e.message : "Could not read the file.");
-    }
   }
 
   const empty = saved.length === 0 && pending.length === 0;
@@ -170,7 +155,7 @@ export function DashboardPage() {
                 {history.isError
                   ? `Chat history unavailable: ${(history.error as Error).message}`
                   : selectedCase
-                    ? `Ask about case ${selectedCase}, or attach documents to audit them.`
+                    ? `Ask about case ${selectedCase}, or add verified documents to audit them.`
                     : "Ask about rules, standards or your cases, or describe a transaction to check it."}
               </p>
               <Chips items={STARTERS} onPick={(t) => send(t)} disabled={busy} />
@@ -201,16 +186,13 @@ export function DashboardPage() {
 
         {/* ── Message input ── */}
         <div style={{ padding: "16px 24px 24px", maxWidth: "720px", width: "100%", margin: "0 auto" }}>
-          {(attached.length > 0 || attachError) && (
+          {attached.length > 0 && (
             <div style={{ display: "flex", gap: "8px", alignItems: "center", marginBottom: "8px", fontSize: "12px", flexWrap: "wrap" }}>
-              {attached.length > 0 && (
-                <span style={{ border: "1px solid var(--border)", borderRadius: "var(--radius-pill)", padding: "3px 10px", color: "var(--text-h)" }}>
-                  {attached.length} document(s) attached to {selectedCase}
-                  <button onClick={() => selectedCase && clearStaged(selectedCase)} title="Remove"
-                          style={{ marginLeft: "6px", background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)" }}>×</button>
-                </span>
-              )}
-              {attachError && <span style={{ color: "var(--danger)" }}>{attachError}</span>}
+              <span style={{ border: "1px solid var(--border)", borderRadius: "var(--radius-pill)", padding: "3px 10px", color: "var(--text-h)" }}>
+                {attached.length} document(s) attached to {selectedCase}
+                <button onClick={() => selectedCase && clearStaged(selectedCase)} title="Remove"
+                        style={{ marginLeft: "6px", background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)" }}>×</button>
+              </span>
             </div>
           )}
           <div style={{
@@ -226,14 +208,19 @@ export function DashboardPage() {
               style={{ border: "none", outline: "none", background: "transparent", fontSize: "14px", color: "var(--text-h)", fontFamily: "inherit", width: "100%" }}
             />
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <button onClick={() => fileRef.current?.click()} title="Attach JSON documents"
-                      style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-soft)", padding: "2px" }}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+              <button onClick={() => setPickingFor(selectedCase ?? newCase())} title="Add verified documents from the Library"
+                      style={{
+                        display: "flex", alignItems: "center", gap: "6px", background: "none", border: "none",
+                        cursor: "pointer", color: "var(--text-muted)", padding: "2px", fontSize: "13px", fontFamily: "inherit",
+                      }}>
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                  <polyline points="14 2 14 8 20 8" />
+                  <polyline points="9 15 11 17 15 13" />
                 </svg>
+                Add verified documents
               </button>
-              <input ref={fileRef} type="file" accept=".json,application/json" multiple style={{ display: "none" }}
-                     onChange={(e) => { if (e.target.files) attach(e.target.files); e.target.value = ""; }} />
+              {pickingFor && <VerifiedDocumentPicker caseId={pickingFor} onClose={() => setPickingFor(null)} />}
               <SendButton ready={Boolean(input.trim() || attached.length) && !busy} onClick={() => send()} />
             </div>
           </div>

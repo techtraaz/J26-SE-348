@@ -6,9 +6,10 @@ interface ModalProps {
   title: string
   onClose: () => void
   children: ReactNode
+  wide?: boolean // for content that needs room (e.g. a field review)
 }
 
-export function Modal({ title, onClose, children }: ModalProps) {
+export function Modal({ title, onClose, children, wide = false }: ModalProps) {
   const titleId = useId()
 
   useEffect(() => {
@@ -30,7 +31,7 @@ export function Modal({ title, onClose, children }: ModalProps) {
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="w-full max-w-md rounded-2xl border border-line-light bg-surface p-6 text-ink shadow-(--shadow-lg)"
+        className={`${wide ? 'max-h-[88vh] max-w-3xl overflow-y-auto' : 'max-w-md'} w-full rounded-2xl border border-line-light bg-surface p-6 text-ink shadow-(--shadow-lg)`}
       >
         <div className="mb-4 flex items-center justify-between">
           <h2 id={titleId} className="heading-serif text-2xl">

@@ -3,6 +3,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tansta
 import { POLL_INTERVAL_MS } from '@/features/extraction/config'
 import { api, call, callVoid } from './client'
 import { isActiveStatus } from './types'
+import type { DocumentStatus } from './types'
 
 // Every Component-01 key starts with 'c1', so these queries never mix with the
 // rest of the app's and get their own defaults (see app/providers.tsx).
@@ -15,6 +16,8 @@ export const queryKeys = {
   documents: (scope: string) => ['c1', 'documents', 'list', scope] as const,
   document: (id: string) => ['c1', 'documents', 'detail', id] as const,
   extraction: (id: string) => ['c1', 'documents', 'extraction', id] as const,
+  review: (id: string) => ['c1', 'documents', 'review', id] as const,
+  verified: (id: string) => ['c1', 'documents', 'verified', id] as const,
 }
 
 export function useFolders(parentId: string | null, enabled = true) {
@@ -39,12 +42,15 @@ export interface DocumentScope {
   /** A folder id, 'root' for documents outside any folder, or 'all' (search). */
   folder: string
   q?: string
+  /** Filtered by the server, so a page of results is not used up by other statuses. */
+  status?: DocumentStatus
+  limit?: number
 }
 
 /** Documents in one place. Polls while any of them is still being processed. */
-export function useDocuments({ folder, q }: DocumentScope) {
+export function useDocuments({ folder, q, status, limit = 200 }: DocumentScope) {
   return useQuery({
-    queryKey: queryKeys.documents(`${folder}|${q ?? ''}`),
+    queryKey: queryKeys.documents(`${folder}|${q ?? ''}|${status ?? ''}|${limit}`),
     placeholderData: keepPreviousData,
     queryFn: () =>
       call(
@@ -54,7 +60,8 @@ export function useDocuments({ folder, q }: DocumentScope) {
               folder_id: folder !== 'root' && folder !== 'all' ? folder : undefined,
               root_only: folder === 'root' ? true : undefined,
               q: q || undefined,
-              limit: 200,
+              status,
+              limit,
             },
           },
         }),
@@ -86,6 +93,67 @@ export function useExtraction(documentId: string, enabled: boolean) {
           params: { path: { document_id: documentId } },
         }),
       ),
+  })
+}
+
+/** The reviewer's draft (seeded from the latest run until the first save). */
+export function useReviewDraft(documentId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: queryKeys.review(documentId),
+    enabled,
+    queryFn: () =>
+      call(
+        api.GET('/api/v1/documents/{document_id}/review', {
+          params: { path: { document_id: documentId } },
+        }),
+      ),
+  })
+}
+
+/** The latest verified version of a document. */
+export function useVerifiedRecord(documentId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: queryKeys.verified(documentId),
+    enabled,
+    queryFn: () =>
+      call(
+        api.GET('/api/v1/documents/{document_id}/verified', {
+          params: { path: { document_id: documentId } },
+        }),
+      ),
+  })
+}
+
+/** Freeze the draft at `version` as the next verified version. */
+export function useConfirmDocument(documentId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (version: number) =>
+      call(
+        api.POST('/api/v1/documents/{document_id}/confirm', {
+          params: { path: { document_id: documentId } },
+          body: { version },
+        }),
+      ),
+    onSuccess: (record) => {
+      // The response is the new verified version: show it at once, not a cached older one.
+      queryClient.setQueryData(queryKeys.verified(documentId), record)
+      return queryClient.invalidateQueries({ queryKey: queryKeys.allDocuments })
+    },
+  })
+}
+
+/** Return a verified document to review (the next confirm makes a new version). */
+export function useReopenDocument(documentId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: () =>
+      callVoid(
+        api.POST('/api/v1/documents/{document_id}/reopen', {
+          params: { path: { document_id: documentId } },
+        }),
+      ),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.allDocuments }),
   })
 }
 

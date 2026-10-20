@@ -5,9 +5,10 @@ import { c3 } from "@/lib/apiClient";
 import { auditSummary } from "@/lib/documents";
 import { useUI } from "@/store/ui";
 import { routes } from "@/config/routes";
+import { VerifiedDocumentPicker } from "./VerifiedDocumentPicker";
 
 // The case being prepared for audit, beside the document library. Documents
-// enter a case as verified records from Component-01, never as uploads here.
+// enter a case as verified records from Component-01 (picked, never uploaded).
 export function CasePanel() {
   const qc = useQueryClient();
   const navigate = useNavigate();
@@ -16,6 +17,8 @@ export function CasePanel() {
   const [notice, setNotice] = useState<{ text: string; error?: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
   const [typedMateriality, setTypedMateriality] = useState<Record<string, string>>({});
+  // The same picker as the case's chat: both read and write the case's staged documents.
+  const [pickingFor, setPickingFor] = useState<string | null>(null);
 
   const audited = new Set((cases.data ?? []).map((c) => c.case_id));
   const caseOptions = [...draftCases.filter((id) => !audited.has(id)), ...audited];
@@ -92,12 +95,27 @@ export function CasePanel() {
         }}>{notice.text}</p>
       )}
 
+      <div style={{ borderTop: "1px solid var(--border-light)", paddingTop: "20px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px", marginBottom: "8px" }}>
+          <h3 style={{ fontWeight: 600, fontSize: "15px", color: "var(--text-h)" }}>Documents</h3>
+          <button onClick={() => setPickingFor(selectedCase ?? newCase())} style={{ ...pillButton, height: "30px", padding: "0 12px", fontSize: "12px" }}
+                  title="Pick verified documents from the library">
+            + Add verified
+          </button>
+        </div>
+        {!selectedCase && (
+          <p style={{ fontSize: "13px", color: "var(--text-muted)" }}>
+            Choose a case, or add verified documents to start a new one.
+          </p>
+        )}
+      </div>
+      {pickingFor && <VerifiedDocumentPicker caseId={pickingFor} onClose={() => setPickingFor(null)} />}
+
       {selectedCase && (
-        <div style={{ borderTop: "1px solid var(--border-light)", paddingTop: "20px" }}>
-          <h3 style={{ fontWeight: 600, fontSize: "15px", color: "var(--text-h)", marginBottom: "8px" }}>Documents</h3>
+        <div style={{ paddingTop: "4px" }}>
           {docs.length === 0 && (
             <p style={{ fontSize: "13px", color: "var(--text-muted)" }}>
-              No documents in this case yet. Verified documents from the library will be added here.
+              No documents in this case yet.
             </p>
           )}
           {docs.map((d) => (

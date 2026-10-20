@@ -1,7 +1,7 @@
 """Shared fixtures for tests that need a database and the full app.
 
 Runs on a temporary SQLite file by default. To run the same tests on real
-PostgreSQL, set AUDITMIND_TEST_DATABASE_URL to an EMPTY throwaway database;
+PostgreSQL, set NOMOS_TEST_DATABASE_URL to an EMPTY throwaway database;
 its tables are created and dropped around every test.
 """
 
@@ -18,7 +18,7 @@ from app.schemas.extraction import EngineInfo, ExtractionResult, OCRLine, PageRe
 
 @pytest.fixture
 def database_url(tmp_path):
-    url = os.environ.get("AUDITMIND_TEST_DATABASE_URL") or f"sqlite:///{tmp_path / 'test.db'}"
+    url = os.environ.get("NOMOS_TEST_DATABASE_URL") or f"sqlite:///{tmp_path / 'test.db'}"
     engine = create_db_engine(url)
     Base.metadata.drop_all(engine)
     Base.metadata.create_all(engine)
