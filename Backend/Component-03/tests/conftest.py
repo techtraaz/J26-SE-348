@@ -12,6 +12,7 @@ def _offline(monkeypatch):
     monkeypatch.setattr(config, "LLM_ENABLED", False)
     monkeypatch.setattr(config, "KG_MODE", "mock")
     monkeypatch.setattr(config, "KG_URL", "")
+    monkeypatch.setattr(config, "KG_MOCK_FILE", "")  # tests use the committed mock, never a snapshot
     monkeypatch.setattr(config, "MONGODB_URI", "")
     monkeypatch.setattr(config, "STORE_MODE", "memory")
     monkeypatch.setattr(store_mod, "_store", store_mod.MemoryStore())

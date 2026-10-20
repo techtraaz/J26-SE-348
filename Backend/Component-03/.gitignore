@@ -17,3 +17,6 @@ data/results/
 
 # Environment variables
 .env
+
+# Local snapshots of the live KG (scripts/snapshot_kg.py); never committed
+data/kg_snapshot*.json

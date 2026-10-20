@@ -170,6 +170,8 @@ def _result(case: AuditCase, final: dict, version: int, previous: dict | None,
     kg_note = f"Knowledge graph source: {kg.source}."
     if getattr(kg, "fallback_reason", None):
         kg_note += f" Live KG unavailable ({kg.fallback_reason}); mock rules used."
+    if getattr(kg, "mock_note", None):
+        kg_note += f" Mock data: {kg.mock_note}."
     return AuditResult(
         case_id=case.case_id, version=version, kg_source=kg.source, latency_ms=latency_ms,
         status="not_auditable" if early else settings.FINDINGS_STATUS_DEFAULT,

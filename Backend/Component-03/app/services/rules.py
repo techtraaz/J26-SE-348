@@ -13,6 +13,8 @@ violations):
   REV-008 source not human-verified (C1 machine extraction)
   REV-004 intake issue (parent link, confidence range, no fields)
 """
+import re
+
 from app import config
 from app.schemas.case import AuditCase, AuditDocument
 from app.schemas.findings import EvidenceClaim, Finding, TraceEntry
@@ -218,14 +220,31 @@ def _rule_error(rule: CheckRuleResponse, doc: AuditDocument, why: str) -> Findin
                   f"Check it by hand.", [doc.doc_id], policy_ids=[rule.rule_id])
 
 
+_APPROVAL_COUNT = {"single": 1, "one": 1, "dual": 2, "double": 2, "two": 2,
+                   "triple": 3, "three": 3}
+
+
+def required_approvals(rule: RuleResponse) -> int | None:
+    """How many approvals a policy needs: C2's number, else read from the rule
+    text ("dual approval" = 2), else None (unknown)."""
+    if rule.required_approvals is not None:
+        return rule.required_approvals
+    m = re.search(r"\b(single|one|dual|double|two|triple|three)\b[\s-]*(?:\w+\s+)?approv",
+                  rule.text, re.IGNORECASE)
+    return _APPROVAL_COUNT[m.group(1).lower()] if m else None
+
+
 def policy_findings(doc: AuditDocument, rules: list[RuleResponse]) -> list[Finding]:
-    """KG policy limits, e.g. POL-07: an amount above the limit needs the control
-    (dual approval) confirmed. The approval itself is not in the evidence, so this
-    asks the auditor to confirm it rather than claiming it is missing."""
+    """KG policy limits, e.g. POL-07: an amount above the limit needs dual approval.
+    When the document's approval stamp was read (`approvals` = signed rows), too few
+    signatures is a high finding and enough is no finding. When it was not read, the
+    auditor is asked to confirm the approval rather than told it is missing."""
     hit = resolve(doc, config.POLICY_LIMIT_FIELD)
     if hit is None or not _is_number(hit[1]):
         return []
     key, amount = hit[0], float(hit[1])
+    signed = doc.fields.get(config.APPROVALS_FIELD)
+    signed = float(signed) if _is_number(signed) else None
     out = []
     for r in rules:
         if r.limit is None:
@@ -235,14 +254,26 @@ def policy_findings(doc: AuditDocument, rules: list[RuleResponse]) -> list[Findi
                        field=key, amount=amount, limit=float(r.limit))
         if amount <= r.limit:
             continue
+        need = required_approvals(r)
+        above = f"{r.text} {doc.doc_id} has {key} {fmt(amount)} above the limit {fmt(float(r.limit))}"
+        claims = [EvidenceClaim(evidence_id=doc.doc_id, field=key, claimed_value=amount)]
+        if need is None or signed is None:
+            severity, message = "medium", f"{above}; confirm the required approval."
+            confidence = confidence_of(doc, key)
+        elif signed >= need:
+            continue
+        else:
+            severity = "high"
+            message = (f"{above} but only {int(signed)} of {need} required approvals "
+                       f"is signed on the document.")
+            confidence = confidence_of(doc, key, config.APPROVALS_FIELD)
+            claims.append(EvidenceClaim(evidence_id=doc.doc_id, field=config.APPROVALS_FIELD,
+                                        claimed_value=signed))
         out.append(Finding(
             finding_id=f"{doc.doc_id}-{r.rule_id}", rule_id=r.rule_id,
-            category="compliance", severity="medium",
-            message=f"{r.text} {doc.doc_id} has {key} {fmt(amount)} above the limit "
-                    f"{fmt(float(r.limit))}; confirm the required approval.",
+            category="compliance", severity=severity, message=message,
             evidence_ids=[doc.doc_id], policy_ids=[r.rule_id],
-            confidence=confidence_of(doc, key),
-            claims=[EvidenceClaim(evidence_id=doc.doc_id, field=key, claimed_value=amount)]))
+            confidence=confidence, claims=claims))
     return out
 
 
