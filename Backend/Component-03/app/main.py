@@ -109,7 +109,7 @@ def audit_run(payload: dict = CASE_BODY, session_id: str | None = None):
     _check_session(session_id)
     result = _store_call(orchestrator.run_case, _case(payload))
     if session_id:
-        _store_call(chat.record_audit, default_chat_store(), session_id, result)
+        _store_call(chat.record_audit, default_chat_store(), session_id, result, default_store())
     return result.model_dump()
 
 
@@ -135,7 +135,7 @@ def audit_run_c1(body: C1RunRequest, session_id: str | None = None):
         case["materiality"] = body.materiality
     result = _store_call(orchestrator.run_case, _case(case), kg)
     if session_id:
-        _store_call(chat.record_audit, default_chat_store(), session_id, result)
+        _store_call(chat.record_audit, default_chat_store(), session_id, result, default_store())
     return result.model_dump()
 
 
@@ -163,7 +163,7 @@ def audit_append(case_id: str, payload: dict = DOCS_BODY, session_id: str | None
         result = _store_call(lambda: orchestrator.append_evidence(
             case_id, payload.get("docs", []), materiality=payload.get("materiality")))
         if session_id:
-            _store_call(chat.record_audit, default_chat_store(), session_id, result)
+            _store_call(chat.record_audit, default_chat_store(), session_id, result, default_store())
         return result.model_dump()
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

@@ -72,6 +72,13 @@ export interface AuditResult {
   rejected_citations: string[];
   events_published: boolean;
   created_at: string;
+  // The report block, decided by C3 in code (C4's PDF is built from it).
+  schema_version?: number;
+  verdict?: "clean" | "issues_found" | "needs_review" | "not_auditable";
+  score?: number | null; // 0..100; null when not auditable
+  summary?: string;
+  narrative?: string | null; // the LLM's case summary, when it passed the fact check
+  recommendations?: { finding_id: string; rule_id: string; severity: Severity; text: string }[];
 }
 
 export interface CaseSummary {

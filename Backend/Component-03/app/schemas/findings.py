@@ -15,6 +15,13 @@ Status = Literal["pending_auditor_review", "not_auditable"]
 # passed, failed (a finding), review (a finding asking the auditor to confirm),
 # skipped (inputs missing) or error (could not be evaluated; a REV-006 item).
 RuleOutcome = Literal["passed", "failed", "review", "skipped", "error"]
+# The case as a whole, decided in code: clean (no findings), issues_found (a rule
+# failed), needs_review (no rule failed, but items need the auditor) or
+# not_auditable (nothing could be checked).
+Verdict = Literal["clean", "issues_found", "needs_review", "not_auditable"]
+# Version of the saved result's shape. Fields are only ever added; a rename or
+# removal raises this number so Component-04 can tell.
+RESULT_SCHEMA_VERSION = 1
 
 
 def now_iso() -> str:
@@ -83,6 +90,14 @@ class RejectedFinding(BaseModel):
     reason: str
 
 
+class Recommendation(BaseModel):
+    """What the auditor should do about one finding; fixed wording per rule, from code."""
+    finding_id: str
+    rule_id: str
+    severity: Severity
+    text: str
+
+
 class AuditResult(BaseModel):
     case_id: str
     version: int = 1
@@ -101,3 +116,11 @@ class AuditResult(BaseModel):
     # means queued, not confirmed written. When False, the trace says why.
     events_published: bool = False
     created_at: str = Field(default_factory=now_iso)
+    # The report block (app.services.verdict), all decided in code. The LLM only
+    # writes `narrative`, which may be None (LLM off, or its text failed the fact check).
+    schema_version: int = RESULT_SCHEMA_VERSION
+    verdict: Verdict = "needs_review"
+    score: int | None = None  # 0..100; None when not auditable (no score is better than a fake one)
+    summary: str = ""  # one fixed-format sentence of what was checked and found
+    narrative: str | None = None  # the LLM's case summary for the auditor
+    recommendations: list[Recommendation] = Field(default_factory=list)
