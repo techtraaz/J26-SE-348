@@ -190,5 +190,6 @@ async def test_reader_continues_from_its_saved_position(_in_memory_mongo):
     ids = [d["_id"] for d in col.find(sort=[("_id", 1)])]
 
     assert await trace_reader._starting_point(col) == ids[-1]   # first start: newest, no replay
+    assert await review_store.get_position() == ids[-1]         # ...and saved at once
     await review_store.set_position(ids[0])
     assert await trace_reader._starting_point(col) == ids[0]    # restart: where it stopped

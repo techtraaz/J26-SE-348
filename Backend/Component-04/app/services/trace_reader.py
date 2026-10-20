@@ -537,7 +537,14 @@ async def _starting_point(col) -> _ObjectId | None:
     if saved is not None:
         return saved
     newest = await asyncio.to_thread(lambda: col.find_one({}, sort=[("_id", -1)], projection={"_id": 1}))
-    return newest["_id"] if newest else None
+    start = newest["_id"] if newest else None
+    if start is not None:
+        # saved at once: events written while C04 is down are then processed after a restart
+        try:
+            await review_store.set_position(start)
+        except report_store.StoreUnavailable:
+            logger.warning("Reader start position not saved; a restart will start from the newest event")
+    return start
 
 
 async def run_reader() -> None:
