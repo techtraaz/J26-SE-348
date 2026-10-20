@@ -136,6 +136,16 @@ def test_api_chat_flow():
     assert client.get("/chat/API-C/messages").json()["messages"] == []
 
 
+def test_api_renames_a_chat_and_empty_title_restores_the_default():
+    r = client.patch("/chat/REN-1", json={"title": "  Q3   supplier invoices ", "case_id": "REN-1"})
+    assert r.status_code == 200 and r.json()["title"] == "Q3 supplier invoices"
+    assert r.json()["case_id"] == "REN-1"  # a chat not saved yet still belongs to its case
+    assert client.patch("/chat/REN-1", json={"title": ""}).json()["title"] == "REN-1"
+    assert client.patch("/chat/REN-1", json={"title": "x" * 81}).status_code == 422
+    assert client.patch("/chat/a%7Bb", json={"title": "x"}).status_code == 422
+    client.delete("/chat/REN-1")
+
+
 def test_api_rejects_bad_session_ids():
     assert client.post("/copilot/query", json={"text": "hi", "session_id": "a/b"}).status_code == 422
     assert client.post("/audit/run?session_id=a%7Bb", json={"case_id": "X", "docs": []}).status_code == 422

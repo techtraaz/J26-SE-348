@@ -61,3 +61,32 @@
 {"text": "what can you do", "intent": "help"}
 {"text": "help me use this", "intent": "help"}
 {"text": "how do I ask you things?", "intent": "help"}
+{"text": "so what's your final verdict on this one?", "intent": "case_verdict", "case_id": "ACME-2026", "case_audited": true}
+{"text": "how reliable is this audit result", "intent": "case_verdict", "case_id": "ACME-2026", "case_audited": true}
+{"text": "did the case pass the audit?", "intent": "case_verdict", "case_id": "ACME-2026", "case_audited": true}
+{"text": "which rules failed on these documents", "intent": "rule_results", "case_id": "ACME-2026", "case_audited": true}
+{"text": "show me the rules that were not checked", "intent": "rule_results", "case_id": "ACME-2026", "case_audited": true}
+{"text": "why was CHK-005 not run?", "intent": "rule_results", "case_id": "ACME-2026", "case_audited": true}
+{"text": "list every rule that ran and its result", "intent": "rule_results", "case_id": "ACME-2026", "case_audited": true}
+{"text": "is the balance sheet fine?", "intent": "document_status", "case_id": "ACME-2026", "case_audited": true}
+{"text": "what about the invoice?", "intent": "document_status", "case_id": "ACME-2026", "case_audited": true}
+{"text": "is the purchase order in order", "intent": "document_status", "case_id": "ACME-2026", "case_audited": true}
+{"text": "what are the next steps for this audit?", "intent": "next_steps", "case_id": "ACME-2026", "case_audited": true}
+{"text": "how can we fix these problems", "intent": "next_steps", "case_id": "ACME-2026", "case_audited": true}
+{"text": "give me your recommendations", "intent": "next_steps", "case_id": "ACME-2026", "case_audited": true}
+{"text": "are there any signs of fraud here?", "intent": "fraud_check", "case_id": "ACME-2026", "case_audited": true}
+{"text": "was any money misappropriated in this case", "intent": "fraud_check", "case_id": "ACME-2026", "case_audited": true}
+{"text": "the cash out on the invoice was 150,000", "intent": "provide_value", "case_id": "ACME-2026", "case_audited": true}
+{"text": "cost of sales = 600,000", "intent": "provide_value", "case_id": "ACME-2026", "case_audited": true}
+{"text": "yes, set asset in on invoice.pdf to 0", "intent": "provide_value", "case_id": "ACME-2026", "case_audited": true}
+{"text": "no thanks, leave it as it is", "intent": "cancel", "case_id": "ACME-2026", "case_audited": true}
+{"text": "cancel that", "intent": "cancel"}
+{"text": "what is materiality?", "intent": "concept"}
+{"text": "what's an accounting equation", "intent": "concept"}
+{"text": "what are audit assertions?", "intent": "concept"}
+{"text": "yes, re-run the audit", "intent": "rerun_audit", "case_id": "ACME-2026", "case_audited": true}
+{"text": "ignore differences below 50,000", "intent": "set_materiality", "case_id": "ACME-2026", "case_audited": true}
+{"text": "set the materiality to 2,000,000", "intent": "set_materiality", "case_id": "ACME-2026", "case_audited": true}
+{"text": "small gaps under 10,000 don't matter for this audit", "intent": "set_materiality", "case_id": "ACME-2026", "case_audited": true}
+{"text": "yes, mark differences below 50,000.00 as minor", "intent": "set_materiality", "case_id": "ACME-2026", "case_audited": true}
+{"text": "what does materiality mean?", "intent": "concept"}

@@ -78,6 +78,7 @@ class RuleApplication(BaseModel):
     severity: str | None = None
     below_materiality: bool = False
     reason: str | None = None  # why skipped, the error, or the finding's message
+    missing_inputs: list[str] = Field(default_factory=list)  # skipped: every input it lacked, e.g. ["cash_out"]
     limit: float | None = None  # policy rules
     approvals_required: int | None = None
     approvals_signed: float | None = None
@@ -88,6 +89,28 @@ class RuleApplication(BaseModel):
 class RejectedFinding(BaseModel):
     finding: Finding
     reason: str
+
+
+class Coverage(BaseModel):
+    """How much of the audit could actually be checked. A verdict with rules that
+    did not run is limited, and the auditor is told so."""
+    rules_run: int = 0  # evaluated: passed + failed + review + error
+    passed: int = 0
+    failed: int = 0
+    review: int = 0
+    error: int = 0
+    not_run: int = 0  # skipped: inputs missing
+    complete: bool = True  # every rule that applies could be evaluated
+
+
+class OpenQuestion(BaseModel):
+    """A value the auditor can supply so a rule that could not run can be checked."""
+    doc_id: str
+    doc_name: str
+    rule_id: str
+    rule_name: str = ""
+    missing: list[str]  # field names, e.g. ["cash_out", "asset_in"]
+    question: str
 
 
 class Recommendation(BaseModel):
@@ -124,3 +147,5 @@ class AuditResult(BaseModel):
     summary: str = ""  # one fixed-format sentence of what was checked and found
     narrative: str | None = None  # the LLM's case summary for the auditor
     recommendations: list[Recommendation] = Field(default_factory=list)
+    coverage: Coverage = Field(default_factory=Coverage)
+    open_questions: list[OpenQuestion] = Field(default_factory=list)  # values that would let skipped rules run

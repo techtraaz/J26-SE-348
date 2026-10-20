@@ -118,7 +118,7 @@ def test_kg_lookup_failures_are_reported_and_audit_continues(store):
     ("what does LKAS 2:9 say?", "lower of cost and net realisable value"),
     ("show LKAS 2 para 9", "Measurement of inventories"),
     ("define net realisable value", "Estimated selling price"),
-    ("what does capital mean?", "Total equity is a line item"),
+    ("what does capital mean?", "a line item in the financial statements"),
     ("what does LKAS 2 say about inventories?", "LKAS 2:9"),
 ])
 def test_copilot_standards_answers_from_c2(store, text, expect):

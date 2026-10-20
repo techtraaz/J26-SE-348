@@ -79,6 +79,12 @@ export const chat = {
       .then((r) => r.messages),
   clear: (sessionId: string) =>
     request<{ deleted: string }>(env.c3Base, `/chat/${encodeURIComponent(sessionId)}`, { method: "DELETE" }),
+  // An empty title puts the default back.
+  rename: (sessionId: string, title: string, caseId: string | null) =>
+    request<ChatSession>(env.c3Base, `/chat/${encodeURIComponent(sessionId)}`, {
+      method: "PATCH", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ title, case_id: caseId }),
+    }),
 };
 
 // Component-01 has its own typed client: src/features/extraction/api.

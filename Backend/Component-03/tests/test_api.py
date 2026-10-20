@@ -47,3 +47,19 @@ def test_cases_list_shows_latest_version_per_case():
     cases = {c["case_id"]: c for c in client.get("/audit/cases").json()["cases"]}
     assert cases["API-1"]["version"] == 2 and cases["API-1"]["high"] == 1
     assert cases["API-2"]["findings"] == 1 and cases["API-2"]["docs"] == 1
+    assert cases["API-1"]["verdict"] == "issues_found" and cases["API-1"]["score"] is not None
+    assert cases["API-1"]["title"] == "Balance sheet"  # no file name: named by its type
+
+
+def test_case_title_from_its_documents():
+    from app.services.store import case_title
+    inv = doc("I", "invoice", {}, name="04_Tax_Invoice_COI-INV-26-1158.pdf")
+    po = doc("P", "purchase_order", {}, name="03a_Purchase_Order_PO-2026-0187.pdf", parent_doc_id="I")
+    grn = doc("G", "goods_received_note", {}, parent_doc_id="I")
+    assert case_title([inv]) == "Tax Invoice COI-INV-26-1158"
+    assert case_title([po, grn, inv]) == "Tax Invoice COI-INV-26-1158 + 2 more"  # the supported document leads
+    unlinked = [{**po, "parent_doc_id": None}, {**inv}]
+    assert case_title(unlinked) == "Tax Invoice COI-INV-26-1158 + 1 more"  # a PO never names the case
+    assert case_title([{**po, "parent_doc_id": None}]) == "Purchase Order PO-2026-0187"
+    assert case_title([doc("X", "unknown", {})]) == "Unknown"
+    assert case_title([]) == "Empty case"

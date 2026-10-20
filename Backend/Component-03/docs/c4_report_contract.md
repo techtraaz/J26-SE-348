@@ -30,6 +30,8 @@ verdict, score, recommendations) in code; the LLM writes only `narrative`.
 | Summary | `summary` | Always present, one sentence in a fixed shape, e.g. `2 documents audited; 2 rule checks: 2 failed (5 not run, inputs missing); 2 rule findings (2 high), 0 review items.` |
 | Written summary | `narrative` | The LLM's summary for the auditor, or `null` (LLM off, or its text used a number not in the facts and was dropped). Optional decoration only |
 | Recommendations | `recommendations[]` | One per finding, most severe first: `finding_id`, `rule_id`, `severity`, `text` (fixed wording per rule, from code) |
+| How complete the check was | `coverage` | `rules_run`, `passed`, `failed`, `review`, `error`, `not_run` (inputs missing), `complete` (every applicable rule could be evaluated). Show "limited check" when `complete` is false |
+| Values still needed | `open_questions[]` | One per rule that could not run for lack of values on its own document: `doc_id`, `doc_name`, `rule_id`, `rule_name`, `missing` (field names), `question` (plain text) |
 | Documents used | `case.docs[]` | `doc_id` (C1's document id), `name` (file name), `doc_type`, `period_year`, `parent_doc_id` (the document it supports), `fields`, `confidences`, `source` (`component`, `document_id`, `verified_version`, `confirmed_by`) |
 | Rules evaluated | `rules_applied[]` | Every KG rule run on every document, passed ones too (see below) |
 | Findings | `findings[]` | `finding_id`, `rule_id`, `category`, `severity`, `message`, `evidence_ids`, `policy_ids` (cited standards, e.g. `CF:4.4`), `confidence`, `review_status`, `claims`, `reasoning_chain`, `evidence_validation` |
@@ -54,7 +56,12 @@ violations; `CHK-*` / `POL-*` are rule findings.
 | `limit`, `approvals_required`, `approvals_signed` | policy rules only |
 | `compared_with` | for cross-document rules: `prior` / `child` / `parent` → doc id |
 | `severity`, `below_materiality` | the finding's severity (or the rule's), and whether a case materiality lowered it |
+| `missing_inputs` | for `skipped`: every input it lacked, e.g. `["cash_out", "purchase_basis", "asset_in"]` |
 | `finding_id` | the finding it produced, or `null` |
+
+**Verdict and coverage:** `clean` is given only when no finding exists **and** at least one
+rule could be evaluated; when every applicable rule was skipped, the verdict is
+`needs_review` and `score` is `null` (an unchecked case is never shown as clean).
 
 ## Report request: C3 → C4
 

@@ -171,7 +171,10 @@ def test_audit_intents_save_versions(kg, store):
     added = ask(kg, store, "add this receipt to case NEW-1",
                 docs=[doc("RC", "receipt", {"amount": 5}, parent_doc_id="INV")])
     assert added.intent == "evidence_append" and added.data["version"] == 2
-    again = ask(kg, store, "re-run case NEW-1")
+    asked = ask(kg, store, "re-run case NEW-1")  # a write: confirmed first, nothing saved yet
+    assert asked.intent == "rerun_audit" and asked.blocks[0].type == "question"
+    assert store.latest("NEW-1")["version"] == 2
+    again = ask(kg, store, asked.blocks[0].choices[0], case_id="NEW-1")
     assert again.intent == "rerun_audit" and again.data["version"] == 3
 
 

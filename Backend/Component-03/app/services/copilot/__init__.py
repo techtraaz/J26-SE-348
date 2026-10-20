@@ -6,14 +6,15 @@ Intents live in handlers.py (registry in registry.py). Replies are built in
 code from saved results and KG data.
 """
 from app.schemas.chat import SessionContext
-from app.schemas.copilot import CopilotQuery, CopilotResponse
+from app.schemas.copilot import CopilotQuery, CopilotResponse, QuestionBlock, TextBlock
 from app.services import intake
 from app.services.copilot import handlers  # noqa: F401 - registers the intents
 from app.services.copilot import memory as memory_rules
 from app.services.copilot.entities import Entities, extract
 from app.services.copilot.handlers import Turn
 from app.services.copilot.nlu import RequestContext, understand
-from app.services.copilot.registry import NEEDS, REGISTRY
+from app.services.copilot.registry import FALLBACK_INTENT, NEEDS, REGISTRY
+from app.services.copilot.render import to_markdown
 from app.services.kg_client import KGClient, KGError, default_kg
 from app.services.store import ResultStore, default_store
 
@@ -39,6 +40,16 @@ def _missing(need: str, turn: Turn) -> str | None:
     return None
 
 
+def _closest(nlu) -> list:
+    """Intents the rules half-matched (scored, but too weakly to decide), best first.
+    Empty when nothing matched at all, or when the LLM decided."""
+    if nlu.method == "llm":
+        return []
+    scored = sorted(((s, n) for n, s in nlu.rules_scores.items()
+                     if s > 0 and n not in (FALLBACK_INTENT, "help")), reverse=True)
+    return [REGISTRY[n] for _, n in scored[:3]]
+
+
 def _entities(q: CopilotQuery, store: ResultStore,
               memory: SessionContext | None) -> tuple[Entities, str | None]:
     """Extract entities and pick the case: one named in the text, else the
@@ -54,6 +65,13 @@ def _entities(q: CopilotQuery, store: ResultStore,
     if latest:
         docs = [d["doc_id"] for d in latest["case"]["docs"]]
         ent.doc_ids = extract(q.text, known_doc_ids=docs).doc_ids
+        # A document may also be named by its file name, with or without the extension.
+        low = q.text.lower()
+        for d in latest["case"]["docs"]:
+            name = (d.get("name") or "").lower()
+            stem = name.rsplit(".", 1)[0]
+            if stem and (name in low or stem in low) and d["doc_id"] not in ent.doc_ids:
+                ent.doc_ids.append(d["doc_id"])
     same_case = memory is not None and memory.case_id == case_id
     return memory_rules.apply(ent, q.text, memory if same_case else None), case_id
 
@@ -116,7 +134,13 @@ def answer(q: CopilotQuery, kg: KGClient | None = None, store: ResultStore | Non
         "ts": datetime.now(UTC).isoformat(),
     })
 
-    def respond(reply: str, data: dict | None = None, needs: str | None = None) -> CopilotResponse:
+    def respond(reply: str, data: dict | None = None, needs: str | None = None,
+                blocks: list | None = None) -> CopilotResponse:
+        # Blocks are the reply; plain text becomes one block (a question when a detail is missing).
+        if blocks:
+            reply = reply or to_markdown(blocks)
+        else:
+            blocks = [QuestionBlock(text=reply) if needs else TextBlock(text=reply)]
         # ── XAI: copilot_end ──
         elapsed = (time.perf_counter() - t0) * 1000
         tracer.emit({
@@ -128,10 +152,16 @@ def answer(q: CopilotQuery, kg: KGClient | None = None, store: ResultStore | Non
             "status": "needs_slot" if needs else "done",
             "ts": datetime.now(UTC).isoformat(),
         })
-        return CopilotResponse(intent=spec.name, group=spec.group, reply=reply,
+        return CopilotResponse(intent=spec.name, group=spec.group, reply=reply, blocks=blocks,
                                suggestions=[] if needs else list(spec.follow_ups),
                                data={**(data or {}), **meta, **({"needs": needs} if needs else {})})
 
+    unsure = _closest(nlu) if spec.name == FALLBACK_INTENT else []
+    if unsure:
+        xai_trace.record(tracer, "copilot", "decision", "ok", decision="ask which intent was meant",
+                         candidates=[s.name for s in unsure])
+        return respond("", blocks=[QuestionBlock(text="I'm not sure what you mean. Did you want one of these?",
+                                                 choices=[s.examples[0] for s in unsure])])
     for need in spec.needs:
         missing = _missing(need, turn)
         alternative = REGISTRY.get(spec.instead.get(need, ""))
@@ -157,5 +187,5 @@ def answer(q: CopilotQuery, kg: KGClient | None = None, store: ResultStore | Non
         return respond(str(exc))
     except (ValueError, KGError) as exc:
         return respond(f"The knowledge graph could not answer: {exc}")
-    return respond(out.text, out.data)
+    return respond(out.text, out.data, blocks=out.blocks)
 

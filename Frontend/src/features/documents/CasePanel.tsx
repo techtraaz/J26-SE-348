@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { c3 } from "@/lib/apiClient";
 import { auditSummary } from "@/lib/documents";
+import { refreshCaseList, useCaseList } from "@/lib/caseList";
 import { useUI } from "@/store/ui";
 import { routes } from "@/config/routes";
 import { VerifiedDocumentPicker } from "./VerifiedDocumentPicker";
@@ -12,43 +13,29 @@ import { VerifiedDocumentPicker } from "./VerifiedDocumentPicker";
 export function CasePanel() {
   const qc = useQueryClient();
   const navigate = useNavigate();
-  const { selectedCase, setCase, newCase, draftCases, staged, unstage, clearStaged, setParent } = useUI();
+  const { selectedCase, setCase, newCase, staged, unstage, clearStaged, setParent } = useUI();
+  const { entries, blank, startNewCase } = useCaseList();
   const cases = useQuery({ queryKey: ["c3-cases"], queryFn: c3.cases, retry: false });
   const [notice, setNotice] = useState<{ text: string; error?: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
-  const [typedMateriality, setTypedMateriality] = useState<Record<string, string>>({});
   // The same picker as the case's chat: both read and write the case's staged documents.
   const [pickingFor, setPickingFor] = useState<string | null>(null);
 
   const audited = new Set((cases.data ?? []).map((c) => c.case_id));
-  const caseOptions = [...draftCases.filter((id) => !audited.has(id)), ...audited];
   const docs = selectedCase ? staged[selectedCase] ?? [] : [];
-  const savedMateriality = cases.data?.find((c) => c.case_id === selectedCase)?.materiality ?? null;
-  // What the auditor typed for this case, else the case's saved materiality.
-  const materiality = (selectedCase && typedMateriality[selectedCase])
-    ?? (savedMateriality != null ? String(savedMateriality) : "");
-  const setMateriality = (value: string) =>
-    selectedCase && setTypedMateriality((m) => ({ ...m, [selectedCase]: value }));
-
+  // Materiality is not asked here: it only matters once an amount check fails, so the
+  // chat offers it then (and the Copilot sets it, confirmed, as a new version).
   async function audit() {
     if (!selectedCase || !docs.length) return;
-    const typed = materiality.replace(/[,\s]/g, "").replace(/^(rs|lkr)\.?/i, "");
-    const amount = typed ? Number(typed) : undefined;
-    if (amount !== undefined && !(amount >= 0)) {
-      setNotice({ text: "Materiality must be an amount, e.g. 50000, or left empty.", error: true });
-      return;
-    }
     setBusy(true);
     setNotice(null);
     try {
       // The case's chat id is its case id; C3 writes the result into that chat.
       const result = audited.has(selectedCase)
-        ? await c3.appendEvidence(selectedCase, docs, selectedCase, amount)
-        : await c3.run({ case_id: selectedCase, docs, ...(amount !== undefined ? { materiality: amount } : {}) },
-                       selectedCase);
+        ? await c3.appendEvidence(selectedCase, docs, selectedCase)
+        : await c3.run({ case_id: selectedCase, docs }, selectedCase);
       clearStaged(selectedCase);
-      await Promise.all([qc.invalidateQueries({ queryKey: ["c3-cases"] }),
-                         qc.invalidateQueries({ queryKey: ["chat", selectedCase] })]);
+      await Promise.all([refreshCaseList(qc), qc.invalidateQueries({ queryKey: ["chat", selectedCase] })]);
       setNotice({ text: auditSummary(result) });
     } catch (e) {
       setNotice({ text: e instanceof Error ? e.message : "Audit failed.", error: true });
@@ -67,25 +54,13 @@ export function CasePanel() {
         <select aria-label="Case" value={selectedCase ?? ""} onChange={(e) => setCase(e.target.value || null)}
                 style={{ ...selectStyle, flex: 1, minWidth: 0 }}>
           <option value="">Choose a case…</option>
-          {caseOptions.map((id) => <option key={id} value={id}>{id}{audited.has(id) ? "" : " (new)"}</option>)}
+          {blank && selectedCase && <option value={selectedCase}>New case</option>}
+          {entries.map((e) => (
+            <option key={e.case_id} value={e.case_id}>{e.title}{e.summary ? "" : " (not audited)"}</option>
+          ))}
         </select>
-        <button onClick={() => newCase()} style={pillButton}>New case</button>
+        <button onClick={startNewCase} style={pillButton}>New case</button>
       </div>
-
-      {selectedCase && (
-        <label style={{ display: "flex", gap: "8px", alignItems: "center", marginBottom: "20px", fontSize: "13px",
-                        color: "var(--text-muted)" }}>
-          Materiality (Rs)
-          <input aria-label="Materiality" value={materiality} inputMode="decimal" placeholder="optional, e.g. 50,000"
-                 onChange={(e) => setMateriality(e.target.value)}
-                 style={{ ...selectStyle, flex: 1, minWidth: 0 }} />
-        </label>
-      )}
-      {selectedCase && materiality.trim() !== "" && (
-        <p style={{ fontSize: "12px", color: "var(--text-soft)", margin: "-12px 0 20px" }}>
-          Differences below this stay as findings, at low severity. Fraud patterns are never softened.
-        </p>
-      )}
 
       {notice && (
         <p style={{

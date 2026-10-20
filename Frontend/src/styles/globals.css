@@ -221,7 +221,67 @@ code, .id { font-family: 'JetBrains Mono Variable', monospace; }
   opacity: 0;
 }
 .menu-item:hover:not(:disabled) {
+  background: var(--sidebar-hover) !important;
+}
+.menu-item-danger:hover:not(:disabled) {
   background: color-mix(in srgb, var(--danger) 10%, transparent) !important;
+}
+
+/* ── Sidebar case list: date groups, search, rename, verdict dot ── */
+.side-group {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-soft);
+  padding: 16px 10px 6px;
+  margin: 0;
+}
+.side-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 12px 0 0;
+  padding: 0 10px;
+  height: 32px;
+  border: 1px solid var(--border-light);
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--text-soft);
+}
+.side-search:focus-within {
+  border-color: var(--border-strong);
+}
+.side-search input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--text-h);
+  font: inherit;
+  font-size: 13px;
+}
+.side-rename {
+  width: 100%;
+  height: 46px;
+  padding: 0 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text-h);
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+}
+.side-rename:focus {
+  border-color: var(--text-muted);
+}
+/* The verdict colour as a dot; the inset shadow paints over the tone's soft background. */
+.tone-dot {
+  width: 7px;
+  height: 7px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 4px currentColor;
 }
 
 /* ── A run opened from a chat reply's "Explain" ──
@@ -300,6 +360,59 @@ code, .id { font-family: 'JetBrains Mono Variable', monospace; }
   color: var(--text-h) !important;
 }
 
+/* ── Copilot replies (components/chat): Markdown text and reply blocks ── */
+.md { line-height: 1.6; }
+.md > :first-child { margin-top: 0; }
+.md > :last-child { margin-bottom: 0; }
+.md p { margin: 0 0 8px; }
+.md ul, .md ol { margin: 4px 0 8px; padding-left: 20px; }
+.md li { margin: 2px 0; }
+.md strong { color: var(--text-h); font-weight: 600; }
+.md code { font-size: 0.88em; padding: 1px 5px; border-radius: 4px; background: var(--surface-muted); overflow-wrap: anywhere; }
+.md a, .reply-link { color: var(--text-h); text-decoration: underline; text-underline-offset: 2px; }
+.md-table { overflow-x: auto; margin: 4px 0 8px; }
+.md-table table { border-collapse: collapse; width: 100%; font-size: 13px; }
+.md-table th, .md-table td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--border-light); vertical-align: top; }
+.md-table th { font-weight: 600; color: var(--text-muted); font-size: 12px; white-space: nowrap; }
+.md-table tr:last-child td { border-bottom: 0; }
+
+.reply-blocks { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.reply-section h4 { margin: 0 0 6px; font-size: 13px; font-weight: 600; color: var(--text-h); }
+.reply-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.reply-list > li { padding-left: 12px; border-left: 2px solid var(--border-strong); }
+.reply-item-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.reply-item-label { font-weight: 600; color: var(--text-h); }
+.reply-list .md { color: var(--text); }
+.reply-details { margin: 4px 0 0; padding-left: 18px; font-size: 13px; color: var(--text-muted); }
+.reply-more { margin: 4px 0 0; font-size: 12px; color: var(--text-muted); }
+.reply-link { font-weight: 600; font-size: 13px; }
+
+.tone-chip { display: inline-block; font-size: 11px; font-weight: 600; line-height: 1.6; padding: 0 8px; border-radius: var(--radius-pill); white-space: nowrap; }
+.tone-passed { color: var(--success); background: color-mix(in srgb, var(--success) 14%, transparent); }
+.tone-failed, .tone-high { color: var(--danger); background: color-mix(in srgb, var(--danger) 14%, transparent); }
+.tone-review, .tone-medium { color: var(--warning); background: color-mix(in srgb, var(--warning) 16%, transparent); }
+.tone-skipped, .tone-low { color: var(--info); background: color-mix(in srgb, var(--info) 14%, transparent); }
+
+.verdict-card { border: 1px solid var(--border-strong); border-left-width: 4px; border-radius: var(--radius); padding: 10px 12px; background: var(--bg); }
+.verdict-card p { margin: 6px 0 0; }
+.verdict-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.verdict-head .tone-chip { font-size: 12px; padding: 1px 10px; }
+.verdict-score { font-size: 22px; font-weight: 600; color: var(--text-h); font-variant-numeric: tabular-nums; }
+.verdict-score small { font-size: 12px; font-weight: 500; color: var(--text-muted); }
+.tone-border-passed { border-left-color: var(--success); }
+.tone-border-failed { border-left-color: var(--danger); }
+.tone-border-review { border-left-color: var(--warning); }
+.tone-border-skipped, .tone-border-neutral { border-left-color: var(--info); }
+
+.reply-choices { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.reply-choices button {
+  padding: 6px 12px; border-radius: var(--radius-pill); border: 1px solid var(--border-strong);
+  background: var(--surface); color: var(--text-h); font: inherit; font-size: 12.5px; cursor: pointer; text-align: left;
+}
+.reply-choices button:hover:not(:disabled) { background: var(--accent-bg); }
+.reply-choices button:focus-visible { outline: 2px solid var(--text-h); outline-offset: 2px; }
+.reply-choices button:disabled { cursor: default; opacity: 0.6; }
+
 /* Report tab buttons */
 #xai-panel .report-btn {
   transition: opacity 0.15s ease, background 0.15s ease;
@@ -324,4 +437,3 @@ code, .id { font-family: 'JetBrains Mono Variable', monospace; }
   background: rgba(255, 255, 255, 0.08) !important;
   color: #f5f0ea !important;
 }
-

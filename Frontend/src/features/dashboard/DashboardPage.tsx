@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { c3, chat } from "@/lib/apiClient";
+import { refreshCaseList, useCaseList } from "@/lib/caseList";
 import { VerifiedDocumentPicker } from "@/features/documents/VerifiedDocumentPicker";
 import { useUI } from "@/store/ui";
 import { FindingCard } from "@/components/audit/FindingCard";
+import { Markdown } from "@/components/chat/Markdown";
+import { ReplyBlocks } from "@/components/chat/ReplyBlocks";
 import { Plus, Sparkles } from "lucide-react";
 import { IconButton } from "@/components/ui/IconButton";
 import { ReportFileCard } from "@/components/ui/report/ReportFileCard";
@@ -34,6 +37,7 @@ function replyText(content: string, findings: Finding[]): string {
 export function DashboardPage() {
   const qc = useQueryClient();
   const { selectedCase, newCase, generalSessionId, staged, clearStaged } = useUI();
+  const { titleOf } = useCaseList();
   const [input, setInput] = useState("");
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -76,9 +80,7 @@ export function DashboardPage() {
       await qc.invalidateQueries({ queryKey: ["chat", sessionId] });
       dropLocal(key);
       if (docs.length && selectedCase && r.data?.version) clearStaged(selectedCase);
-      if (r.group === "fresh_audit" || r.group === "evidence_append") {
-        await qc.invalidateQueries({ queryKey: ["c3-cases"] });
-      }
+      await refreshCaseList(qc); // a first message lists a new case; an audit changes its verdict
     } catch (e) {
       addLocal({ key: crypto.randomUUID(), role: "error",
                  text: e instanceof Error ? e.message : "Request failed." });
@@ -103,7 +105,7 @@ export function DashboardPage() {
                 {history.isError
                   ? `Chat history unavailable: ${(history.error as Error).message}`
                   : selectedCase
-                    ? `Ask about case ${selectedCase}, or add verified documents to audit them.`
+                    ? `Ask about “${titleOf(selectedCase)}”, or add verified documents to audit them.`
                     : "Ask about rules, standards or your cases, or describe a transaction to check it."}
               </p>
               <Chips items={STARTERS} onPick={(t) => send(t)} disabled={busy} />
@@ -137,7 +139,7 @@ export function DashboardPage() {
           {attached.length > 0 && (
             <div style={{ display: "flex", gap: "8px", alignItems: "center", marginBottom: "8px", fontSize: "12px", flexWrap: "wrap" }}>
               <span style={{ border: "1px solid var(--border)", borderRadius: "var(--radius-pill)", padding: "3px 10px", color: "var(--text-h)" }}>
-                {attached.length} document(s) attached to {selectedCase}
+                {attached.length} document(s) attached to this case
                 <button onClick={() => selectedCase && clearStaged(selectedCase)} title="Remove"
                         style={{ marginLeft: "6px", background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)" }}>×</button>
               </span>
@@ -198,7 +200,9 @@ function Bubble({ user, error, children }: { user: boolean; error?: boolean; chi
         borderRadius: user ? "16px 16px 4px 16px" : "16px 16px 16px 4px",
         background: user ? "var(--text-h)" : "var(--surface)",
         color: user ? "var(--bg)" : error ? "var(--danger)" : "var(--text)",
-        fontSize: "14px", lineHeight: "1.6", whiteSpace: "pre-wrap",
+        // the user's own text keeps its line breaks; replies are laid out by Markdown / blocks
+        fontSize: "14px", lineHeight: "1.6", whiteSpace: user || error ? "pre-wrap" : "normal",
+        minWidth: 0, overflowWrap: "anywhere",
         border: user ? "none" : `1px solid ${error ? "var(--danger)" : "var(--border-strong)"}`,
         boxShadow: user ? "none" : "var(--shadow-sm)",
       }}>{children}</div>
@@ -211,8 +215,14 @@ function Message({ m, showSuggestions, busy, onPick }: {
 }) {
   const [all, setAll] = useState(false);
   const user = m.role === "user";
+  // A C4 report link is drawn as a file card: from the reply's link block when it has
+  // blocks, else from the text (older replies).
+  const reportBlock = m.blocks?.find((b) => b.type === "link" && findReportLink(b.url) !== null);
+  const report = user || m.role !== "copilot" ? null
+    : reportBlock?.type === "link" ? findReportLink(reportBlock.url) : findReportLink(m.text);
+  const others = m.blocks?.filter((b) => b !== reportBlock) ?? [];
+  const blocks = !user && others.length ? others : null; // newer Copilot replies
   const shown = all ? m.findings : m.findings.slice(0, SHOWN_FINDINGS);
-  const report = !user && m.role === "copilot" ? findReportLink(m.text) : null;
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: user ? "flex-end" : "flex-start", gap: "8px" }}>
       {m.role === "report" || m.role === "system" ? (
@@ -223,20 +233,22 @@ function Message({ m, showSuggestions, busy, onPick }: {
           <span style={{ fontWeight: 600, color: "var(--text-h)" }}>
             {m.role === "report" ? `Report${m.refs?.version ? ` · v${m.refs.version}` : ""}` : "Notice"} ({m.source.toUpperCase()})
           </span>
-          <div style={{ whiteSpace: "pre-wrap", marginTop: "4px" }}>{m.text}</div>
+          <div style={{ marginTop: "4px" }}><Markdown text={m.text} /></div>
           {typeof m.data.report_url === "string" && (
             <a href={m.data.report_url} target="_blank" rel="noreferrer" style={{ color: "var(--text-h)", fontSize: "12px" }}>Open report</a>
           )}
         </div>
       ) : (
         <Bubble user={user}>
-          {user ? m.text : replyText(report ? report.text : m.text, m.findings)}
+          {user ? m.text
+            : blocks ? <ReplyBlocks blocks={blocks} findings={m.findings} onPick={onPick} disabled={busy} />
+            : <Markdown text={replyText(report && !reportBlock ? report.text : m.text, m.findings)} />}
           {m.data.attached_docs ? <div style={{ fontSize: "12px", opacity: 0.75, marginTop: "4px" }}>+ {m.data.attached_docs} document(s)</div> : null}
         </Bubble>
       )}
       {report && <ReportFileCard url={report.url} filename={report.filename} caseId={m.case_id} />}
       {!user && typeof m.data.trace_id === "string" && <ExplainButton runKey={m.data.trace_id} />}
-      {m.findings.length > 0 && (
+      {!blocks && m.findings.length > 0 && (
         <div style={{ width: "85%", display: "flex", flexDirection: "column", gap: "6px" }}>
           {shown.map((f) => <FindingCard key={f.finding_id} f={f} />)}
           {m.findings.length > SHOWN_FINDINGS && (

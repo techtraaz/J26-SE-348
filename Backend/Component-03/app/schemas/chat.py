@@ -3,7 +3,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-from app.schemas.copilot import Group
+from app.schemas.copilot import Block, Group
 from app.schemas.findings import Finding, now_iso
 
 Role = Literal["user", "copilot", "report", "system"]
@@ -48,6 +48,12 @@ class ChatSession(BaseModel):
     context: SessionContext = Field(default_factory=SessionContext)
 
 
+class ChatRename(BaseModel):
+    """A new chat title from the auditor; empty puts the default back (the case id)."""
+    title: str = Field(default="", max_length=80)
+    case_id: str | None = None  # the case the chat belongs to, for a chat not saved yet
+
+
 class MessageRefs(BaseModel):
     """Findings the message is about, by reference into a saved audit version."""
     version: int | None = None
@@ -60,7 +66,8 @@ class ChatMessage(BaseModel):
     seq: int = 0  # order within the session, assigned by the store (timestamps can tie)
     case_id: str | None = None
     role: Role
-    text: str
+    text: str  # Markdown; the same content as `blocks` for clients that only show text
+    blocks: list[Block] = Field(default_factory=list)  # Copilot replies: what the UI draws
     intent: str | None = None
     group: Group | None = None
     suggestions: list[str] = Field(default_factory=list)
