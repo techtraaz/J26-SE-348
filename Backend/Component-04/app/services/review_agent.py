@@ -1,6 +1,6 @@
 """Review Agent — Component 04's small AI agent.
 
-Runs once an audit ends. It reads that run's trace (the same steps the
+Runs once an audit or a Copilot chat turn ends. It reads that run's trace (the same steps the
 Thinking timeline shows) and writes a short review at the bottom of the
 run: a verdict, a two-sentence summary and the next steps.
 
@@ -214,6 +214,28 @@ async def _publish(case_id: str, stream_id: str | None, payload: dict) -> None:
         await sse_manager.broadcast(stream_id, payload)
 
 
+async def _deliver(case_id: str, stream_id: str | None, base: dict, verdict: str, headline: str,
+                   next_steps: list[str], prompt: str, fallback: str) -> dict:
+    """Explain + fallback, then stream the finished review."""
+    summary = await _call_llm(prompt)
+    source = "ai"
+    if summary is None or not is_faithful(summary, prompt):
+        if summary is not None:
+            logger.info("Review agent: LLM summary rejected (not faithful): %s", summary[:120])
+        summary, source = fallback, "rules"
+    review = {
+        **base, "event_type": "insight_summary",
+        "verdict": verdict, "headline": headline, "summary": summary,
+        "next_steps": next_steps, "source": source,
+        "model": config.LLM_MODEL if source == "ai" else None,
+        "generated_at": datetime.now(UTC).isoformat(),
+    }
+    await _publish(case_id, stream_id, review)
+    logger.info("Review  case=%s  kind=%s  verdict=%s  source=%s",
+                case_id, base["run_kind"], verdict, source)
+    return review
+
+
 async def review_run(case_id: str, run_key: str, total_findings: int,
                      status: str | None = None, stream_id: str | None = None) -> dict | None:
     """Review one finished audit run and stream the result. Never raises."""
@@ -222,26 +244,109 @@ async def review_run(case_id: str, run_key: str, total_findings: int,
         await _publish(case_id, stream_id, {**base, "event_type": "insight_pending"})
         facts = observe(case_id, run_key, total_findings, status)
         verdict, headline, next_steps = decide(facts)
-        prompt = _prompt(facts, verdict, headline)
-        summary = await _call_llm(prompt)
-        source = "ai"
-        if summary is None or not is_faithful(summary, prompt):
-            if summary is not None:
-                logger.info("Review agent: LLM summary rejected (not faithful): %s", summary[:120])
-            summary, source = fallback_summary(facts), "rules"
-        review = {
-            **base, "event_type": "insight_summary",
-            "verdict": verdict, "headline": headline, "summary": summary,
-            "next_steps": next_steps, "source": source,
-            "model": config.LLM_MODEL if source == "ai" else None,
-            "generated_at": datetime.now(UTC).isoformat(),
-        }
-        await _publish(case_id, stream_id, review)
-        logger.info("✦ Review  case=%s  verdict=%s  source=%s", case_id, verdict, source)
+        review = await _deliver(case_id, stream_id, base, verdict, headline, next_steps,
+                                _prompt(facts, verdict, headline), fallback_summary(facts))
         await _persist(case_id, review)
         return review
     except Exception:
         logger.exception("Review agent failed for case=%s — non-fatal", case_id)
+        return None
+
+
+# ── Copilot chats: the same four steps, chat-shaped ────────────────────
+
+@dataclass
+class TurnFacts:
+    """What the trace of one Copilot turn shows."""
+    question: str = ""
+    goal: str = ""            # "explain why a finding was raised"
+    recognised: str = ""      # "case ACME-1, rule CHK-001"
+    lookups: int = 0
+    lookup_errors: int = 0
+    model_unavailable: bool = False
+    failed: list[dict] = field(default_factory=list)
+    answer: str = ""
+    needs_input: bool = False
+
+
+def observe_turn(stream_id: str, run_key: str, status: str | None) -> TurnFacts:
+    events = [e for e in sse_manager.history(stream_id) if e.get("run_key") == run_key]
+    f = TurnFacts(needs_input=status == "needs_slot")
+    for e in events:
+        kind = e.get("kind")
+        if e.get("event_type") == "run_start":
+            f.question = (e.get("detail") or "").strip()
+        elif e.get("event_type") == "run_end":
+            f.answer = " ".join((e.get("detail") or "").split())[:300]
+        elif e.get("event_type") != "step":
+            continue
+        elif kind == "intent":
+            f.goal = (e.get("detail") or "").removeprefix("you want to ").split(" · ")[0]
+        elif kind == "entities":
+            f.recognised = e.get("target") or ""
+        elif kind == "kg_fetch":
+            f.lookups += 1
+            f.lookup_errors += e.get("tone") == "danger"
+        elif kind == "llm_call":
+            f.model_unavailable |= e.get("status") == "error"
+        elif e.get("tone") == "danger":
+            f.failed.append(e)
+    return f
+
+
+def decide_turn(f: TurnFacts) -> tuple[str, str, list[str]]:
+    """(verdict, headline, next_steps) for a chat turn, from rules."""
+    if f.failed:
+        n = len(f.failed)
+        steps = [f"Review {s.get('target', 'the check')} — {s.get('detail', '')}."
+                 for s in f.failed[:MAX_STEPS]]
+        return "action_required", f"{n} check{'s' if n != 1 else ''} failed — action needed", steps
+    if f.needs_input:
+        return "review", "Waiting for more details", ["Reply with the detail the assistant asked for."]
+    steps = []
+    if f.lookup_errors:
+        steps.append("Some Knowledge Graph lookups failed; the answer may be incomplete. Ask again later.")
+    if f.model_unavailable:
+        steps.append("Keyword rules read the request because the language model could not be reached; "
+                     "rephrase the question if the answer does not fit.")
+    if steps:
+        return "review", "Answered, with limited help", steps
+    return "clear", "Answered", []
+
+
+def fallback_turn(f: TurnFacts) -> str:
+    text = f'You asked "{f.question}".' if f.question else "A question was asked."
+    if f.goal:
+        text += f" It was read as a request to {f.goal}"
+        text += f", using {f.lookups} Knowledge Graph lookup(s)." if f.lookups else "."
+    text += (" The assistant asked for more details." if f.needs_input
+             else " The assistant answered.")
+    return text
+
+
+def _prompt_turn(f: TurnFacts, verdict: str, headline: str) -> str:
+    facts = {"question": f.question, "understood_as": f.goal, "recognised": f.recognised,
+             "knowledge_graph_lookups": f.lookups, "answer_start": f.answer,
+             "asked_for_more_details": f.needs_input, "verdict": verdict, "headline": headline}
+    return ("You are the Review Agent of an audit assistant. Using ONLY these facts, write a "
+            "wrap-up of this chat turn in 1 or 2 short sentences (under 40 words): what the user "
+            "asked and how the assistant answered. Do not invent numbers, names, laws or "
+            "standards, and do not give advice.\n"
+            f"Facts: {json.dumps(facts, ensure_ascii=False)}\n"
+            'Reply as JSON: {"summary": "..."}')
+
+
+async def review_turn(stream_id: str, run_key: str, status: str | None = None) -> dict | None:
+    """Review one finished Copilot turn and stream the result (live only). Never raises."""
+    base = {"case_id": stream_id, "run_key": run_key, "run_kind": "copilot", "agent_name": AGENT_NAME}
+    try:
+        await _publish(stream_id, None, {**base, "event_type": "insight_pending"})
+        facts = observe_turn(stream_id, run_key, status)
+        verdict, headline, next_steps = decide_turn(facts)
+        return await _deliver(stream_id, None, base, verdict, headline, next_steps,
+                              _prompt_turn(facts, verdict, headline), fallback_turn(facts))
+    except Exception:
+        logger.exception("Review agent failed for chat=%s — non-fatal", stream_id)
         return None
 
 

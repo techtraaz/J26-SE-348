@@ -26,7 +26,8 @@ async def _fresh_state():
                   trace_reader._run_ids, sse_manager._history):
         state.clear()
     trace_reader._pending_rows.clear()
-    with patch.object(trace_reader.review_agent, "review_run", AsyncMock()):
+    with patch.object(trace_reader.review_agent, "review_run", AsyncMock()), \
+            patch.object(trace_reader.review_agent, "review_turn", AsyncMock()):
         yield
 
 
@@ -109,3 +110,13 @@ async def test_copilot_steps_in_the_same_batch_do_not_drop_audit_steps():
     rows = await db.get_traces_for_case("ACME-1")
     assert sum(r["event_type"] == "step" for r in rows) == sum(
         e["event_type"] == "step" for e in audit)
+
+
+async def test_every_finished_chat_turn_is_sent_to_the_review_agent():
+    for state in (trace_reader._last_seen, trace_reader._step_counters, sse_manager._history):
+        state.clear()
+    with patch.object(trace_reader.review_agent, "review_turn", AsyncMock()) as review_turn:
+        await trace_reader.process_batch(_events())
+    turns = [e for e in _events() if e["event_type"] == "copilot_end"]
+    assert review_turn.await_count == len(turns) == 2
+    assert {c.args[0] for c in review_turn.await_args_list} == {"ACME-1", GENERAL_CHAT}

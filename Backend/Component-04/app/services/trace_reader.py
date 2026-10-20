@@ -326,6 +326,8 @@ async def _handle_copilot(evt: CallbackEvent) -> None:
         await _publish(evt, {"event_type": "run_end", "detail": detail, "intent": evt.intent,
                              "status": evt.status, "duration_ms": evt.duration_ms,
                              "step_index": step})
+        # Fire-and-forget: the Review Agent wraps up the chat turn
+        asyncio.create_task(review_agent.review_turn(evt.case_id, evt.run_key, evt.status))
 
     # Then persist to SQLite (non-fatal if it fails)
     try:

@@ -23,7 +23,8 @@ async def _replayed():
                   trace_reader._run_ids, sse_manager._history):
         state.clear()
     trace_reader._pending_rows.clear()
-    with patch.object(trace_reader.review_agent, "review_run", AsyncMock()):
+    with patch.object(trace_reader.review_agent, "review_run", AsyncMock()), \
+            patch.object(trace_reader.review_agent, "review_turn", AsyncMock()):
         await trace_reader.process_batch(json.loads(FIXTURE.read_text(encoding="utf-8")))
     yield
 
@@ -96,3 +97,38 @@ def test_faithfulness_check():
     assert not review_agent.is_faithful("12 findings were raised.", prompt)
     assert not review_agent.is_faithful("", prompt)
     assert not review_agent.is_faithful("x" * 400, prompt)
+
+
+# --- Copilot chat turns ---------------------------------------------------------------
+
+def _turn_key(stream: str) -> str:
+    return next(e["run_key"] for e in sse_manager.history(stream) if e["event_type"] == "run_start")
+
+
+async def test_an_answered_chat_turn_gets_a_wrap_up():
+    with _llm("You asked why CHK-001 failed on case ACME-1 and the assistant explained the finding."):
+        review = await review_agent.review_turn("ACME-1", _turn_key("ACME-1"), "done")
+    assert (review["run_kind"], review["verdict"], review["headline"]) == ("copilot", "clear", "Answered")
+    assert review["source"] == "ai" and review["next_steps"] == []
+    turn = [e["event_type"] for e in sse_manager.history("ACME-1")
+            if e.get("run_key") == review["run_key"] and e.get("agent_name") == "review_agent"]
+    assert turn == ["insight_pending", "insight_summary"]
+
+
+async def test_chat_wrap_up_without_the_model_reads_the_trace():
+    with _llm(None):
+        review = await review_agent.review_turn("ACME-1", _turn_key("ACME-1"), "done")
+    assert review["source"] == "rules"
+    assert review["summary"].startswith('You asked "why did CHK-001 fail on case ACME-1?".')
+    assert "explain why a finding was raised" in review["summary"]
+
+
+def test_chat_verdicts():
+    asked = review_agent.TurnFacts(question="add this", needs_input=True)
+    assert review_agent.decide_turn(asked)[:2] == ("review", "Waiting for more details")
+    offline = review_agent.TurnFacts(question="hey", model_unavailable=True)
+    verdict, headline, steps = review_agent.decide_turn(offline)
+    assert (verdict, headline) == ("review", "Answered, with limited help")
+    assert "language model could not be reached" in steps[0]
+    failed = review_agent.TurnFacts(failed=[{"target": "CHK-004 on TXN", "detail": "cash out with no asset in"}])
+    assert review_agent.decide_turn(failed)[0] == "action_required"
