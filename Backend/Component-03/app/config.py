@@ -35,7 +35,8 @@ def _flag(name: str, default: bool) -> bool:
     return os.getenv(name, str(default)).strip().lower() in {"1", "true", "yes", "on"}
 
 
-_load_dotenv(Path(__file__).resolve().parents[1] / ".env")
+COMPONENT_ROOT = Path(__file__).resolve().parents[1]
+_load_dotenv(COMPONENT_ROOT / ".env")
 
 # --- LLM (self-hosted; narrates and reads requests, never decides a verdict) --
 # Provider: ollama | openai (any self-hosted OpenAI-compatible server: llama.cpp,
@@ -81,6 +82,11 @@ KG_TIMEOUT: float = float(os.getenv("KG_TIMEOUT", "5"))
 # How C2 searches the standards for the Copilot: keyword | semantic | hybrid.
 # hybrid uses C2's embeddings and falls back to keyword (with a note) when they are off.
 KG_SEARCH_MODE: str = os.getenv("KG_SEARCH_MODE", "hybrid").lower()
+# What the mock reads. Empty: the committed app/services/mock_data.json. For local
+# runs set it to a snapshot of the live KG (scripts/snapshot_kg.py), e.g.
+# data/kg_snapshot.json; relative paths start at Backend/Component-03. Tests always
+# use the committed file.
+KG_MOCK_FILE: str = os.getenv("KG_MOCK_FILE", "")
 
 # C2's DocumentType codes (Component-02 seed 05_audit.yaml) plus "unknown".
 ALLOWED_DOC_TYPES: frozenset[str] = frozenset({
