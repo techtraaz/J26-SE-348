@@ -185,3 +185,47 @@ def test_api_preview_then_confirm():
     unfinished = {"case_id": "API-R", "documents": [{"extraction": {
         "document_id": "d", "run": {"status": "running"}, "regions": []}}]}
     assert client.post("/audit/intake/c1/preview", json=unfinished).status_code == 422
+
+
+# --- C1's real contract 0.1 (Backend/Component-01/app/schemas/review.py) ----------------
+
+C1_CONTRACT_01 = {  # as GET /api/v1/documents/{id}/verified returns it, plus the export's tag
+    "schema_version": "0.1",
+    "document_id": "6f1c2a9e-3b7d-4c1e-9f0a-2d5b8e7c4a11", "version": 2,
+    "based_on_run_id": "a91e7d3c-5f2b-4e8a-b1c6-9d0f3e2a7b55", "confirmed_by": None,
+    "confirmed_at": "2026-10-20T09:00:00+00:00",
+    "lines": [
+        {"line_id": "0b6f0a51-1c2d-4e3f-8a9b-0c1d2e3f4a5b", "page": 1, "sequence": 1, "text": "TAX INVOICE",
+         "confidence": 0.99, "box": [250, 80, 400, 100], "provenance": "paddleocr", "escalated": None,
+         "human_action": "accepted"},
+        {"line_id": "1c7a1b62-2d3e-4f40-9b0c-1d2e3f4a5b6c", "page": 1, "sequence": 2, "text": "Date: 12/03/2026",
+         "confidence": 0.98, "box": [420, 110, 560, 125], "provenance": "paddleocr", "escalated": None,
+         "human_action": "accepted"},
+        {"line_id": "2d8b2c73-3e4f-4051-8c1d-2e3f4a5b6c7d", "page": 1, "sequence": 3,
+         "text": "Grand Total Rs. 177,000.00", "confidence": 0.41, "box": [380, 255, 560, 270],
+         "provenance": "paddleocr", "escalated": None, "human_action": "edited"},
+        {"line_id": "3e9c3d84-4f50-4162-9d2e-3f4a5b6c7d8e", "page": 1, "sequence": 4,
+         "text": "Payment Method: Credit", "confidence": None, "box": [40, 300, 260, 315],
+         "provenance": "human", "escalated": None, "human_action": "added"},
+    ],
+}
+
+
+def test_c1_contract_01_flows_through_review_and_audit(kg, store):
+    p = c1_review.preview("C1-REAL", [C1Input.model_validate({"verified": C1_CONTRACT_01})], kg)[0]
+    assert p["human_verified"] and p["doc_type"] == "invoice"
+    assert p["suggestions"]["period_year"]["value"] == 2026
+    assert fields_of(p) == {"amount": 177000.0, "purchase_basis": "credit"}
+
+    out = c1_review.confirm_case("C1-REAL", [ReviewedDocument.model_validate({
+        "verified": C1_CONTRACT_01, "doc_type": "invoice", "period_year": 2026,
+        "fields": [{"field": f["field"], "line_id": f["line"]["line_id"]} for f in p["fields"]]})], kg)
+    d = out["case"]["docs"][0]
+    assert d["doc_id"] == C1_CONTRACT_01["document_id"]  # C1's id is the doc id everywhere
+    assert d["confidences"] == {"amount": 1.0, "purchase_basis": 1.0}  # verified: raw 0.41 does not count
+    assert d["source"]["verified_version"] == 2
+    assert not any("machine extraction" in i for i in out["issues"])
+
+    result = orchestrator.run_case(intake.normalize_case(out["case"]), kg, store=store)
+    pol = next(f for f in result.findings if f.rule_id == "POL-07")
+    assert any("C1 verified record v2" in s for s in pol.reasoning_chain)
