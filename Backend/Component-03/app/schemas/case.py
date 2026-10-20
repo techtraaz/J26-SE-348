@@ -21,6 +21,7 @@ class DocumentSource(BaseModel):
 class AuditDocument(BaseModel):
     doc_id: str
     case_id: str
+    name: str | None = None  # what people call it, e.g. C1's file name; never used in checks
     doc_type: str = "unknown"  # a C2 DocumentType code, or unknown
     period_year: int
     parent_doc_id: str | None = None  # the document this one supports
@@ -33,3 +34,6 @@ class AuditDocument(BaseModel):
 class AuditCase(BaseModel):
     case_id: str
     docs: list[AuditDocument] = Field(default_factory=list)
+    # Amount below which a misstatement is not material (SLAuS 320), set by the
+    # auditor per case. None = every difference counts at the rule's severity.
+    materiality: float | None = None

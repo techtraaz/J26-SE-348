@@ -3,6 +3,7 @@ import urllib.error
 
 import pytest
 
+from app import config
 from app.services import kg_client
 from app.services.kg_client import (
     FallbackKGClient,
@@ -103,3 +104,18 @@ def test_mock_has_c2_rules():
     ids = {r.rule_id for r in kg.get_check_rules("balance_sheet")}
     assert {"CHK-001", "CHK-004", "CHK-007", "CHK-011"} <= ids
     assert kg.search("inventories net realisable")[0]["section"] == "LKAS 2:9"
+
+
+def test_search_uses_c2_hybrid_mode_by_default(monkeypatch):
+    calls = []
+
+    def get(path, params):
+        calls.append((path, params))
+        return {"query": params["q"], "mode": params["mode"], "results": [
+            {"section": "LKAS 2:9", "standard": "LKAS 2", "text": "lower of cost and NRV"}], "note": None}
+    kg = LiveKGClient("http://c2", transport=get)
+    assert kg.search("inventory measurement")[0]["section"] == "LKAS 2:9"
+    assert calls[0] == ("/query/search", {"q": "inventory measurement", "mode": "hybrid", "limit": 5})
+    monkeypatch.setattr(config, "KG_SEARCH_MODE", "nonsense")
+    LiveKGClient("http://c2", transport=get).search("inventory measurement")
+    assert calls[-1][1]["mode"] == "hybrid"  # an unknown setting never reaches C2

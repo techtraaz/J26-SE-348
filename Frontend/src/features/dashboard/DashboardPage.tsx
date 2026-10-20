@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { c3, chat } from "@/lib/apiClient";
 import { VerifiedDocumentPicker } from "@/features/documents/VerifiedDocumentPicker";
 import { useUI } from "@/store/ui";
 import { FindingCard } from "@/components/audit/FindingCard";
-import type { CaseSummary, ChatMessage, Finding } from "@/types/audit";
+import { Plus } from "lucide-react";
+import { IconButton } from "@/components/ui/IconButton";
+import type { ChatMessage, Finding } from "@/types/audit";
 
 const STARTERS = [
   "Summarise this case",
@@ -14,17 +16,8 @@ const STARTERS = [
 ];
 const SHOWN_FINDINGS = 6;
 
-// A case in the sidebar: audited (with its latest summary) or started here and not audited yet.
-type SidebarCase = { case_id: string; summary: CaseSummary | null };
 // Shown only until the server answers (pending) or because sending failed (not saved).
 type LocalMessage = { key: string; role: "user" | "error"; text: string; attached?: number };
-
-function timeAgo(iso: string): string {
-  const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
-  if (mins < 60) return `${mins}m ago`;
-  if (mins < 1440) return `${Math.round(mins / 60)}h ago`;
-  return `${Math.round(mins / 1440)}d ago`;
-}
 
 /** The reply text lists findings as "- RULE ..." lines; drop those when cards show them. */
 function replyText(content: string, findings: Finding[]): string {
@@ -38,8 +31,17 @@ function replyText(content: string, findings: Finding[]): string {
 
 export function DashboardPage() {
   const qc = useQueryClient();
-  const { selectedCase, setCase, newCase, draftCases, generalSessionId, staged, clearStaged } = useUI();
+  const { selectedCase, newCase, generalSessionId, staged, clearStaged } = useUI();
   const [input, setInput] = useState("");
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // The message box grows with its text, up to a limit, then scrolls.
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
+  }, [input]);
   const [busy, setBusy] = useState(false);
   // Case documents come only from verified Component-01 documents (D16), picked here.
   const [pickingFor, setPickingFor] = useState<string | null>(null);
@@ -47,18 +49,10 @@ export function DashboardPage() {
   const endRef = useRef<HTMLDivElement>(null);
 
   const sessionId = selectedCase ?? generalSessionId; // a case's chat id is its case id
-  const cases = useQuery({ queryKey: ["c3-cases"], queryFn: c3.cases, retry: false });
   const history = useQuery({ queryKey: ["chat", sessionId], queryFn: () => chat.messages(sessionId), retry: false });
   const saved = history.data ?? [];
   const pending = local[sessionId] ?? [];
   const attached = selectedCase ? staged[selectedCase] ?? [] : [];
-
-  const sidebar = useMemo((): SidebarCase[] => {
-    const audited = cases.data ?? [];
-    const known = new Set(audited.map((c) => c.case_id));
-    const drafts = draftCases.filter((id) => !known.has(id)).map((id) => ({ case_id: id, summary: null }));
-    return [...drafts, ...audited.map((c) => ({ case_id: c.case_id, summary: c }))];
-  }, [cases.data, draftCases]);
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); },
             [saved.length, pending.length, busy]);
@@ -90,62 +84,14 @@ export function DashboardPage() {
     setBusy(false);
   }
 
-  async function clearChat() {
-    try {
-      await chat.clear(sessionId);
-    } catch {
-      // nothing saved yet for this chat
-    }
-    setLocal((s) => ({ ...s, [sessionId]: [] }));
-    await qc.invalidateQueries({ queryKey: ["chat", sessionId] });
-  }
-
   const empty = saved.length === 0 && pending.length === 0;
   const last = saved[saved.length - 1];
 
   return (
     <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
-      {/* ── Cases (one chat per case) ── */}
-      <aside style={{
-        width: "240px", flexShrink: 0, borderRight: "1px solid var(--border-light)",
-        padding: "20px 16px", display: "flex", flexDirection: "column", gap: "4px", overflowY: "auto",
-      }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
-          <span style={{ fontWeight: 600, fontSize: "13px", color: "var(--text-h)" }}>Cases</span>
-          <button
-            style={{
-              width: "24px", height: "24px", borderRadius: "6px", border: "1px solid var(--border)",
-              background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
-              color: "var(--text-muted)", fontSize: "16px", fontFamily: "inherit",
-            }}
-            onClick={() => newCase()}
-            title="New case"
-          >+</button>
-        </div>
-
-        <SessionButton active={selectedCase === null} onClick={() => setCase(null)}
-                       title="General questions" meta="rules, standards, what-ifs" />
-        {cases.isError && (
-          <p style={{ fontSize: "12px", color: "var(--danger)", margin: "6px 4px" }}>
-            Cases unavailable: {(cases.error as Error).message}
-          </p>
-        )}
-        {sidebar.map((c) => (
-          <SessionButton key={c.case_id} active={selectedCase === c.case_id} onClick={() => setCase(c.case_id)}
-                         title={c.case_id} meta={c.summary ? caseMeta(c.summary) : "new · not audited"}
-                         right={c.summary ? timeAgo(c.summary.created_at) : ""} />
-        ))}
-      </aside>
-
       {/* ── Conversation ── */}
       <div style={{ flex: 1, display: "flex", flexDirection: "column", position: "relative", minWidth: 0 }}>
-        {!empty && (
-          <button onClick={clearChat} disabled={busy} title="Delete this chat's history (audits are kept)" style={{
-            position: "absolute", top: "12px", right: "20px", zIndex: 1, background: "none", border: "none",
-            cursor: "pointer", color: "var(--text-soft)", fontSize: "12px", fontFamily: "inherit",
-          }}>Clear chat</button>
-        )}
-        <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column" }}>
+        <div className="thin-scroll" style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column" }}>
           {empty ? (
             <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "48px 24px" }}>
               <h1 className="heading-serif" style={{ fontSize: "38px", marginBottom: "10px", color: "var(--text-h)" }}>
@@ -174,7 +120,7 @@ export function DashboardPage() {
               ))}
               {busy && (
                 <div style={{ display: "flex", alignItems: "flex-start" }}>
-                  <div style={{ padding: "12px 16px", borderRadius: "16px 16px 16px 4px", background: "var(--surface)", border: "1px solid var(--border-light)", fontSize: "14px", color: "var(--text-muted)" }}>
+                  <div style={{ padding: "12px 16px", borderRadius: "16px 16px 16px 4px", background: "var(--surface)", border: "1px solid var(--border-strong)", fontSize: "14px", color: "var(--text-muted)" }}>
                     <span className="thinking-dots">Thinking</span>
                   </div>
                 </div>
@@ -195,68 +141,50 @@ export function DashboardPage() {
               </span>
             </div>
           )}
-          <div style={{
-            background: "var(--input-bg)", borderRadius: "var(--radius-xl)", padding: "12px 16px",
-            display: "flex", flexDirection: "column", gap: "8px",
-          }}>
-            <input
-              type="text"
+          {/* Clicking anywhere in the box (except its buttons) puts the cursor in the text. */}
+          <div
+            className="chat-composer"
+            onMouseDown={(e) => {
+              if (!(e.target as HTMLElement).closest("button, textarea")) {
+                e.preventDefault();
+                inputRef.current?.focus();
+              }
+            }}
+            style={{
+              background: "var(--input-bg)", borderRadius: "var(--radius-xl)", padding: "14px 14px 10px 18px",
+              display: "flex", flexDirection: "column", gap: "10px", cursor: "text",
+              border: "1px solid var(--border-strong)", boxShadow: "var(--shadow-sm)",
+            }}
+          >
+            <textarea
+              ref={inputRef}
+              rows={1}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
               placeholder={attached.length ? "Say what to do with the documents, or press Enter to audit them" : "Message..."}
-              style={{ border: "none", outline: "none", background: "transparent", fontSize: "14px", color: "var(--text-h)", fontFamily: "inherit", width: "100%" }}
+              aria-label="Message"
+              style={{
+                border: "none", outline: "none", background: "transparent", fontSize: "14px", lineHeight: "22px",
+                color: "var(--text-h)", fontFamily: "inherit", width: "100%", resize: "none", padding: 0,
+                minHeight: "22px", maxHeight: "200px", overflowY: "auto",
+              }}
             />
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <button onClick={() => setPickingFor(selectedCase ?? newCase())} title="Add verified documents from the Library"
-                      style={{
-                        display: "flex", alignItems: "center", gap: "6px", background: "none", border: "none",
-                        cursor: "pointer", color: "var(--text-muted)", padding: "2px", fontSize: "13px", fontFamily: "inherit",
-                      }}>
-                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                  <polyline points="14 2 14 8 20 8" />
-                  <polyline points="9 15 11 17 15 13" />
-                </svg>
-                Add verified documents
-              </button>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px" }}>
+              <IconButton tip="Add verified documents" tipSide="top" bordered
+                          onClick={() => setPickingFor(selectedCase ?? newCase())}>
+                <Plus size={17} strokeWidth={1.7} />
+              </IconButton>
               {pickingFor && <VerifiedDocumentPicker caseId={pickingFor} onClose={() => setPickingFor(null)} />}
               <SendButton ready={Boolean(input.trim() || attached.length) && !busy} onClick={() => send()} />
             </div>
           </div>
+          <p style={{ textAlign: "center", fontSize: "11px", color: "var(--text-soft)", marginTop: "8px" }}>
+            NOMOS can make mistakes. Verify important findings against the evidence.
+          </p>
         </div>
       </div>
     </div>
-  );
-}
-
-function caseMeta(c: CaseSummary): string {
-  if (c.status === "not_auditable") return `v${c.version} · not auditable`;
-  return `v${c.version} · ${c.findings} finding(s)${c.high ? `, ${c.high} high` : ""}`;
-}
-
-function SessionButton({ active, onClick, title, meta, right }: {
-  active: boolean; onClick: () => void; title: string; meta: string; right?: string;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        display: "flex", alignItems: "center", gap: "10px", padding: "8px 10px", borderRadius: "8px",
-        border: "none", background: active ? "var(--sidebar-active)" : "transparent", cursor: "pointer",
-        width: "100%", textAlign: "left", fontFamily: "inherit", transition: "background 0.15s",
-      }}
-      onMouseEnter={(e) => { if (!active) e.currentTarget.style.background = "var(--sidebar-hover)"; }}
-      onMouseLeave={(e) => { if (!active) e.currentTarget.style.background = "transparent"; }}
-    >
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: "13px", color: "var(--text-h)", fontWeight: active ? 500 : 400, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          {title}
-        </div>
-        <div style={{ fontSize: "11px", color: "var(--text-soft)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{meta}</div>
-      </div>
-      {right && <span style={{ fontSize: "11px", color: "var(--text-soft)", flexShrink: 0 }}>{right}</span>}
-    </button>
   );
 }
 
@@ -267,9 +195,10 @@ function Bubble({ user, error, children }: { user: boolean; error?: boolean; chi
         maxWidth: "85%", padding: "12px 16px",
         borderRadius: user ? "16px 16px 4px 16px" : "16px 16px 16px 4px",
         background: user ? "var(--text-h)" : "var(--surface)",
-        color: user ? "#f5f0ea" : error ? "var(--danger)" : "var(--text)",
+        color: user ? "var(--bg)" : error ? "var(--danger)" : "var(--text)",
         fontSize: "14px", lineHeight: "1.6", whiteSpace: "pre-wrap",
-        border: user ? "none" : `1px solid ${error ? "var(--danger)" : "var(--border-light)"}`,
+        border: user ? "none" : `1px solid ${error ? "var(--danger)" : "var(--border-strong)"}`,
+        boxShadow: user ? "none" : "var(--shadow-sm)",
       }}>{children}</div>
     </div>
   );
@@ -286,7 +215,7 @@ function Message({ m, showSuggestions, busy, onPick }: {
       {m.role === "report" || m.role === "system" ? (
         <div style={{
           maxWidth: "85%", padding: "10px 14px", borderRadius: "var(--radius)", fontSize: "13px",
-          border: "1px dashed var(--border)", color: "var(--text)", background: "var(--accent-bg)",
+          border: "1px dashed var(--border-strong)", color: "var(--text)", background: "var(--accent-bg)",
         }}>
           <span style={{ fontWeight: 600, color: "var(--text-h)" }}>
             {m.role === "report" ? `Report${m.refs?.version ? ` · v${m.refs.version}` : ""}` : "Notice"} ({m.source.toUpperCase()})
@@ -326,7 +255,7 @@ function SendButton({ ready, onClick }: { ready: boolean; onClick: () => void })
       background: ready ? "var(--text-h)" : "var(--border)", cursor: ready ? "pointer" : "default",
       display: "flex", alignItems: "center", justifyContent: "center", transition: "background 0.2s",
     }}>
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={ready ? "#f5f0ea" : "var(--text-soft)"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={ready ? "var(--bg)" : "var(--text-soft)"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <line x1="22" y1="2" x2="11" y2="13" />
         <polygon points="22 2 15 22 11 13 2 9 22 2" />
       </svg>
@@ -339,7 +268,7 @@ function Chips({ items, onPick, disabled }: { items: string[]; onPick: (t: strin
     <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", maxWidth: "640px", justifyContent: "inherit" }}>
       {items.map((t) => (
         <button key={t} onClick={() => onPick(t)} disabled={disabled} style={{
-          padding: "6px 12px", borderRadius: "var(--radius-pill)", border: "1px solid var(--border)",
+          padding: "6px 12px", borderRadius: "var(--radius-pill)", border: "1px solid var(--border-strong)",
           background: "var(--surface)", color: "var(--text-h)", fontSize: "12px", cursor: disabled ? "default" : "pointer",
           fontFamily: "inherit",
         }}>{t}</button>

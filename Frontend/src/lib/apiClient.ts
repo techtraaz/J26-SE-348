@@ -52,15 +52,17 @@ export const c3 = {
   // With a sessionId the result is also written into that chat.
   run: (body: AuditCase, sessionId?: string) =>
     request<AuditResult>(env.c3Base, `/audit/run${session(sessionId)}`, json(body)),
-  appendEvidence: (caseId: string, docs: AuditDocument[], sessionId?: string) =>
+  // materiality: a new value for the case; omitted keeps the case's current one.
+  appendEvidence: (caseId: string, docs: AuditDocument[], sessionId?: string, materiality?: number) =>
     request<AuditResult>(env.c3Base, `/audit/${encodeURIComponent(caseId)}/evidence${session(sessionId)}`,
-      json({ docs })),
+      json({ docs, ...(materiality != null ? { materiality } : {}) })),
   // Library review of Component-01 documents: preview saves nothing; confirm returns case documents.
   previewC1: (caseId: string, documents: (C1Record & { doc_type?: string })[]) =>
     request<{ documents: DocumentPreview[] }>(env.c3Base, "/audit/intake/c1/preview",
       json({ case_id: caseId, documents })).then((r) => r.documents),
   confirmC1: (caseId: string, documents: (C1Record & {
     doc_type: string; period_year: number; parent_doc_id?: string | null; fields: FieldDecision[];
+    name?: string;
   })[]) =>
     request<{ case: AuditCase; issues: string[] }>(env.c3Base, "/audit/intake/c1/confirm",
       json({ case_id: caseId, documents })),

@@ -1,4 +1,4 @@
-"""Offline tests: no LLM, no Redis, no MongoDB, no live KG."""
+"""Offline tests: no LLM, no MongoDB, no live KG."""
 import pytest
 
 from app import config
@@ -10,9 +10,9 @@ from app.services.kg_client import FallbackKGClient, MockKGClient
 @pytest.fixture(autouse=True)
 def _offline(monkeypatch):
     monkeypatch.setattr(config, "LLM_ENABLED", False)
-    monkeypatch.setattr(config, "EVENTS_ENABLED", False)
     monkeypatch.setattr(config, "KG_MODE", "mock")
     monkeypatch.setattr(config, "KG_URL", "")
+    monkeypatch.setattr(config, "KG_MOCK_FILE", "")  # tests use the committed mock, never a snapshot
     monkeypatch.setattr(config, "MONGODB_URI", "")
     monkeypatch.setattr(config, "STORE_MODE", "memory")
     monkeypatch.setattr(store_mod, "_store", store_mod.MemoryStore())
@@ -32,17 +32,6 @@ def store():
 @pytest.fixture
 def chats():
     return chat_store_mod.default_chat_store()
-
-
-class FakeRedis:
-    def __init__(self, fail: bool = False):
-        self.sent: list[tuple[str, str]] = []
-        self.fail = fail
-
-    def publish(self, channel, text):
-        if self.fail:
-            raise ConnectionError("redis down")
-        self.sent.append((channel, text))
 
 
 def doc(doc_id, doc_type, fields, year=2026, **extra):

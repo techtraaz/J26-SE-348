@@ -3,6 +3,7 @@
 export interface AuditDocument {
   doc_id: string;
   case_id?: string;
+  name?: string | null; // what people call it, e.g. C1's file name
   doc_type: string; // a Component-02 DocumentType code, or "unknown"
   period_year: number;
   parent_doc_id?: string | null;
@@ -17,6 +18,9 @@ export interface AuditDocument {
 export interface AuditCase {
   case_id: string;
   docs: AuditDocument[];
+  // Amount below which a difference is not material (SLAuS 320). Findings below it
+  // stay, at low severity. Omitted = every difference counts.
+  materiality?: number | null;
 }
 
 export type FindingCategory = "arithmetic" | "ledger" | "format" | "compliance" | "possible_fraud";
@@ -79,6 +83,7 @@ export interface CaseSummary {
   findings: number;
   high: number;
   needs_review: number;
+  materiality: number | null;
 }
 
 export type CopilotGroup = "rule_query" | "case_query" | "evidence_append" | "fresh_audit" | "other";

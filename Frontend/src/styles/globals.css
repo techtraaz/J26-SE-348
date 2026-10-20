@@ -56,3 +56,171 @@ body {
 
 .num, td.amount { font-variant-numeric: tabular-nums; }
 code, .id { font-family: 'JetBrains Mono Variable', monospace; }
+
+/* ── XAI Panel Animations ── */
+@keyframes xai-slide-in {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes xai-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+@keyframes xai-spin {
+  to { transform: rotate(360deg); }
+}
+
+#xai-panel .xai-spin {
+  animation: xai-spin 0.9s linear infinite;
+  flex-shrink: 0;
+}
+
+/* Thinking timeline rows (Claude-style dropdown) */
+#xai-panel .xai-row {
+  transition: background 0.15s ease;
+}
+#xai-panel .xai-row:not(:disabled):hover {
+  background: var(--sidebar-hover);
+}
+#xai-panel .xai-headline:hover {
+  color: var(--text-h);
+}
+#xai-panel .xai-step-failed {
+  background: color-mix(in srgb, var(--danger) 9%, transparent);
+}
+#xai-panel .xai-step-failed .xai-row:not(:disabled):hover {
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+}
+
+/* XAI Panel scrollbar styling */
+#xai-panel ::-webkit-scrollbar {
+  width: 4px;
+}
+#xai-panel ::-webkit-scrollbar-track {
+  background: transparent;
+}
+#xai-panel ::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+#xai-panel ::-webkit-scrollbar-thumb:hover {
+  background: var(--text-soft);
+}
+
+/* ── Chat composer: show where to type ── */
+.chat-composer {
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.chat-composer:focus-within {
+  border-color: var(--text-muted) !important;
+  box-shadow: var(--shadow-md) !important;
+}
+
+/* ── Icon buttons with a tooltip (sidebar toggle, new case, add documents) ── */
+.icon-btn {
+  position: relative;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.icon-btn:hover {
+  background: var(--sidebar-hover) !important;
+  color: var(--text-h) !important;
+}
+.icon-btn:focus-visible {
+  outline: 2px solid var(--text-muted);
+  outline-offset: 2px;
+}
+.icon-btn[data-tip]:hover::after {
+  content: attr(data-tip);
+  position: absolute;
+  z-index: 50;
+  white-space: pre;
+  pointer-events: none;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.3;
+  background: var(--text-h);
+  color: var(--bg);
+  box-shadow: var(--shadow-md);
+}
+.icon-btn[data-tip-side="bottom"]:hover::after { top: calc(100% + 6px); left: 0; }
+.icon-btn[data-tip-side="bottom-end"]:hover::after { top: calc(100% + 6px); right: 0; }
+.icon-btn[data-tip-side="top"]:hover::after { bottom: calc(100% + 6px); left: 0; }
+.icon-btn[data-tip-side="right"]:hover::after { left: calc(100% + 8px); top: 50%; transform: translateY(-50%); }
+
+
+/* ── Sidebar rows ── */
+.side-row {
+  transition: background 0.15s ease;
+}
+.side-row:not(.side-row-active):hover {
+  background: var(--sidebar-hover) !important;
+}
+
+/* ── Thin, quiet scrollbars (chat, sidebar) ── */
+.thin-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+.thin-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+.thin-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.thin-scroll::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 6px;
+}
+.thin-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--text-soft);
+}
+
+/* ── Sidebar chat options ("...") ── */
+.side-more {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease, background 0.15s ease;
+}
+.side-item:hover .side-more,
+.side-item-active .side-more,
+.side-item-menu .side-more,
+.side-more:focus-visible {
+  opacity: 1;
+}
+.side-more:hover,
+.side-item-menu .side-more {
+  background: var(--sidebar-active);
+  color: var(--text-h);
+}
+.side-item:hover .side-time,
+.side-item-active .side-time,
+.side-item-menu .side-time {
+  opacity: 0;
+}
+.menu-item:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--danger) 10%, transparent) !important;
+}
+

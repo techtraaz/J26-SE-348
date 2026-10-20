@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from app import config
 from app.schemas.chat import ExternalMessage
 from app.schemas.copilot import SESSION_ID_PATTERN, CopilotQuery
-from app.services import c1_review, chat, copilot, intake, orchestrator, rules
+from app.services import c1_fetch, c1_review, chat, copilot, intake, orchestrator, rules
 from app.services.chat_store import default_chat_store
 from app.services.kg_client import KGError, default_kg
 from app.services.store import StoreError, case_summary, default_store
@@ -23,7 +23,7 @@ CASE_BODY = Body(..., examples=[{"case_id": "CASE-1", "docs": [{
     "doc_id": "BS-2026", "doc_type": "balance_sheet", "period_year": 2026,
     "fields": {"assets": 50000, "liabilities": 30000, "capital": 20000},
     "confidences": {"assets": 0.97}, "methods": {"assets": "paddleocr"}}]}])
-DOCS_BODY = Body(..., examples=[{"docs": []}])
+DOCS_BODY = Body(..., examples=[{"docs": [], "materiality": 50000}])
 SessionId = Annotated[str, Path(pattern=SESSION_ID_PATTERN)]
 CaseId = Annotated[str, Path(pattern=SESSION_ID_PATTERN)]
 
@@ -36,6 +36,12 @@ class C1PreviewRequest(BaseModel):
 class C1ConfirmRequest(BaseModel):
     case_id: str = Field(pattern=SESSION_ID_PATTERN)
     documents: list[c1_review.ReviewedDocument] = Field(min_length=1, max_length=50)
+
+
+class C1RunRequest(BaseModel):
+    case_id: str = Field(pattern=SESSION_ID_PATTERN)
+    documents: list[c1_fetch.C1DocumentRequest] = Field(min_length=1, max_length=50)
+    materiality: float | None = Field(None, ge=0)
 
 
 def _case(payload: Any):
@@ -107,6 +113,32 @@ def audit_run(payload: dict = CASE_BODY, session_id: str | None = None):
     return result.model_dump()
 
 
+@app.post("/audit/run/c1")
+def audit_run_c1(body: C1RunRequest, session_id: str | None = None):
+    """Audit C1 documents by id in one call: C3 fetches their verified records from
+    C1, maps the fields as the Library review would suggest, and runs the audit
+    (saved as the next version, like /audit/run)."""
+    _check_session(session_id)
+    kg = default_kg()
+    try:
+        docs = c1_fetch.reviewed_documents(body.case_id, body.documents, kg)
+        case = c1_review.confirm_case(body.case_id, docs, kg)["case"]
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except intake.IntakeError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except c1_fetch.C1Unavailable as exc:
+        raise HTTPException(status_code=502, detail=f"Component-01 error: {exc}") from exc
+    except KGError as exc:
+        raise HTTPException(status_code=502, detail=f"Knowledge graph error: {exc}") from exc
+    if body.materiality is not None:
+        case["materiality"] = body.materiality
+    result = _store_call(orchestrator.run_case, _case(case), kg)
+    if session_id:
+        _store_call(chat.record_audit, default_chat_store(), session_id, result)
+    return result.model_dump()
+
+
 @app.post("/audit/run/stream")
 def audit_run_stream(payload: dict = CASE_BODY):
     """One NDJSON line per finished agent, then the saved result."""
@@ -128,7 +160,8 @@ def audit_append(case_id: str, payload: dict = DOCS_BODY, session_id: str | None
     """Add documents to the latest version of a case and re-run (new version)."""
     _check_session(session_id)
     try:
-        result = _store_call(orchestrator.append_evidence, case_id, payload.get("docs", []))
+        result = _store_call(lambda: orchestrator.append_evidence(
+            case_id, payload.get("docs", []), materiality=payload.get("materiality")))
         if session_id:
             _store_call(chat.record_audit, default_chat_store(), session_id, result)
         return result.model_dump()

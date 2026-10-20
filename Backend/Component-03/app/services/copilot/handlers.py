@@ -4,6 +4,7 @@ order is the tie-break order of the rules classifier (more specific first).
 Every reply is built from stored results or KG data in code. The LLM never
 writes a reply and never decides a verdict.
 """
+import re
 from collections import Counter
 from dataclasses import dataclass, field
 
@@ -13,7 +14,6 @@ from app.services import intake, orchestrator
 from app.services.copilot import whatif
 from app.services.copilot.entities import Entities
 from app.services.copilot.registry import REGISTRY, intent
-from app.services.events import EventPublisher
 from app.services.kg_client import KGClient
 from app.services.rules import fmt
 from app.services.store import MemoryStore, ResultStore
@@ -119,8 +119,7 @@ def whatif_check(turn: Turn) -> Reply:
         return Reply("I could not match the amounts to document fields. Say what each amount "
                      "is, e.g. 'invoice amount Rs 150,000, paid in cash'.", {"read": read})
     case = intake.normalize_case({"case_id": "WHATIF", "docs": [doc]})
-    result = orchestrator.run_case(case, turn.kg, store=MemoryStore(),
-                                   publisher=EventPublisher(silent_reason="what-if check"), narrate=False)
+    result = orchestrator.run_case(case, turn.kg, store=MemoryStore(), narrate=False)
     findings = [f.model_dump() for f in result.findings]
     rule_findings = [f for f in findings if not f["rule_id"].startswith("REV-")]
     shown = ", ".join(f"{k}={fmt(v) if isinstance(v, float) else v}" for k, v in read["fields"].items())
@@ -350,7 +349,8 @@ def search_cases(turn: Turn) -> Reply:
 @intent("rule_explain", group="rule_query",
         description="Explain what a rule checks and which standard it comes from.",
         examples=("explain CHK-004", "what is POL-07 based on?"),
-        patterns={r"\b(explain|meaning|mean|basis|based on|source)\b": 1.5, r"\bwhat (does|is)\b": 0.5},
+        # "mean"/"meaning" belong to standard_search; a named rule id is what makes this intent
+        patterns={r"\b(explain|basis|based on|source)\b": 1.5, r"\bwhat (does|is)\b": 0.5},
         signals={"rule_ids": 2.0, "case_ids": -1.5}, needs=("rule",),
         follow_ups=("Which rules apply to invoices?", "What does LKAS 2 say about inventories?"))
 def rule_explain(turn: Turn) -> Reply:
@@ -395,30 +395,127 @@ def rule_lookup(turn: Turn) -> Reply:
     return Reply("\n".join(lines), {"rules": data, "kg_source": turn.kg.source})
 
 
+# "define materiality", "what does net realisable value mean", "meaning of cash"
+_DEFINE = re.compile(r"\b(?:define|definition of|meaning of|what (?:is|are) meant by|what does)\s+"
+                     r"(?:the\s+)?(?:term\s+)?['\"]?([A-Za-z][A-Za-z '\-]{1,60}?)['\"]?"
+                     r"(?:\s+mean)?\s*\??\s*$", re.IGNORECASE)
+
+
+def _section_reply(turn: Turn) -> Reply | None:
+    shown, data = [], []
+    for ref in turn.entities.sections[:3]:
+        sec = turn.kg.get_section(ref)
+        if sec is None:
+            shown.append(f"{ref}: not found in the knowledge graph.")
+            continue
+        data.append(sec.model_dump())
+        text = f"{sec.id} ({sec.standard_title or sec.standard}, {sec.heading}): {sec.text}"
+        if sec.standard_status != "active":
+            text += f"\n  caution: {sec.standard} is {sec.standard_status}."
+        shown.append(text)
+    return Reply("\n".join(shown), {"sections": data, "kg_source": turn.kg.source}) if shown else None
+
+
+def _definition_reply(turn: Turn) -> Reply | None:
+    m = _DEFINE.search(turn.query.text.strip())
+    if not m:
+        return None
+    term = m.group(1).strip()
+    defs = turn.kg.get_definitions(term)
+    if defs:
+        lines = [f"{d.term}: {d.text}" + (f" (defined in {', '.join(d.defined_in)})" if d.defined_in else "")
+                 for d in defs[:3]]
+        return Reply("\n".join(lines), {"definitions": [d.model_dump() for d in defs],
+                                        "kg_source": turn.kg.source})
+    item = turn.kg.get_line_item(term.lower().replace(" ", "_").replace("-", "_"))
+    if item is None:
+        return None
+    text = f"{item.name or item.code} is a line item"
+    if item.statements:
+        text += f" in the {', '.join(item.statements)}"
+    if item.aliases:
+        text += f" (also written as {', '.join(item.aliases)})"
+    text += "."
+    if item.equations:
+        text += "\nUsed in: " + "; ".join(item.equations)
+    return Reply(text, {"line_item": item.model_dump(), "kg_source": turn.kg.source})
+
+
 @intent("standard_search", group="rule_query",
-        description="Look up what an accounting or auditing standard (LKAS, SLFRS, SLAuS) says "
-                    "about a topic.",
-        examples=("what does LKAS 2 say about inventories?", "define materiality"),
-        patterns={r"\b(what does|says?|say about|according to|standards?|paragraph|definition|define|"
-                  r"meaning of|requirement)\b": 1.5},
-        signals={"standards": 2.0},
+        description="Look up what an accounting or auditing standard (LKAS, SLFRS, SLAuS) says: a "
+                    "paragraph, a defined term, or a topic.",
+        examples=("what does LKAS 2 say about inventories?", "define net realisable value"),
+        patterns={r"\b(what does|says?|say about|according to|standards?|paragraph|para|definition|define|"
+                  r"meaning of|requirement|mean)\b": 1.5},
+        signals={"standards": 2.0, "sections": 1.0},
         follow_ups=("Which rules apply to a balance sheet?",))
 def standard_search(turn: Turn) -> Reply:
+    """An exact paragraph first ("LKAS 2:9"), then a defined term or line item
+    ("define net realisable value"), else a search of the standards."""
+    exact = _section_reply(turn) or _definition_reply(turn)
+    if exact is not None:
+        return exact
     hits = turn.kg.search(turn.query.text)
     if not hits:
-        return Reply("Nothing matched in the standards. Name a standard (e.g. LKAS 2) or a topic "
-                     "(e.g. inventories).", {"search": [], "kg_source": turn.kg.source})
+        return Reply("Nothing matched in the standards. Name a standard (e.g. LKAS 2), a paragraph "
+                     "(e.g. LKAS 2:9) or a topic (e.g. inventories).",
+                     {"search": [], "kg_source": turn.kg.source})
     lines = [f"- {h.get('section') or h.get('standard') or 'source'}: {h.get('text', '')}"
              for h in hits[:3]]
     return Reply("\n".join(lines), {"search": hits, "kg_source": turn.kg.source})
 
 
+# --- conversation ------------------------------------------------------------------
+# Greetings and thanks match only when they are the whole message, so
+# "hi, list the findings" still goes to list_findings.
+CONVERSATION = ("greeting", "thanks", "out_of_scope", "help")
+
+
+def _case_hint(turn: Turn) -> str:
+    rec = turn.record() if turn.case_id else None
+    if rec is None:
+        return "Pick a case in the Library, or ask me about a rule or a standard."
+    rule = [f for f in rec.get("findings", []) if not str(f.get("rule_id", "")).startswith("REV-")]
+    return (f"We are on case {turn.case_id} (version {rec['version']}, {len(rule)} rule finding(s)). "
+            f"Ask me to summarise it or explain a finding.")
+
+
+@intent("greeting", group="other",
+        description="The user greets the Copilot (hi, hello, good morning).",
+        examples=("hey", "good morning"),
+        patterns={r"^\W*(hi+|hey+|hello+|hiya|ayubowan|good\s+(morning|afternoon|evening))"
+                  r"(\s+(there|team|copilot|nomos))?\W*$": 3.0},
+        follow_ups=("Summarise this case", "What can you do?"))
+def greeting(turn: Turn) -> Reply:
+    return Reply(f"Hello! I'm the NOMOS Audit Copilot. {_case_hint(turn)}")
+
+
+@intent("thanks", group="other",
+        description="The user says thanks or acknowledges an answer (thanks, ok, great).",
+        examples=("thanks", "ok great"),
+        patterns={r"^(?=.*[a-z])\W*((ok(ay)?|great|nice|cool|perfect)[\s,!.]*)*"
+                  r"(thanks|thank\s+you|thx|ty|cheers)?(\s+(a\s+lot|so\s+much|very\s+much))?\W*$": 3.0},
+        follow_ups=("Summarise this case", "What can you do?"))
+def thanks(turn: Turn) -> Reply:
+    return Reply("You're welcome! Anything else on this audit?")
+
+
+@intent("out_of_scope", group="other",
+        description="The request is not about audits, findings, rules or accounting standards "
+                    "(weather, jokes, general knowledge).",
+        examples=("what's the weather today?", "tell me a joke"),
+        follow_ups=("What can you do?", "Summarise this case"))
+def out_of_scope(turn: Turn) -> Reply:
+    return Reply("I can't help with that. I answer questions about this audit: its findings, the "
+                 "rules behind them and the accounting standards. Ask \"what can you do?\" for examples.")
+
+
 @intent("help", group="other",
-        description="The user asks what the Copilot can do, or the request fits nothing else.",
+        description="The user asks what the Copilot can do.",
         examples=("help", "what can you do?"),
         patterns={r"\b(help|what can you do|how do i|commands|options)\b": 2.0},
         follow_ups=("Summarise this case", "Which rules apply to invoices?", "I paid Rs 150,000 cash but booked it on credit, is that ok?"))
 def help_intent(turn: Turn) -> Reply:
     lines = [f"- {s.description} e.g. \"{s.examples[0]}\""
-             for s in REGISTRY.values() if s.name != "help"]
+             for s in REGISTRY.values() if s.name not in CONVERSATION]
     return Reply("I can:\n" + "\n".join(lines))

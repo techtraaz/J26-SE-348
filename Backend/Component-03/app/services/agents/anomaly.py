@@ -2,9 +2,10 @@
 (this year vs prior), and fraud patterns (e.g. cash out with no asset in).
 
 A rule applies to a child/parent pair when either document's type has it.
+Every rule run is recorded (passed ones too) with the values it used.
 """
 from app.schemas.case import AuditCase, AuditDocument
-from app.schemas.findings import Finding, TraceEntry
+from app.schemas.findings import Finding, RuleApplication, TraceEntry
 from app.schemas.kg import CheckRuleResponse
 from app.services import rules
 from app.services.kg_client import KGClient, KGError
@@ -14,8 +15,9 @@ def _scopes(rule: CheckRuleResponse) -> set[str]:
     return {n.split(".", 1)[0] for n in (rules.rule_names(rule) or []) if "." in n}
 
 
-def run(case: AuditCase, kg: KGClient) -> tuple[list[Finding], list[TraceEntry]]:
+def run(case: AuditCase, kg: KGClient) -> tuple[list[Finding], list[TraceEntry], list[RuleApplication]]:
     findings: list[Finding] = []
+    applied: list[RuleApplication] = []
     skipped: list[str] = []
     by_id = {d.doc_id: d for d in case.docs}
     loaded: dict[str, list[CheckRuleResponse]] = {}
@@ -34,7 +36,8 @@ def run(case: AuditCase, kg: KGClient) -> tuple[list[Finding], list[TraceEntry]]
         return loaded[doc.doc_type]
 
     def apply(rule, doc, scopes):
-        finding, skip = rules.evaluate_rule(rule, doc, scopes)
+        finding, skip, outcome = rules.check_rule(rule, doc, scopes, case.materiality, agent="anomaly")
+        applied.append(outcome)
         if finding:
             findings.append(finding)
         if skip:
@@ -54,6 +57,8 @@ def run(case: AuditCase, kg: KGClient) -> tuple[list[Finding], list[TraceEntry]]
                     continue  # first year: nothing to compare with
                 if isinstance(prior, str):
                     skipped.append(f"{rule.rule_id} on {d.doc_id}: {prior}")
+                    applied.append(rules.skipped_rule(
+                        rule, d, f"no single prior-year document ({prior})", agent="anomaly"))
                     continue
                 apply(rule, d, {"prior": prior})
             else:
@@ -71,7 +76,8 @@ def run(case: AuditCase, kg: KGClient) -> tuple[list[Finding], list[TraceEntry]]
 
     trace = [TraceEntry(agent_name="anomaly", decision_type="check",
                         detail=f"Anomaly scan found {len(findings)} issue(s).")]
+    trace += rules.materiality_trace("anomaly", case.materiality, findings)
     if skipped:
         trace.append(TraceEntry(agent_name="anomaly", decision_type="skip",
                                 detail="Not applicable (inputs missing): " + "; ".join(skipped) + "."))
-    return findings, trace
+    return findings, trace, applied
