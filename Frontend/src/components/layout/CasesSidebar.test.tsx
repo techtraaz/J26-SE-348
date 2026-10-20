@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { c3, chat } from "@/lib/apiClient";
 import { useUI } from "@/store/ui";
@@ -17,7 +17,10 @@ function renderSidebar() {
   return render(<QueryClientProvider client={qc}><CasesSidebar /></QueryClientProvider>);
 }
 
+afterEach(() => vi.unstubAllGlobals());
+
 beforeEach(() => {
+  vi.stubGlobal("fetch", vi.fn(async () => new Response("{}")));
   vi.mocked(c3.cases).mockResolvedValue([]);
   vi.mocked(chat.clear).mockResolvedValue(undefined as never);
   useUI.setState({ sidebarOpen: true, selectedCase: null, draftCases: ["CASE-1"], generalSessionId: "GEN-1" });
@@ -33,6 +36,8 @@ describe("CasesSidebar", () => {
     expect(item.textContent).toContain("Click again to clear");
     await userEvent.click(item);
     expect(chat.clear).toHaveBeenCalledWith("CASE-1");
+    expect(vi.mocked(fetch)).toHaveBeenCalledWith(expect.stringMatching(/\/xai\/history\/CASE-1$/),
+                                                  { method: "DELETE" });
     expect(screen.queryByRole("menu")).toBeNull();
   });
 
