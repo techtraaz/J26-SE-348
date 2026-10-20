@@ -23,7 +23,7 @@ CASE_BODY = Body(..., examples=[{"case_id": "CASE-1", "docs": [{
     "doc_id": "BS-2026", "doc_type": "balance_sheet", "period_year": 2026,
     "fields": {"assets": 50000, "liabilities": 30000, "capital": 20000},
     "confidences": {"assets": 0.97}, "methods": {"assets": "paddleocr"}}]}])
-DOCS_BODY = Body(..., examples=[{"docs": []}])
+DOCS_BODY = Body(..., examples=[{"docs": [], "materiality": 50000}])
 SessionId = Annotated[str, Path(pattern=SESSION_ID_PATTERN)]
 CaseId = Annotated[str, Path(pattern=SESSION_ID_PATTERN)]
 
@@ -128,7 +128,8 @@ def audit_append(case_id: str, payload: dict = DOCS_BODY, session_id: str | None
     """Add documents to the latest version of a case and re-run (new version)."""
     _check_session(session_id)
     try:
-        result = _store_call(orchestrator.append_evidence, case_id, payload.get("docs", []))
+        result = _store_call(lambda: orchestrator.append_evidence(
+            case_id, payload.get("docs", []), materiality=payload.get("materiality")))
         if session_id:
             _store_call(chat.record_audit, default_chat_store(), session_id, result)
         return result.model_dump()

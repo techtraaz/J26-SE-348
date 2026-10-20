@@ -150,3 +150,32 @@ def _truth(node: ast.AST, values: dict[str, Value], tolerance: float) -> bool:
 def evaluate(expression: str, values: dict[str, Value], tolerance: float = 0.0) -> bool:
     """True when the rule holds. Raises ExpressionError when it cannot be computed."""
     return _truth(_parse(expression), values, tolerance)
+
+
+def amount_difference(expression: str, values: dict[str, Value]) -> float | None:
+    """How far apart the two sides of a failed amount comparison are, e.g. for
+    `assets == liabilities + capital` the absolute gap, for `inventories <=
+    inventory_nrv` the excess. None when the rule is not a plain comparison of
+    amounts: a ratio or threshold (division or a number in it), text, several
+    comparisons, or and/or/not (patterns such as fraud indicators)."""
+    try:
+        node = _parse(expression)
+    except ExpressionError:
+        return None
+    if not isinstance(node, ast.Compare) or len(node.ops) != 1:
+        return None
+    for sub in ast.walk(node):
+        if isinstance(sub, ast.BinOp) and isinstance(sub.op, (ast.Div, ast.Mod)):
+            return None
+        if isinstance(sub, ast.Constant):
+            return None
+    try:
+        left, right = _num(node.left, values), _num(node.comparators[0], values)
+    except ExpressionError:
+        return None
+    op = node.ops[0]
+    if isinstance(op, (ast.Eq, ast.NotEq)):
+        return abs(left - right)
+    if isinstance(op, (ast.Lt, ast.LtE)):
+        return max(left - right, 0.0)
+    return max(right - left, 0.0)

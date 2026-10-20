@@ -1,18 +1,34 @@
 """Single place for all settings. Values can be overridden in .env."""
 import os
+import re
 from pathlib import Path
 
+_INLINE_COMMENT = re.compile(r"\s+#.*$")
 
-def _load_dotenv(path: Path) -> None:
-    """Read simple KEY=VALUE lines into the environment (no extra library)."""
-    if not path.exists():
-        return
-    for raw in path.read_text(encoding="utf-8").splitlines():
+
+def parse_dotenv(text: str) -> dict[str, str]:
+    """KEY=VALUE lines (no extra library). A '#' after a space starts a comment,
+    so `KG_TIMEOUT=5   # seconds` gives 5; a '#' inside a value (a password in a
+    URI) is kept. Quoted values are taken as written."""
+    out: dict[str, str] = {}
+    for raw in text.splitlines():
         line = raw.strip()
         if not line or line.startswith("#") or "=" not in line:
             continue
         key, _, value = line.partition("=")
-        os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
+        value = value.strip()
+        if value[:1] in ("'", '"') and value[0] in value[1:]:
+            value = value[1:value.index(value[0], 1)]
+        else:
+            value = _INLINE_COMMENT.sub("", value)
+        out[key.strip()] = value
+    return out
+
+
+def _load_dotenv(path: Path) -> None:
+    if path.exists():
+        for key, value in parse_dotenv(path.read_text(encoding="utf-8")).items():
+            os.environ.setdefault(key, value)
 
 
 def _flag(name: str, default: bool) -> bool:
@@ -62,6 +78,9 @@ ALLOW_FREE_CYPHER: bool = False
 KG_MODE: str = os.getenv("KG_MODE", "auto")
 KG_URL: str = os.getenv("KG_URL", "")  # C2 base URL, e.g. http://localhost:8002
 KG_TIMEOUT: float = float(os.getenv("KG_TIMEOUT", "5"))
+# How C2 searches the standards for the Copilot: keyword | semantic | hybrid.
+# hybrid uses C2's embeddings and falls back to keyword (with a note) when they are off.
+KG_SEARCH_MODE: str = os.getenv("KG_SEARCH_MODE", "hybrid").lower()
 
 # C2's DocumentType codes (Component-02 seed 05_audit.yaml) plus "unknown".
 ALLOWED_DOC_TYPES: frozenset[str] = frozenset({
@@ -107,6 +126,9 @@ RULE_CATEGORY: dict[str, str] = {
     "CHK-001": "ledger", "CHK-002": "ledger",
     "CHK-003": "arithmetic", "CHK-004": "arithmetic",
     "CHK-005": "possible_fraud",
+    "CHK-007": "arithmetic", "CHK-008": "arithmetic",  # totals within one statement
+    "CHK-009": "arithmetic", "CHK-010": "arithmetic",  # ties between statements
+    "CHK-011": "compliance",  # LKAS 2 measurement requirement
 }
 DEFAULT_RULE_CATEGORY: str = "compliance"
 

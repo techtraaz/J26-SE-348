@@ -110,6 +110,11 @@ def normalize_case(payload: Any) -> AuditCase:
     docs_raw = raw.get("docs", [])
     if not isinstance(docs_raw, list) or not all(isinstance(d, dict) for d in docs_raw):
         raise IntakeError("docs must be a list of objects")
+    materiality = raw.get("materiality")
+    if materiality is not None:
+        materiality = parse_number(materiality)
+        if isinstance(materiality, bool) or not isinstance(materiality, (int, float)) or materiality < 0:
+            raise IntakeError(f"materiality {raw.get('materiality')!r} must be a positive amount")
     seen: set[str] = set()
-    return AuditCase(case_id=case_id,
+    return AuditCase(case_id=case_id, materiality=float(materiality) if materiality is not None else None,
                      docs=[_doc(d, case_id, f"doc[{i}]", seen) for i, d in enumerate(docs_raw)])

@@ -4,6 +4,7 @@ order is the tie-break order of the rules classifier (more specific first).
 Every reply is built from stored results or KG data in code. The LLM never
 writes a reply and never decides a verdict.
 """
+import re
 from collections import Counter
 from dataclasses import dataclass, field
 
@@ -348,7 +349,8 @@ def search_cases(turn: Turn) -> Reply:
 @intent("rule_explain", group="rule_query",
         description="Explain what a rule checks and which standard it comes from.",
         examples=("explain CHK-004", "what is POL-07 based on?"),
-        patterns={r"\b(explain|meaning|mean|basis|based on|source)\b": 1.5, r"\bwhat (does|is)\b": 0.5},
+        # "mean"/"meaning" belong to standard_search; a named rule id is what makes this intent
+        patterns={r"\b(explain|basis|based on|source)\b": 1.5, r"\bwhat (does|is)\b": 0.5},
         signals={"rule_ids": 2.0, "case_ids": -1.5}, needs=("rule",),
         follow_ups=("Which rules apply to invoices?", "What does LKAS 2 say about inventories?"))
 def rule_explain(turn: Turn) -> Reply:
@@ -393,19 +395,71 @@ def rule_lookup(turn: Turn) -> Reply:
     return Reply("\n".join(lines), {"rules": data, "kg_source": turn.kg.source})
 
 
+# "define materiality", "what does net realisable value mean", "meaning of cash"
+_DEFINE = re.compile(r"\b(?:define|definition of|meaning of|what (?:is|are) meant by|what does)\s+"
+                     r"(?:the\s+)?(?:term\s+)?['\"]?([A-Za-z][A-Za-z '\-]{1,60}?)['\"]?"
+                     r"(?:\s+mean)?\s*\??\s*$", re.IGNORECASE)
+
+
+def _section_reply(turn: Turn) -> Reply | None:
+    shown, data = [], []
+    for ref in turn.entities.sections[:3]:
+        sec = turn.kg.get_section(ref)
+        if sec is None:
+            shown.append(f"{ref}: not found in the knowledge graph.")
+            continue
+        data.append(sec.model_dump())
+        text = f"{sec.id} ({sec.standard_title or sec.standard}, {sec.heading}): {sec.text}"
+        if sec.standard_status != "active":
+            text += f"\n  caution: {sec.standard} is {sec.standard_status}."
+        shown.append(text)
+    return Reply("\n".join(shown), {"sections": data, "kg_source": turn.kg.source}) if shown else None
+
+
+def _definition_reply(turn: Turn) -> Reply | None:
+    m = _DEFINE.search(turn.query.text.strip())
+    if not m:
+        return None
+    term = m.group(1).strip()
+    defs = turn.kg.get_definitions(term)
+    if defs:
+        lines = [f"{d.term}: {d.text}" + (f" (defined in {', '.join(d.defined_in)})" if d.defined_in else "")
+                 for d in defs[:3]]
+        return Reply("\n".join(lines), {"definitions": [d.model_dump() for d in defs],
+                                        "kg_source": turn.kg.source})
+    item = turn.kg.get_line_item(term.lower().replace(" ", "_").replace("-", "_"))
+    if item is None:
+        return None
+    text = f"{item.name or item.code} is a line item"
+    if item.statements:
+        text += f" in the {', '.join(item.statements)}"
+    if item.aliases:
+        text += f" (also written as {', '.join(item.aliases)})"
+    text += "."
+    if item.equations:
+        text += "\nUsed in: " + "; ".join(item.equations)
+    return Reply(text, {"line_item": item.model_dump(), "kg_source": turn.kg.source})
+
+
 @intent("standard_search", group="rule_query",
-        description="Look up what an accounting or auditing standard (LKAS, SLFRS, SLAuS) says "
-                    "about a topic.",
-        examples=("what does LKAS 2 say about inventories?", "define materiality"),
-        patterns={r"\b(what does|says?|say about|according to|standards?|paragraph|definition|define|"
-                  r"meaning of|requirement)\b": 1.5},
-        signals={"standards": 2.0},
+        description="Look up what an accounting or auditing standard (LKAS, SLFRS, SLAuS) says: a "
+                    "paragraph, a defined term, or a topic.",
+        examples=("what does LKAS 2 say about inventories?", "define net realisable value"),
+        patterns={r"\b(what does|says?|say about|according to|standards?|paragraph|para|definition|define|"
+                  r"meaning of|requirement|mean)\b": 1.5},
+        signals={"standards": 2.0, "sections": 1.0},
         follow_ups=("Which rules apply to a balance sheet?",))
 def standard_search(turn: Turn) -> Reply:
+    """An exact paragraph first ("LKAS 2:9"), then a defined term or line item
+    ("define net realisable value"), else a search of the standards."""
+    exact = _section_reply(turn) or _definition_reply(turn)
+    if exact is not None:
+        return exact
     hits = turn.kg.search(turn.query.text)
     if not hits:
-        return Reply("Nothing matched in the standards. Name a standard (e.g. LKAS 2) or a topic "
-                     "(e.g. inventories).", {"search": [], "kg_source": turn.kg.source})
+        return Reply("Nothing matched in the standards. Name a standard (e.g. LKAS 2), a paragraph "
+                     "(e.g. LKAS 2:9) or a topic (e.g. inventories).",
+                     {"search": [], "kg_source": turn.kg.source})
     lines = [f"- {h.get('section') or h.get('standard') or 'source'}: {h.get('text', '')}"
              for h in hits[:3]]
     return Reply("\n".join(lines), {"search": hits, "kg_source": turn.kg.source})

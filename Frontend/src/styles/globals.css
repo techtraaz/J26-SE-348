@@ -3,6 +3,27 @@
 @import "@fontsource-variable/jetbrains-mono";
 @import "./tokens.css";
 
+/* Design tokens as Tailwind colors (bg-surface, text-ink-muted, border-line, …).
+   `inline` keeps the var() references, so [data-theme="dark"] switches them too. */
+@theme inline {
+  --color-canvas: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-line: var(--border);
+  --color-line-light: var(--border-light);
+  --color-ink: var(--text);
+  --color-ink-h: var(--text-h);
+  --color-ink-muted: var(--text-muted);
+  --color-ink-soft: var(--text-soft);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --color-info: var(--info);
+  --color-input: var(--input-bg);
+}
+
 @font-face {
   font-family: 'Instrument Serif';
   font-style: normal;
@@ -11,7 +32,11 @@
   font-display: swap;
 }
 
-* { margin: 0; padding: 0; box-sizing: border-box; }
+/* In the base layer so Tailwind's spacing utilities (p-*, m-*) can override it;
+   an unlayered reset would beat every utility class. */
+@layer base {
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+}
 
 body {
   background: var(--bg);

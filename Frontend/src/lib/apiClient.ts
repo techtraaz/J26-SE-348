@@ -52,9 +52,10 @@ export const c3 = {
   // With a sessionId the result is also written into that chat.
   run: (body: AuditCase, sessionId?: string) =>
     request<AuditResult>(env.c3Base, `/audit/run${session(sessionId)}`, json(body)),
-  appendEvidence: (caseId: string, docs: AuditDocument[], sessionId?: string) =>
+  // materiality: a new value for the case; omitted keeps the case's current one.
+  appendEvidence: (caseId: string, docs: AuditDocument[], sessionId?: string, materiality?: number) =>
     request<AuditResult>(env.c3Base, `/audit/${encodeURIComponent(caseId)}/evidence${session(sessionId)}`,
-      json({ docs })),
+      json({ docs, ...(materiality != null ? { materiality } : {}) })),
   // Library review of Component-01 documents: preview saves nothing; confirm returns case documents.
   previewC1: (caseId: string, documents: (C1Record & { doc_type?: string })[]) =>
     request<{ documents: DocumentPreview[] }>(env.c3Base, "/audit/intake/c1/preview",
@@ -79,22 +80,4 @@ export const chat = {
     request<{ deleted: string }>(env.c3Base, `/chat/${encodeURIComponent(sessionId)}`, { method: "DELETE" }),
 };
 
-// Component-01: OCR/VLM extraction. Used only when VITE_C1_BASE is set.
-const C1 = "/api/v1/documents";
-export const c1 = {
-  enabled: () => Boolean(env.c1Base),
-  upload: (file: File) => {
-    const form = new FormData();
-    form.append("file", file);
-    return request<{ id: string }>(env.c1Base, C1, { method: "POST", body: form });
-  },
-  status: (id: string) =>
-    request<{ latest_run: { status: string } | null; error_message: string | null }>(env.c1Base, `${C1}/${id}`),
-  extraction: (id: string) => request<Record<string, unknown>>(env.c1Base, `${C1}/${id}/extraction`),
-  // The human-verified record (proposed C1 endpoint). null when C1 has none yet.
-  verified: (id: string) =>
-    request<Record<string, unknown>>(env.c1Base, `${C1}/${id}/verified`).catch((e) => {
-      if (e instanceof ApiError && e.status === 404) return null;
-      throw e;
-    }),
-};
+// Component-01 has its own typed client: src/features/extraction/api.
