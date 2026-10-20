@@ -229,3 +229,71 @@ def test_c1_contract_01_flows_through_review_and_audit(kg, store):
     result = orchestrator.run_case(intake.normalize_case(out["case"]), kg, store=store)
     pol = next(f for f in result.findings if f.rule_id == "POL-07")
     assert any("C1 verified record v2" in s for s in pol.reasoning_chain)
+
+
+def _stamp(director_date: str) -> dict:
+    """A verified invoice above the POL-07 limit with its approval stamp."""
+    texts = ["TAX INVOICE", "Date: 07/10/2026", "Grand Total Rs. 636,256.00",
+             "Verified (Accounts) Name / Designation Signature Date", "Nadeesha Fernando",
+             "Accounts Executive 07/10/2026",
+             "Approval 1 - Finance Name / Designation Signature Date", "Ruwan Jayasinghe",
+             "Finance Manager 07/10/2026",
+             "Approval 2 - Director Name / Designation Signature Date",
+             *(["Dilan Wickramaratne", f"Director {director_date}"] if director_date else [])]
+    return {**C1_CONTRACT_01, "lines": [
+        {"line_id": f"L{i}", "page": 1, "sequence": i, "text": t, "confidence": 0.9, "box": [40, 20 * i, 400, 20 * i + 15],
+         "provenance": "paddleocr", "escalated": None, "human_action": "accepted"}
+        for i, t in enumerate(texts, 1)]}
+
+
+@pytest.mark.parametrize("director_date,signed,pol07", [("08/10/2026", 2.0, None), ("", 1.0, "high")])
+def test_approval_stamp_decides_pol07(kg, store, director_date, signed, pol07):
+    record = _stamp(director_date)
+    p = c1_review.preview("C1-APPR", [C1Input.model_validate({"verified": record})], kg)[0]
+    assert fields_of(p)["approvals"] == signed
+    out = c1_review.confirm_case("C1-APPR", [ReviewedDocument.model_validate({
+        "verified": record, "doc_type": "invoice", "period_year": 2026,
+        "fields": [{"field": "amount", "line_id": "L3"}, {"field": "approvals", "line_id": "L7"}]})], kg)
+    d = out["case"]["docs"][0]
+    assert d["fields"]["approvals"] == signed and d["methods"]["approvals"] == "c3:rules"
+    result = orchestrator.run_case(intake.normalize_case(out["case"]), kg, store=store)
+    pol = [f for f in result.findings if f.rule_id == "POL-07"]
+    assert [f.severity for f in pol] == ([pol07] if pol07 else [])
+    if pol07:
+        assert pol[0].evidence_validation == "passed"  # both claims match the document
+
+
+def _ocr(*rows):
+    """Lines with boxes, as PaddleOCR splits them: (text, x, y)."""
+    return [Line(f"p1#{i}", 1, i, t, 0.99, (x, y, x + 10 * len(t), y + 20), "paddleocr", False)
+            for i, (t, x, y) in enumerate(rows, 1)]
+
+
+def test_note_column_is_not_the_amount():
+    from app.services.field_mapper import lexicon, map_by_rules
+    lines = _ocr(("Inventories", 130, 600), ("7", 645, 600), ("7,015,300", 815, 600), ("6,384,900", 1035, 600))
+    lines.append(Line("p1#9", 1, 9, "Stated capital 10 50,000,000 50,000,000", 0.99, None, "paddleocr", False))
+    out = map_by_rules(lines, lexicon({"inventories": "inventories", "stated capital": "share_capital"}))
+    assert out["inventories"].value == 7015300.0 and out["share_capital"].value == 50000000.0
+
+
+def test_stamp_rows_by_geometry():
+    """Real OCR order of an invoice stamp: Approval 2 - Director is blank."""
+    from app.services.field_mapper import read_approvals
+    lines = _ocr(("Verified (Accounts)", 116, 1403), ("Date", 950, 1398), ("12/10/2026", 959, 1433),
+                 ("Approval 1 - Finance", 115, 1479), ("Name / Designation", 349, 1477), ("Date", 950, 1475),
+                 ("Ruwan Jayasinghe", 348, 1501), ("12/10/2026", 959, 1510), ("Finance Manager", 349, 1523),
+                 ("Approval 2 - Director", 116, 1558), ("Name / Designation", 349, 1554), ("Date", 951, 1552),
+                 ("Ceylon Office Interiors - Original", 103, 1679))
+    assert [(r.label, r.signed) for r in read_approvals(lines)] == [
+        ("Approval 1 - Finance", True), ("Approval 2 - Director", False)]
+
+
+def test_sign_off_columns_by_geometry():
+    """PREPARED BY / REVIEWED BY / APPROVED BY side by side, dates three rows down."""
+    from app.services.field_mapper import read_approvals
+    lines = _ocr(("PREPARED BY", 103, 1455), ("REVIEWED BY", 461, 1455), ("APPROVED BY", 819, 1454),
+                 ("Nadeesha Fernando", 102, 1566), ("Ruwan Jayasinghe", 460, 1567), ("Dilan W", 819, 1564),
+                 ("Date: 12/10/2026", 102, 1608), ("Date: 13/10/2026", 460, 1608), ("Date:", 819, 1608))
+    rows = read_approvals(lines)
+    assert [(r.label, r.signed) for r in rows] == [("APPROVED BY", False)]  # its own date is blank

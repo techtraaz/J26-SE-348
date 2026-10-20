@@ -118,6 +118,7 @@ NUMERIC_FIELDS: frozenset[str] = frozenset({
     "revenue", "sales", "turnover", "cost_of_sales", "cogs", "gross_profit",
     "cash", "cash_and_cash_equivalents", "closing_cash", "closing_equity",
     "inventories", "inventory", "closing_inventory", "inventory_nrv", "inventory_cost",
+    "approvals",
 })
 
 # C2 check rules carry no category, so C3 maps the ones it knows.
@@ -137,6 +138,8 @@ CODE_CHECKED_RULES: frozenset[str] = frozenset({"CHK-006"})
 
 # Field a KG policy limit (e.g. POL-07) is compared against.
 POLICY_LIMIT_FIELD: str = "amount"
+# Signed approval rows read from a document's approval stamp (C3 field).
+APPROVALS_FIELD: str = "approvals"
 
 # Equality tolerance for money (1 cent).
 AMOUNT_TOLERANCE: float = 0.01
