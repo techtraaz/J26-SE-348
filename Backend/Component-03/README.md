@@ -132,8 +132,14 @@ seed rules; `--compare` shows what to update in it when the live KG changes.
 
 ## Materiality
 
-A case may carry `materiality` (an amount, SLAuS 320), set by the auditor in the
-Library or sent with the case JSON (`{"case_id": ..., "materiality": 50000, "docs": [...]}`).
+A case may carry `materiality` (an amount, SLAuS 320), sent with the case JSON
+(`{"case_id": ..., "materiality": 50000, "docs": [...]}`) or set in the chat. The UI
+never asks for it up front: only after a plain amount comparison fails (and the case
+has none), the audit reply asks in plain words whether differences below some amount
+are too small to matter, with a "What is materiality?" choice. The `set_materiality`
+intent ("ignore differences below 50,000") confirms first, then re-runs the case as a
+new version (`append_evidence` with no new documents). "What is materiality?" answers
+in plain words first (`PLAIN_TERMS` in the Copilot handlers), then the standards.
 Evidence appends and re-runs keep it unless a new value is sent.
 
 - A failed rule whose **amount difference** is below it stays a finding, at

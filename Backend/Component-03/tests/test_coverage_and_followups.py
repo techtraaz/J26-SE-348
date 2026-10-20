@@ -153,3 +153,55 @@ def test_unsure_requests_ask_with_choices(kg, store):
     audit(kg, store, [SFP, INV], "COV-12")
     r = ask(kg, store, "the latest one", "COV-12")  # matches a little, decides nothing
     assert r.blocks[0].type == "question" and r.blocks[0].choices
+
+
+# --- materiality: asked for only when it would change something ------------------------------
+
+def test_materiality_is_offered_only_after_an_amount_check_fails(kg, store):
+    failed = audit_reply.describe_saved(audit(kg, store, [SFP], "MAT-1"), store)
+    assert "is off by **12,062,150.00**" in failed and "ignore differences below 50,000" in failed
+    policy_only = audit_reply.describe_saved(audit(kg, store, [INV], "MAT-2"), store)
+    assert "materiality" not in policy_only.lower()  # a policy limit has no amount difference
+
+
+def test_materiality_is_confirmed_then_rerun_and_not_offered_again(kg, store):
+    audit(kg, store, [SFP], "MAT-3")
+    r = ask(kg, store, "ignore differences below 20,000,000", "MAT-3")
+    assert r.intent == "set_materiality" and store.latest("MAT-3")["version"] == 1  # nothing saved yet
+    choice = r.blocks[0].choices[0]
+    assert choice == "Yes, mark differences below 20,000,000.00 as minor"
+    done = ask(kg, store, choice, "MAT-3")
+    rec = store.latest("MAT-3")
+    assert rec["version"] == 2 and rec["case"]["materiality"] == 20000000
+    chk = next(f for f in rec["findings"] if f["rule_id"] == "CHK-001")
+    assert chk["severity"] == "low"  # kept, not dropped
+    assert "ignore differences below" not in done.reply  # already set: no second offer
+
+
+@pytest.mark.parametrize("text", ["set the materiality to 5,000,000", "materiality is 1,000,000",
+                                  "don't flag differences under 100,000"])
+def test_materiality_wordings_route(kg, store, text):
+    audit(kg, store, [SFP], "MAT-4")
+    assert ask(kg, store, text, "MAT-4").intent == "set_materiality"
+
+
+def test_materiality_question_without_amount_asks_for_one(kg, store):
+    audit(kg, store, [SFP], "MAT-5")
+    r = ask(kg, store, "set the materiality", "MAT-5")
+    assert r.intent == "set_materiality" and "Below which amount" in r.reply
+    assert ask(kg, store, "what is materiality?", "MAT-5").intent == "concept"
+
+
+@pytest.mark.parametrize("text", ["what is materiality?", "what does materiality mean?"])
+def test_materiality_is_explained_in_plain_words_first(kg, store, text):
+    r = ask(kg, store, text)
+    assert r.intent == "concept"
+    assert r.blocks[0].type == "text" and r.blocks[0].text.startswith("**In plain words:** some differences")
+    assert "ignore differences below 50,000" in r.blocks[0].text  # and how to use it here
+
+
+def test_the_materiality_offer_uses_plain_words_and_explains_on_click(kg, store):
+    offer = next(b for b in audit_reply.describe_saved_blocks(audit(kg, store, [SFP], "MAT-6"), store)
+                 if b.type == "question")
+    assert offer.text.startswith("**CHK-001**") and "too small to matter" in offer.text
+    assert ask(kg, store, offer.choices[0], "MAT-6").blocks[0].text.startswith("**In plain words:**")

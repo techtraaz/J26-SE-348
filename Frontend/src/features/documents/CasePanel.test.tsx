@@ -96,27 +96,14 @@ describe("CasePanel", () => {
     expect(useUI.getState().staged["CASE-1"]).toEqual([]);
   });
 
-  it("sends the case materiality when one is entered", async () => {
+  it("does not ask for materiality when preparing a case (the chat offers it when needed)", async () => {
     useUI.setState({ staged: { "CASE-1": [DOC] } });
     vi.mocked(c3.run).mockResolvedValue(RESULT);
     renderPanel();
 
-    await userEvent.type(screen.getByLabelText("Materiality"), "Rs. 50,000");
+    expect(screen.queryByLabelText(/materiality/i)).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Audit 1 document(s)" }));
-
-    expect(c3.run).toHaveBeenCalledWith({ case_id: "CASE-1", docs: [DOC], materiality: 50000 }, "CASE-1");
-  });
-
-  it("refuses a materiality that is not an amount", async () => {
-    useUI.setState({ staged: { "CASE-1": [DOC] } });
-    vi.mocked(c3.run).mockReset();
-    renderPanel();
-
-    await userEvent.type(screen.getByLabelText("Materiality"), "a lot");
-    await userEvent.click(screen.getByRole("button", { name: "Audit 1 document(s)" }));
-
-    expect(c3.run).not.toHaveBeenCalled();
-    expect(screen.getByText(/Materiality must be an amount/)).toBeInTheDocument();
+    expect(c3.run).toHaveBeenCalledWith({ case_id: "CASE-1", docs: [DOC] }, "CASE-1");
   });
 
   it("removes a document from the case", async () => {

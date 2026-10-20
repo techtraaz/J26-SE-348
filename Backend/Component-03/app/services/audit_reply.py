@@ -1,16 +1,25 @@
 """The chat message an audit leaves, as reply blocks: the verdict, what was checked
 on each document, what passed, what failed, what could not be checked and why,
-what needs the auditor, and what to do next.
+what needs the auditor, and what to do next. Materiality is asked for only when it
+would change something: an amount comparison failed and the case has none.
 
 Built from the saved result in code (every number comes from the rules), so it
 reads the same for audits run from the chat and from the Library. The LLM's
 case summary, when there is one, comes last.
 """
 from app.schemas.case import AuditDocument
-from app.schemas.copilot import Block, ListBlock, ListItem, TextBlock, VerdictBlock
+from app.schemas.copilot import (
+    Block,
+    ListBlock,
+    ListItem,
+    QuestionBlock,
+    TextBlock,
+    VerdictBlock,
+)
 from app.schemas.findings import AuditResult, RuleApplication
 from app.services.copilot.render import to_markdown
-from app.services.rules import label
+from app.services.expression import amount_difference
+from app.services.rules import fmt, label
 from app.services.store import ResultStore
 
 
@@ -37,7 +46,8 @@ def _rule_item(a: RuleApplication) -> ListItem:
     return ListItem(label=name, text=a.detail, tone=a.outcome)
 
 
-def describe_blocks(result: AuditResult, docs: list[AuditDocument]) -> list[Block]:
+def describe_blocks(result: AuditResult, docs: list[AuditDocument],
+                    materiality: float | None = None) -> list[Block]:
     names = {d.doc_id: label(d) for d in docs}
     verdict = VerdictBlock(case_id=result.case_id, version=result.version, verdict=result.verdict,
                            score=result.score, summary=_headline(result, len(docs)))
@@ -79,6 +89,8 @@ def describe_blocks(result: AuditResult, docs: list[AuditDocument]) -> list[Bloc
         blocks.append(ListBlock(title="What to do next", items=[
             ListItem(label=r.rule_id, text=r.text, tone=r.severity) for r in result.recommendations]))
     blocks += open_questions_blocks(result)
+    if materiality is None:
+        blocks += materiality_question(result, names)
     if result.narrative:
         blocks.append(TextBlock(text=f"**Summary**\n\n{result.narrative}"))
     return blocks
@@ -96,19 +108,38 @@ def open_questions_blocks(result: AuditResult) -> list[Block]:
             TextBlock(text=f"Reply with the value, for example {example}.")]
 
 
-def describe(result: AuditResult, docs: list[AuditDocument]) -> str:
-    return to_markdown(describe_blocks(result, docs))
+def materiality_question(result: AuditResult, names: dict[str, str]) -> list[Block]:
+    """Offer materiality only after a plain amount comparison failed (fraud patterns,
+    ratios and policy limits have no amount difference, so they never trigger it)."""
+    gaps = [(gap, a) for a in result.rules_applied if a.outcome == "failed" and a.kind == "rule_check"
+            and (gap := amount_difference(a.expression or "", a.values)) is not None]
+    if not gaps:
+        return []
+    gap, a = max(gaps, key=lambda g: g[0])
+    return [QuestionBlock(text=(
+        f"**{a.rule_id}** on {names.get(a.doc_id, a.doc_id)} is off by **{fmt(gap)}**. Are differences below "
+        f"some amount too small to matter for this audit? Tell me the amount, for example “ignore differences "
+        f"below 50,000”, and smaller ones will be marked minor (auditors call this amount *materiality*). "
+        f"They stay listed; fraud patterns and policy limits are never softened."),
+        choices=["What is materiality?"])]
+
+
+def describe(result: AuditResult, docs: list[AuditDocument], materiality: float | None = None) -> str:
+    return to_markdown(describe_blocks(result, docs, materiality))
+
+
+def _saved_case(result: AuditResult, store: ResultStore) -> dict:
+    return (store.get(result.case_id, result.version) or {}).get("case", {})
 
 
 def saved_docs(result: AuditResult, store: ResultStore) -> list[AuditDocument]:
     """The documents of the saved version."""
-    rec = store.get(result.case_id, result.version) or {}
-    return [AuditDocument.model_validate(d) for d in rec.get("case", {}).get("docs", [])]
+    return [AuditDocument.model_validate(d) for d in _saved_case(result, store).get("docs", [])]
 
 
 def describe_saved(result: AuditResult, store: ResultStore) -> str:
-    return describe(result, saved_docs(result, store))
+    return describe(result, saved_docs(result, store), _saved_case(result, store).get("materiality"))
 
 
 def describe_saved_blocks(result: AuditResult, store: ResultStore) -> list[Block]:
-    return describe_blocks(result, saved_docs(result, store))
+    return describe_blocks(result, saved_docs(result, store), _saved_case(result, store).get("materiality"))

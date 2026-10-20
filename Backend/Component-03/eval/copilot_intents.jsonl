@@ -85,3 +85,8 @@
 {"text": "what's an accounting equation", "intent": "concept"}
 {"text": "what are audit assertions?", "intent": "concept"}
 {"text": "yes, re-run the audit", "intent": "rerun_audit", "case_id": "ACME-2026", "case_audited": true}
+{"text": "ignore differences below 50,000", "intent": "set_materiality", "case_id": "ACME-2026", "case_audited": true}
+{"text": "set the materiality to 2,000,000", "intent": "set_materiality", "case_id": "ACME-2026", "case_audited": true}
+{"text": "small gaps under 10,000 don't matter for this audit", "intent": "set_materiality", "case_id": "ACME-2026", "case_audited": true}
+{"text": "yes, mark differences below 50,000.00 as minor", "intent": "set_materiality", "case_id": "ACME-2026", "case_audited": true}
+{"text": "what does materiality mean?", "intent": "concept"}

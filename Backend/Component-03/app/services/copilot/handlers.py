@@ -922,6 +922,53 @@ def provide_value(turn: Turn) -> Reply:
     return Reply(blocks=blocks, data=result.model_dump())
 
 
+WHAT_IS_MATERIALITY = "What is materiality?"
+_CONFIRM_MATERIALITY = re.compile(r"^\W*yes,?\s+mark differences below\s+(?P<value>.+?)\s+as minor\W*$",
+                                  re.IGNORECASE)
+
+
+@intent("set_materiality", group="evidence_append",
+        description="The auditor sets the case materiality (SLAuS 320): failed amount comparisons below it "
+                    "stay listed at low severity. The case is re-run as a new version after confirmation.",
+        examples=("ignore differences below 50,000", "set the materiality to 20,000,000"),
+        patterns={r"^\W*yes,?\s+mark differences below\b": 4.0,
+                  r"\b(ignore|disregard|overlook|don'?t (flag|worry about))\b.*\b(below|under|less than|smaller than)\b": 3.0,
+                  r"\b(below|under|less than|smaller than)\b.*\b(doesn'?t|don'?t|does not|do not) matter\b": 3.0,
+                  r"\b(set|change|use|make|apply)\b.*\bmateriality\b": 2.0,
+                  r"\bmateriality\b.*(\b(is|to|of|at)\b|=)\s*(rs\.?\s*|lkr\s*)?\d": 2.5,
+                  r"\bmateriality\b": 0.5},
+        signals={"amounts": 1.0, "docs": -3.0}, needs=("saved_case",),
+        follow_ups=("Can you give a verdict for this case?", "What changed since the last audit?"))
+def set_materiality(turn: Turn) -> Reply:
+    rec = turn.record()
+    current = rec["case"].get("materiality")
+    now = f" The current materiality is **{fmt(float(current))}**." if current is not None else ""
+    confirmed = _CONFIRM_MATERIALITY.match(turn.query.text)
+    if confirmed:
+        amount = intake.parse_number(confirmed.group("value").strip())
+        amount = amount if isinstance(amount, float) else None
+    else:
+        amount = turn.entities.amounts[-1].value if turn.entities.amounts else None
+    if amount is None or amount <= 0:
+        return Reply(blocks=[QuestionBlock(
+            text=f"Below which amount should differences count as minor? Reply for example "
+                 f"“ignore differences below 50,000”.{now}", choices=[WHAT_IS_MATERIALITY])])
+    shown = fmt(amount)
+    if current is not None and float(current) == amount:
+        return Reply(f"The materiality of case {turn.case_id} is already {shown}; nothing to change.")
+    if not confirmed:
+        return Reply(blocks=[QuestionBlock(
+            text=f"Treat amount differences smaller than **{shown}** as minor (this is the case's "
+                 f"*materiality*) and re-run case {turn.case_id} as version {rec['version'] + 1}? They stay "
+                 f"listed, marked low; fraud patterns, ratios and policy limits are never softened.{now}",
+            choices=[f"Yes, mark differences below {shown} as minor", KEEP_VERSION])])
+    result = orchestrator.append_evidence(turn.case_id, [], turn.kg, store=turn.store, materiality=amount)
+    blocks = [TextBlock(text=f"Materiality set to {shown}, as entered by you: smaller amount differences "
+                             f"are now marked minor.")]
+    blocks += audit_reply.describe_saved_blocks(result, turn.store)
+    return Reply(blocks=blocks, data=result.model_dump())
+
+
 def _parse_value(field: str, text: str, entities: Entities) -> float | str | None:
     if field in fm.TEXT_FIELDS:
         return fm.text_value(field, text)
@@ -946,13 +993,41 @@ def cancel(turn: Turn) -> Reply:
         # "define …" and "meaning of …" stay with standard_search; "explain …" with rule_explain
         # never a question about the case itself ("what's the current result for this case")
         patterns={r"^\W*what('s| is| are)\s+(?!.*\b(case|cases|findings?|results?|status|versions?|"
-                  r"rules?|documents?|score|verdict)\b)(a |an |the )?[a-z][a-z \-]{2,40}\??\W*$": 2.5},
+                  r"rules?|documents?|score|verdict)\b)(a |an |the )?[a-z][a-z \-]{2,40}\??\W*$": 2.5,
+                  # other "what does X mean" questions stay with standard_search (line-item definitions)
+                  r"^\W*what does\s+(the )?(materiality|material)\s+mean\??\W*$": 4.0},
         signals={"rule_ids": -2.0, "case_ids": -2.0, "doc_types": -1.5, "standards": -2.0, "sections": -2.0},
         follow_ups=("Which rules apply to invoices?", "What does LKAS 2 say about inventories?"))
 def concept(turn: Turn) -> Reply:
-    m = re.search(r"what(?:'s| is| are)\s+(?:a |an |the )?([a-z][a-z \-]{2,40}?)\??\W*$",
-                  turn.query.text.strip(), re.IGNORECASE)
-    term = (m.group(1) if m else turn.query.text).strip().lower()
+    text = turn.query.text.strip()
+    m = (re.search(r"what does\s+(?:a |an |the )?([a-z][a-z \-]{2,40}?)\s+mean\??\W*$", text, re.IGNORECASE)
+         or re.search(r"what(?:'s| is| are)\s+(?:a |an |the )?([a-z][a-z \-]{2,40}?)\??\W*$", text, re.IGNORECASE))
+    term = (m.group(1) if m else text).strip().lower()
+    sources = _concept_sources(turn, term)
+    plain = PLAIN_TERMS.get(term)
+    if plain is None:
+        return sources
+    # The plain answer first; the standards' own words after it, for whoever wants them.
+    return Reply(blocks=[TextBlock(text=plain), *sources.blocks], data=sources.data)
+
+
+# Plain-language meaning of the audit terms C3's own replies use, so an auditor who
+# does not know the word is never left with only a standards quote.
+PLAIN_TERMS = {
+    "materiality": (
+        "**In plain words:** some differences are too small to matter. *Materiality* is the amount below "
+        "which a mistake would not change the decision of someone reading the accounts, so auditors treat "
+        "smaller differences as minor. The auditor chooses it for each audit (SLAuS 320), often as a small "
+        "percentage of a total such as revenue or total assets.\n\n"
+        "**In this system:** tell me an amount, for example “ignore differences below 50,000”. Failed amount "
+        "checks smaller than it stay listed but are marked low severity. Fraud patterns, ratios and policy "
+        "limits are never softened."),
+}
+PLAIN_TERMS["material"] = PLAIN_TERMS["materiality"]
+
+
+def _concept_sources(turn: Turn, term: str) -> Reply:
+    """What the KG and the standards say about a term."""
     defs = turn.kg.get_definitions(term)
     if defs:
         return Reply(blocks=[ListBlock(items=[ListItem(label=d.term, text=d.text, details=(
@@ -977,6 +1052,8 @@ def concept(turn: Turn) -> Reply:
         return Reply(blocks=[ListBlock(title=f"What the standards say about “{term}”", items=[
             ListItem(label=h.get("section") or h.get("standard") or "Source", text=h.get("text", ""))
             for h in hits[:3]])], data={"search": hits})
+    if term in PLAIN_TERMS:
+        return Reply(blocks=[])  # the plain answer stands alone
     return Reply(f"I don't know “{term}”: it is not in the knowledge graph or the standards. I answer "
                  f"questions about this audit, its rules and the accounting standards.")
 
