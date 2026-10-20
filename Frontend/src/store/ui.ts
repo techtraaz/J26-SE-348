@@ -12,6 +12,8 @@ type UIState = {
   xaiPanelOpen: boolean;
   sidebarOpen: boolean; // the Cases sidebar in Chat
   xaiActiveTab: "thinking" | "report";
+  // The run a chat reply's "Explain" asked the panel to show (not persisted).
+  xaiFocus: { runKey: string; at: number } | null;
   toggleTheme: () => void;
   setCase: (id: string | null) => void;
   newCase: () => string;
@@ -21,6 +23,7 @@ type UIState = {
   toggleXaiPanel: () => void;
   toggleSidebar: () => void;
   setXaiTab: (tab: "thinking" | "report") => void;
+  explainRun: (runKey: string) => void;
 };
 
 const stamp = () => {
@@ -40,6 +43,7 @@ export const useUI = create<UIState>()(
       xaiPanelOpen: false,
       sidebarOpen: true,
       xaiActiveTab: "thinking",
+      xaiFocus: null,
       toggleTheme: () => set((s) => ({ theme: s.theme === "light" ? "dark" : "light" })),
       setCase: (id) => set({ selectedCase: id }),
       newCase: () => {
@@ -58,6 +62,8 @@ export const useUI = create<UIState>()(
       toggleXaiPanel: () => set((s) => ({ xaiPanelOpen: !s.xaiPanelOpen })),
       toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
       setXaiTab: (tab) => set({ xaiActiveTab: tab }),
+      explainRun: (runKey) =>
+        set({ xaiPanelOpen: true, xaiActiveTab: "thinking", xaiFocus: { runKey, at: Date.now() } }),
     }),
     {
       name: "nomos-ui",
