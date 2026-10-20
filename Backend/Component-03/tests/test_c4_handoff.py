@@ -46,7 +46,7 @@ def test_every_rule_run_is_recorded_with_its_values(kg, store):
     assert chk["SFP-42"].sides == {"left": "assets", "op": "==", "right": "liabilities + capital",
                                    "left_value": 164673550.0, "right_value": 152611400.0}
     assert (chk["SFP-42"].rule_name, chk["SFP-42"].doc_type) == ("Accounting equation", "balance_sheet")
-    assert chk["SFP-42"].reason.startswith("Accounting equation failed for SFP-42")
+    assert chk["SFP-42"].reason.startswith("Accounting equation failed for 02_SFP_Wk42.pdf")
     skipped = next(a for a in r.rules_applied if a.rule_id == "CHK-007")
     assert skipped.outcome == "skipped" and skipped.reason.startswith("missing ")
     assert not any(t.decision_type == "rule" for t in r.trace)  # the live steps show them instead
@@ -273,3 +273,47 @@ def test_unsafe_summary_is_dropped_and_said_so(kg, store, summary_llm, reply):
 def test_no_llm_no_summary_but_a_note(kg, store):
     r = _audit(kg, store, [SFP_42])
     assert "LLM is turned off" in next(t.detail for t in r.trace if t.decision_type == "summary_skipped")
+
+
+# --- the chat message an audit leaves --------------------------------------------------
+
+INV_CASE = [doc("INV-03", "invoice", {"amount": 2562724, "approvals": 2}, name="03_Tax_Invoice.pdf"),
+            doc("PO-03a", "purchase_order", {"amount": 2562724}, name="03a_Purchase_Order.pdf",
+                parent_doc_id="INV-03"),
+            doc("GRN-03b", "goods_received_note", {}, name="03b_Goods_Received_Note.pdf",
+                parent_doc_id="INV-03")]
+
+
+def test_audit_reply_says_what_was_checked_on_each_document(kg, store):
+    from app.services import audit_reply
+    r = _audit(kg, store, INV_CASE)
+    text = audit_reply.describe_saved(r, store)
+    assert text.startswith("Audit of case C4-1 saved as version 1. 3 documents checked. "
+                           "No audit rule was broken. 1 item needs your review.")
+    assert "03_Tax_Invoice.pdf (invoice, 2026)" in text
+    assert ("- POL-07 Purchases above Rs. 100,000 need dual approval: passed "
+            "(amount 2,562,724.00 > limit 100,000.00; 2 of 2 approvals signed)") in text
+    assert "03a_Purchase_Order.pdf (purchase order, 2026, supports 03_Tax_Invoice.pdf)" in text
+    assert ("- CHK-003 Child amount matches parent: passed "
+            "(child.amount 2,562,724.00 vs parent.amount 2,562,724.00)") in text
+    assert "- Needs review (REV-004): No fields were extracted for 03b_Goods_Received_Note.pdf" in text
+    assert "GRN-03b;" not in text  # people see file names, not ids
+
+
+def test_audit_reply_for_a_case_that_cannot_be_audited(kg, store):
+    from app.services import audit_reply
+    r = _audit(kg, store, [])
+    assert "is not auditable" in audit_reply.describe_saved(r, store)
+
+
+@pytest.mark.parametrize("text", ["audit it again", "audit this", "check it again please"])
+def test_audit_again_on_an_audited_case_reruns_it(kg, store, text):
+    _audit(kg, store, INV_CASE, case_id="AGAIN-1")
+    r = copilot.answer(CopilotQuery(text=text, case_id="AGAIN-1"), kg, store)
+    assert r.intent == "rerun_audit" and store.latest("AGAIN-1")["version"] == 2
+    assert r.reply.startswith("Audit of case AGAIN-1 saved as version 2.")
+
+
+def test_audit_with_nothing_attached_asks_in_plain_words(kg, store):
+    r = copilot.answer(CopilotQuery(text="audit these documents", case_id="NEW-9"), kg, store)
+    assert r.data["needs"] == "docs" and "Attach them with +" in r.reply and "POST" not in r.reply

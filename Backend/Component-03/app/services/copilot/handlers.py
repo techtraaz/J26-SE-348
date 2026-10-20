@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 
 from app import config
 from app.schemas.copilot import CopilotQuery
-from app.services import intake, orchestrator
+from app.services import audit_reply, intake, orchestrator
 from app.services.copilot import whatif
 from app.services.copilot.entities import Entities
 from app.services.copilot.registry import REGISTRY, intent
@@ -95,10 +95,8 @@ def _filter(findings: list[dict], e: Entities, rec: dict) -> list[dict]:
     return out
 
 
-def _run_summary(result) -> str:
-    findings = [f.model_dump() for f in result.findings]
-    return (f"Case {result.case_id} version {result.version} saved ({result.status}): "
-            f"{_counts(findings)}.\n{_bullets(findings)}")
+def _run_summary(result, store: ResultStore) -> str:
+    return audit_reply.describe_saved(result, store)
 
 
 # --- what-if and audits (fresh_audit / evidence_append) ----------------------------
@@ -140,7 +138,7 @@ def whatif_check(turn: Turn) -> Reply:
         follow_ups=("Show the high severity findings", "What evidence is missing?", "What changed since the last audit?"))
 def evidence_append(turn: Turn) -> Reply:
     result = orchestrator.append_evidence(turn.case_id, turn.query.docs, turn.kg, store=turn.store)
-    return Reply(_run_summary(result), result.model_dump())
+    return Reply(_run_summary(result, turn.store), result.model_dump())
 
 
 @intent("fresh_audit", group="fresh_audit",
@@ -150,24 +148,26 @@ def evidence_append(turn: Turn) -> Reply:
                   r"\b(audit|check|review|analy[sz]e|examine|verify)\b": 1.0,
                   r"\b(these|this|attached) (documents?|docs|files|books|records)\b": 1.5},
         signals={"docs": 2.0, "docs_for_audited_case": -1.5}, needs=("case", "docs"),
+        instead={"docs": "rerun_audit"},
         follow_ups=("Show the high severity findings", "What evidence is missing?", "Summarise this case"))
 def fresh_audit(turn: Turn) -> Reply:
     case = intake.normalize_case({"case_id": turn.case_id, "docs": turn.query.docs})
     result = orchestrator.run_case(case, turn.kg, store=turn.store)
-    return Reply(_run_summary(result), result.model_dump())
+    return Reply(_run_summary(result, turn.store), result.model_dump())
 
 
 @intent("rerun_audit", group="fresh_audit",
         description="Run an already audited case again on its latest documents (e.g. after the "
                     "rules changed), saving a new version.",
         examples=("re-run case CASE-7", "audit case ACME-1 again with the new rules"),
-        patterns={r"\bre-?run\b": 2.5, r"\b(again|once more)\b": 1.5, r"\bre-?audit\b": 2.0},
+        patterns={r"\bre-?run\b": 2.5, r"\b(again|once more)\b": 1.5, r"\bre-?audit\b": 2.0,
+                  r"\b(audit|check|run|do)\b.*\b(again|once more)\b": 1.5},
         signals={"case_ids": 0.5, "docs": -1.0}, needs=("saved_case",),
         follow_ups=("What changed since the last audit?", "Show the high severity findings"))
 def rerun_audit(turn: Turn) -> Reply:
     case = intake.normalize_case(turn.record()["case"])
     result = orchestrator.run_case(case, turn.kg, store=turn.store)
-    return Reply(_run_summary(result), result.model_dump())
+    return Reply(_run_summary(result, turn.store), result.model_dump())
 
 
 # --- questions about saved audits (case_query) ---------------------------------------

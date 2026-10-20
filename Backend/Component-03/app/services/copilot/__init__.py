@@ -134,9 +134,19 @@ def answer(q: CopilotQuery, kg: KGClient | None = None, store: ResultStore | Non
 
     for need in spec.needs:
         missing = _missing(need, turn)
+        alternative = REGISTRY.get(spec.instead.get(need, ""))
+        if missing and alternative and not any(_missing(n, turn) for n in alternative.needs):
+            xai_trace.record(tracer, "copilot", "decision", "ok",
+                             decision=f"{spec.name} -> {alternative.name}", reason=missing)
+            spec = alternative  # e.g. "audit it" with nothing attached on an audited case
+            break
         if missing:
             xai_trace.record(tracer, "copilot", "decision", "skipped",
                              decision=f"{spec.name} needs more information", reason=missing)
+            return respond(missing, needs=need)
+    for need in spec.needs:
+        missing = _missing(need, turn)
+        if missing:
             return respond(missing, needs=need)
     try:
         with xai_trace.scope(tracer, "copilot"):

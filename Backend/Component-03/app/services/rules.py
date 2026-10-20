@@ -45,6 +45,11 @@ def fmt(value: Value) -> str:
     return f"{value:,.2f}" if isinstance(value, float) else repr(value)
 
 
+def label(doc: AuditDocument) -> str:
+    """How a document is named to people: its file name when known, else its id."""
+    return doc.name or doc.doc_id
+
+
 def _is_number(v: object) -> bool:
     return isinstance(v, (int, float)) and not isinstance(v, bool)
 
@@ -220,7 +225,7 @@ def check_rule(rule: CheckRuleResponse, doc: AuditDocument,
     finding = Finding(
         finding_id=f"{doc.doc_id}-{rule.rule_id}", rule_id=rule.rule_id,
         category=category, severity=severity,
-        message=f"{rule.name or rule.rule_id} failed for {doc.doc_id}: "
+        message=f"{rule.name or rule.rule_id} failed for {label(doc)}: "
                 f"{rule.expression} is false ({shown}).{note}",
         evidence_ids=evidence_ids,
         confidence=min(confidence_of(t, k) for t, k in sources.values()) if sources else 1.0,
@@ -316,7 +321,7 @@ def policy_check(doc: AuditDocument,
             record(r, "passed", values, detail=limit)
             continue
         need = required_approvals(r)
-        above = f"{r.text} {doc.doc_id} has {key} {fmt(amount)} above the limit {fmt(float(r.limit))}"
+        above = f"{r.text} {label(doc)} has {key} {fmt(amount)} above the limit {fmt(float(r.limit))}"
         claims = [EvidenceClaim(evidence_id=doc.doc_id, field=key, claimed_value=amount)]
         if need is None or signed is None:
             outcome, severity, message = "review", "medium", f"{above}; confirm the required approval."
@@ -359,46 +364,46 @@ def data_quality_findings(case: AuditCase) -> list[Finding]:
     for d in case.docs:
         if d.doc_type == "unknown" or d.doc_type not in config.ALLOWED_DOC_TYPES:
             out.append(review(f"{d.doc_id}-REV002", "REV-002",
-                              f"Unrecognised document {d.doc_id}: doc type '{d.doc_type}' "
+                              f"Unrecognised document {label(d)}: doc type '{d.doc_type}' "
                               f"is not supported, needs human review.", [d.doc_id]))
         for f in missing_required(d):
             out.append(Finding(
                 finding_id=f"{d.doc_id}-CHK006-{f}", rule_id="CHK-006", category="format",
-                severity="medium", message=f"Missing required field '{f}' in {d.doc_id}.",
+                severity="medium", message=f"Missing required field '{f}' in {label(d)}.",
                 evidence_ids=[d.doc_id], policy_ids=["CHK-006"]))
         if not d.fields:
             out.append(review(f"{d.doc_id}-REV004-nofields", "REV-004",
-                              f"No fields were extracted for {d.doc_id}; nothing on it "
+                              f"No fields were extracted for {label(d)}; nothing on it "
                               f"could be checked.", [d.doc_id]))
         for fname, value in d.fields.items():
             if isinstance(value, list):
                 out.append(review(f"{d.doc_id}-REV003-{fname}", "REV-003",
-                                  f"Field '{fname}' in {d.doc_id} was read with conflicting "
+                                  f"Field '{fname}' in {label(d)} was read with conflicting "
                                   f"values {value!r}; needs human review.", [d.doc_id],
                                   confidence=confidence_of(d, fname)))
             elif fname in config.NUMERIC_FIELDS and value is not None and not _is_number(value):
                 out.append(review(f"{d.doc_id}-REV003-{fname}", "REV-003",
-                                  f"Field '{fname}' in {d.doc_id} holds {value!r}, which could "
+                                  f"Field '{fname}' in {label(d)} holds {value!r}, which could "
                                   f"not be read as a number; needs human review.", [d.doc_id],
                                   confidence=confidence_of(d, fname)))
         for fname, conf in d.confidences.items():
             if not 0.0 <= conf <= 1.0:
                 out.append(review(f"{d.doc_id}-REV004-conf-{fname}", "REV-004",
-                                  f"Confidence {conf} for '{fname}' in {d.doc_id} is outside "
+                                  f"Confidence {conf} for '{fname}' in {label(d)} is outside "
                                   f"0..1; the extraction score cannot be trusted.", [d.doc_id]))
             elif conf < config.REVIEW_CONFIDENCE_LIMIT:
                 why = ("was matched to its line by AI and not confirmed by a person"
                        if d.methods.get(fname, "").endswith("c3:unconfirmed")
                        else f"has low confidence {conf:.2f}")
                 out.append(review(f"{d.doc_id}-REV001-{fname}", "REV-001",
-                                  f"Field '{fname}' in {d.doc_id} {why}; needs human review "
+                                  f"Field '{fname}' in {label(d)} {why}; needs human review "
                                   f"(not an audit violation).", [d.doc_id], confidence=float(conf)))
         if d.parent_doc_id is not None and d.parent_doc_id not in ids:
             out.append(review(f"{d.doc_id}-REV004-parent", "REV-004",
-                              f"{d.doc_id} says it supports {d.parent_doc_id}, which is not "
+                              f"{label(d)} says it supports {d.parent_doc_id}, which is not "
                               f"in this case.", [d.doc_id]))
         if d.source is not None and not d.source.human_verified:
             out.append(review(f"{d.doc_id}-REV008", "REV-008",
-                              f"{d.doc_id} was read from {d.source.component.upper()}'s machine "
+                              f"{label(d)} was read from {d.source.component.upper()}'s machine "
                               f"extraction; no person has verified it there yet.", [d.doc_id]))
     return out
