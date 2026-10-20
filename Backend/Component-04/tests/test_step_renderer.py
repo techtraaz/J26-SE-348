@@ -62,6 +62,20 @@ def test_policy_limit_breach():
     assert {"label": "Above limit by", "value": "50,000"} in row["facts"]
 
 
+def test_policy_outcomes_follow_the_approval_stamp():
+    base = {"rule_id": "POL-07", "doc_id": "INV", "field": "amount", "amount": 150000.0,
+            "limit": 100000.0}
+    approved = sr.render_step("policy_check", "passed",
+                              {**base, "approvals_required": 2, "approvals_signed": 2.0})
+    assert (approved["verb"], approved["tone"]) == ("Checked", "success")
+    assert approved["detail"] == "Amount 150,000 > limit 100,000 · 2 of 2 required approvals signed"
+    short = sr.render_step("policy_check", "failed",
+                           {**base, "approvals_required": 2, "approvals_signed": 1.0})
+    assert short["detail"].endswith("only 1 of 2 required approvals signed")
+    unread = sr.render_step("policy_check", "review", base)
+    assert (unread["verb"], unread["tone"]) == ("Needs review", "warning")
+
+
 def test_kg_source_never_shows_internal_names():
     row = sr.render_step("kg_fetch", "ok", {
         "method": "get_check_rules", "arg": "balance_sheet", "source": "mock",

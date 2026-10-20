@@ -234,6 +234,15 @@ def required_approvals(rule: RuleResponse) -> int | None:
     return _APPROVAL_COUNT[m.group(1).lower()] if m else None
 
 
+def _trace_policy(r: RuleResponse, doc: AuditDocument, key: str, amount: float, status: str,
+                  need: int | None = None, signed: float | None = None) -> None:
+    """XAI: one policy_check per limit rule, with the outcome the audit actually
+    reached (above the limit with enough approvals signed passes)."""
+    xai_trace.step("policy_check", status, rule_id=r.rule_id, text=r.text, doc_id=doc.doc_id,
+                   doc_type=doc.doc_type, field=key, amount=amount, limit=float(r.limit),
+                   approvals_required=need, approvals_signed=signed)
+
+
 def policy_findings(doc: AuditDocument, rules: list[RuleResponse]) -> list[Finding]:
     """KG policy limits, e.g. POL-07: an amount above the limit needs dual approval.
     When the document's approval stamp was read (`approvals` = signed rows), too few
@@ -249,20 +258,21 @@ def policy_findings(doc: AuditDocument, rules: list[RuleResponse]) -> list[Findi
     for r in rules:
         if r.limit is None:
             continue
-        xai_trace.step("policy_check", "failed" if amount > r.limit else "passed",
-                       rule_id=r.rule_id, text=r.text, doc_id=doc.doc_id, doc_type=doc.doc_type,
-                       field=key, amount=amount, limit=float(r.limit))
         if amount <= r.limit:
+            _trace_policy(r, doc, key, amount, "passed")
             continue
         need = required_approvals(r)
         above = f"{r.text} {doc.doc_id} has {key} {fmt(amount)} above the limit {fmt(float(r.limit))}"
         claims = [EvidenceClaim(evidence_id=doc.doc_id, field=key, claimed_value=amount)]
         if need is None or signed is None:
+            _trace_policy(r, doc, key, amount, "review", need, signed)
             severity, message = "medium", f"{above}; confirm the required approval."
             confidence = confidence_of(doc, key)
         elif signed >= need:
+            _trace_policy(r, doc, key, amount, "passed", need, signed)
             continue
         else:
+            _trace_policy(r, doc, key, amount, "failed", need, signed)
             severity = "high"
             message = (f"{above} but only {int(signed)} of {need} required approvals "
                        f"is signed on the document.")

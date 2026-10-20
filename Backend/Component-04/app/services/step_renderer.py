@@ -225,12 +225,25 @@ def _rule_check(f: dict, status: str) -> dict:
 def _policy_check(f: dict, status: str) -> dict:
     target = f"{f.get('rule_id', 'policy')} on {f.get('doc_id', '')}".strip()
     field, amount, limit = humanize(f.get("field", "amount")), f.get("amount"), f.get("limit")
-    facts = _facts(("Policy", f.get("text")), (field, amount), ("Limit", limit))
+    need, signed = f.get("approvals_required"), f.get("approvals_signed")
+    facts = _facts(("Policy", f.get("text")), (field, amount), ("Limit", limit),
+                   ("Approvals required", need), ("Approvals signed", signed))
+    over = (f"{field} {fmt_value(amount)} > limit {fmt_value(limit)}"
+            if isinstance(amount, (int, float)) and isinstance(limit, (int, float)) and amount > limit
+            else None)
+    if over:
+        facts += _facts(("Above limit by", amount - limit))
     if status == "failed":
-        if isinstance(amount, (int, float)) and isinstance(limit, (int, float)):
-            facts += _facts(("Above limit by", amount - limit))
-        return _row("Failed", target, f"{field} {fmt_value(amount)} > limit {fmt_value(limit)} · "
-                                      f"required approval must be confirmed", facts)
+        if signed is not None and need is not None:
+            return _row("Failed", target, f"{over} · only {fmt_value(signed)} of {fmt_value(need)} "
+                                          f"required approvals signed", facts)
+        return _row("Failed", target, f"{over or field} · required approval must be confirmed", facts)
+    if status == "review":
+        return _row("Needs review", target, f"{over or field} · confirm the required approval "
+                                                f"(approval stamp not read)", facts)
+    if over:
+        return _row("Checked", target, f"{over} · {fmt_value(signed)} of {fmt_value(need)} "
+                                       f"required approvals signed", facts)
     return _row("Checked", target, f"{field} {fmt_value(amount)} ≤ limit {fmt_value(limit)}", facts)
 
 

@@ -156,8 +156,28 @@ def test_audit_steps_explain_what_each_agent_did(kg):
     assert chk1["facts"]["sides"] == {"left": "assets", "op": "==", "right": "liabilities + capital",
                                       "left_value": 100.0, "right_value": 50.0}
     policy = next(s for s in steps if s["kind"] == "policy_check")
+    # above the limit, approval stamp not read: the auditor must confirm it
     assert (policy["status"], policy["facts"]["amount"], policy["facts"]["limit"]) == (
-        "failed", 150000.0, 100000.0)
+        "review", 150000.0, 100000.0)
+
+
+def test_policy_step_reports_the_approval_outcome():
+    from app.schemas.kg import RuleResponse
+    from app.services import rules
+    rule = RuleResponse(rule_id="POL-07", text="Purchases above Rs. 100,000 need dual approval.",
+                        limit=100000.0)
+    col = SlowCollection()
+    tracer = RunTracer("C-1", 1, TraceExporter(lambda: col))
+    with xai_trace.scope(tracer, "compliance"):
+        for signed in (2, 1):
+            invoice = orchestrator.intake.normalize_case({"case_id": "C-1", "docs": [
+                doc(f"INV-{signed}", "invoice", {"amount": 150000, "approvals": signed})]}).docs[0]
+            rules.policy_findings(invoice, [rule])
+    tracer._exporter.flush()
+    by_doc = {d["facts"]["doc_id"]: d for d in col.docs}
+    assert rules.required_approvals(rule) == 2
+    assert by_doc["INV-2"]["status"] == "passed"
+    assert (by_doc["INV-1"]["status"], by_doc["INV-1"]["facts"]["approvals_signed"]) == ("failed", 1.0)
 
 
 def test_copilot_turn_streams_on_its_chat_session(kg):
