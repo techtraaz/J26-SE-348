@@ -287,26 +287,32 @@ INV_CASE = [doc("INV-03", "invoice", {"amount": 2562724, "approvals": 2}, name="
 def test_audit_reply_says_what_was_checked_on_each_document(kg, store):
     from app.services import audit_reply
     r = _audit(kg, store, INV_CASE)
-    text = audit_reply.describe_saved(r, store)
-    assert text.startswith("Audit of case C4-1 saved as version 1. Verdict: needs review, score 98/100.\n"
-                           "3 documents checked. No audit rule was broken. 1 item needs your review.")
-    assert "What to do next\n- REV-004: Check the document was read correctly" in text
-    assert "03_Tax_Invoice.pdf (invoice, 2026)" in text
-    assert ("- POL-07 Purchases above Rs. 100,000 need dual approval: passed "
-            "(amount 2,562,724.00 > limit 100,000.00; 2 of 2 approvals signed)") in text
-    assert "03a_Purchase_Order.pdf (purchase order, 2026, supports 03_Tax_Invoice.pdf)" in text
-    assert ("- CHK-003 Child amount matches parent: passed "
-            "(child.amount 2,562,724.00 vs parent.amount 2,562,724.00)") in text
-    assert "- Needs review (REV-004): No values were read from 03b_Goods_Received_Note.pdf" in text
-    grn = text.split("03b_Goods_Received_Note.pdf (goods received note")[1]
-    assert "No audit rules for this document type" not in grn  # said once, by the review line
-    assert "GRN-03b;" not in text  # people see file names, not ids
+    blocks = audit_reply.describe_saved_blocks(r, store)
+    verdict, *sections = blocks
+    assert (verdict.type, verdict.verdict, verdict.score) == ("verdict", "needs_review", 98)
+    assert verdict.summary == "3 documents checked. No audit rule was broken. 1 item needs your review."
+    by_title = {b.title: b for b in sections if b.type == "list"}
+    invoice = by_title["03_Tax_Invoice.pdf (invoice, 2026)"]
+    pol = next(i for i in invoice.items if i.label.startswith("POL-07"))
+    assert (pol.tone, pol.text) == ("passed", "amount 2,562,724.00 > limit 100,000.00; 2 of 2 approvals signed")
+    po = by_title["03a_Purchase_Order.pdf (purchase order, 2026, supports 03_Tax_Invoice.pdf)"]
+    assert [(i.label, i.tone) for i in po.items] == [("CHK-003 Child amount matches parent", "passed")]
+    grn = next(b for t, b in by_title.items() if t.startswith("03b_Goods_Received_Note.pdf"))
+    assert [i.tone for i in grn.items if i.label.startswith("Needs review")] == ["review"]
+    assert not any(i.label.startswith("No audit rules") for i in grn.items)  # said once, by the review item
+    assert by_title["What to do next"].items[0].label == "REV-004"
+    text = audit_reply.describe_saved(r, store)  # the same content as Markdown
+    assert text.startswith("**Needs review** · score 98/100 · case C4-1, version 1")
+    assert "- **POL-07 Purchases above Rs. 100,000 need dual approval** (passed): amount 2,562,724.00" in text
+    assert "GRN-03b" not in text  # people see file names, not ids
 
 
 def test_audit_reply_for_a_case_that_cannot_be_audited(kg, store):
     from app.services import audit_reply
     r = _audit(kg, store, [])
-    assert "is not auditable" in audit_reply.describe_saved(r, store)
+    blocks = audit_reply.describe_saved_blocks(r, store)
+    assert blocks[0].verdict == "not_auditable" and blocks[1].title == "Nothing could be checked"
+    assert audit_reply.describe_saved(r, store).startswith("**Not auditable**")
 
 
 @pytest.mark.parametrize("text", ["audit it again", "audit this", "check it again please"])
@@ -314,7 +320,8 @@ def test_audit_again_on_an_audited_case_reruns_it(kg, store, text):
     _audit(kg, store, INV_CASE, case_id="AGAIN-1")
     r = copilot.answer(CopilotQuery(text=text, case_id="AGAIN-1"), kg, store)
     assert r.intent == "rerun_audit" and store.latest("AGAIN-1")["version"] == 2
-    assert r.reply.startswith("Audit of case AGAIN-1 saved as version 2.")
+    assert r.blocks[0].type == "verdict" and r.blocks[0].version == 2
+    assert "case AGAIN-1, version 2" in r.reply
 
 
 def test_audit_with_nothing_attached_asks_in_plain_words(kg, store):

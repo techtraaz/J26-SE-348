@@ -58,7 +58,8 @@ def _events_entry(note: str) -> dict:
 def _summary(rec: dict) -> dict:
     return {"version": rec["version"], "status": rec["status"],
             "created_at": rec["created_at"], "findings": len(rec.get("findings", [])),
-            "docs": len(rec.get("case", {}).get("docs", []))}
+            "docs": len(rec.get("case", {}).get("docs", [])),
+            "verdict": rec.get("verdict"), "score": rec.get("score")}  # absent in records before the report block
 
 
 def case_summary(rec: dict) -> dict:

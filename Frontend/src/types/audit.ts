@@ -102,10 +102,24 @@ export interface CopilotRequest {
   docs?: AuditDocument[];
 }
 
+// Copilot reply blocks (C3 app/schemas/copilot.py): what the chat draws. `reply` / `text`
+// carries the same content as Markdown for clients that show text only.
+export type Tone = "neutral" | "passed" | "failed" | "review" | "skipped" | "high" | "medium" | "low";
+export interface ListItem { label: string; text: string; tone: Tone; details: string[] }
+export type ReplyBlock =
+  | { type: "text"; text: string }
+  | { type: "list"; title: string; items: ListItem[]; more: number }
+  | { type: "table"; title: string; columns: string[]; rows: string[][] }
+  | { type: "findings"; title: string; finding_ids: string[]; lines: string[]; more: number }
+  | { type: "verdict"; case_id: string; version: number; verdict: string; score: number | null; summary: string }
+  | { type: "question"; text: string; choices: string[] }
+  | { type: "link"; label: string; url: string };
+
 export interface CopilotResponse {
   intent: string; // fine-grained intent, e.g. list_findings, whatif_check
   group: CopilotGroup;
   reply: string;
+  blocks?: ReplyBlock[];
   session_id: string | null;
   suggestions: string[];
   data: (Record<string, unknown> & { findings?: Finding[]; version?: number; needs?: string }) | null;
@@ -120,7 +134,8 @@ export interface ChatMessage {
   seq: number;
   case_id: string | null;
   role: ChatRole;
-  text: string;
+  text: string; // Markdown
+  blocks?: ReplyBlock[]; // Copilot replies; older messages have none and show `text`
   intent: string | null;
   group: CopilotGroup | null;
   suggestions: string[];

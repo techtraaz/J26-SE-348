@@ -17,6 +17,7 @@ from app.schemas.findings import AuditResult, Finding, now_iso
 from app.services import audit_reply, copilot
 from app.services.chat_store import ChatStore
 from app.services.copilot import memory as memory_rules
+from app.services.copilot.render import to_markdown
 from app.services.kg_client import KGClient
 from app.services.store import ResultStore
 
@@ -63,7 +64,7 @@ def converse(q: CopilotQuery, kg: KGClient, store: ResultStore, chats: ChatStore
     refs, inline = _refs(response)
     chats.add_message(ChatMessage(
         message_id=_id(), session_id=session.session_id, case_id=case_id, role="copilot",
-        text=response.reply, intent=response.intent, group=response.group,
+        text=response.reply, blocks=response.blocks, intent=response.intent, group=response.group,
         suggestions=response.suggestions, refs=refs, findings=inline,
         data={**({"routing": data["nlu"]} if data.get("nlu") else {}),
               **({"trace_id": data["trace_id"]} if data.get("trace_id") else {})}))
@@ -75,10 +76,11 @@ def converse(q: CopilotQuery, kg: KGClient, store: ResultStore, chats: ChatStore
 
 def record_audit(chats: ChatStore, session_id: str, result: AuditResult, store: ResultStore) -> None:
     """An audit run outside the chat (e.g. from the Library) shows up in it."""
-    text = audit_reply.describe_saved(result, store)
+    blocks = audit_reply.describe_saved_blocks(result, store)
     session = open_session(chats, session_id, result.case_id)
     chats.add_message(ChatMessage(
-        message_id=_id(), session_id=session_id, case_id=result.case_id, role="copilot", text=text,
+        message_id=_id(), session_id=session_id, case_id=result.case_id, role="copilot",
+        text=to_markdown(blocks), blocks=blocks,
         intent="audit_run", group="fresh_audit",
         refs=MessageRefs(version=result.version, finding_ids=[f.finding_id for f in result.findings]),
         suggestions=["Show the high severity findings", "What evidence is missing?"]))

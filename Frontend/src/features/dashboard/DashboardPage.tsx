@@ -4,6 +4,8 @@ import { c3, chat } from "@/lib/apiClient";
 import { VerifiedDocumentPicker } from "@/features/documents/VerifiedDocumentPicker";
 import { useUI } from "@/store/ui";
 import { FindingCard } from "@/components/audit/FindingCard";
+import { Markdown } from "@/components/chat/Markdown";
+import { ReplyBlocks } from "@/components/chat/ReplyBlocks";
 import { Plus, Sparkles } from "lucide-react";
 import { IconButton } from "@/components/ui/IconButton";
 import type { ChatMessage, Finding } from "@/types/audit";
@@ -196,7 +198,9 @@ function Bubble({ user, error, children }: { user: boolean; error?: boolean; chi
         borderRadius: user ? "16px 16px 4px 16px" : "16px 16px 16px 4px",
         background: user ? "var(--text-h)" : "var(--surface)",
         color: user ? "var(--bg)" : error ? "var(--danger)" : "var(--text)",
-        fontSize: "14px", lineHeight: "1.6", whiteSpace: "pre-wrap",
+        // the user's own text keeps its line breaks; replies are laid out by Markdown / blocks
+        fontSize: "14px", lineHeight: "1.6", whiteSpace: user || error ? "pre-wrap" : "normal",
+        minWidth: 0, overflowWrap: "anywhere",
         border: user ? "none" : `1px solid ${error ? "var(--danger)" : "var(--border-strong)"}`,
         boxShadow: user ? "none" : "var(--shadow-sm)",
       }}>{children}</div>
@@ -209,6 +213,7 @@ function Message({ m, showSuggestions, busy, onPick }: {
 }) {
   const [all, setAll] = useState(false);
   const user = m.role === "user";
+  const blocks = !user && m.blocks?.length ? m.blocks : null; // newer Copilot replies
   const shown = all ? m.findings : m.findings.slice(0, SHOWN_FINDINGS);
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: user ? "flex-end" : "flex-start", gap: "8px" }}>
@@ -220,19 +225,21 @@ function Message({ m, showSuggestions, busy, onPick }: {
           <span style={{ fontWeight: 600, color: "var(--text-h)" }}>
             {m.role === "report" ? `Report${m.refs?.version ? ` · v${m.refs.version}` : ""}` : "Notice"} ({m.source.toUpperCase()})
           </span>
-          <div style={{ whiteSpace: "pre-wrap", marginTop: "4px" }}>{m.text}</div>
+          <div style={{ marginTop: "4px" }}><Markdown text={m.text} /></div>
           {typeof m.data.report_url === "string" && (
             <a href={m.data.report_url} target="_blank" rel="noreferrer" style={{ color: "var(--text-h)", fontSize: "12px" }}>Open report</a>
           )}
         </div>
       ) : (
         <Bubble user={user}>
-          {user ? m.text : replyText(m.text, m.findings)}
+          {user ? m.text
+            : blocks ? <ReplyBlocks blocks={blocks} findings={m.findings} onPick={onPick} disabled={busy} />
+            : <Markdown text={replyText(m.text, m.findings)} />}
           {m.data.attached_docs ? <div style={{ fontSize: "12px", opacity: 0.75, marginTop: "4px" }}>+ {m.data.attached_docs} document(s)</div> : null}
         </Bubble>
       )}
       {!user && typeof m.data.trace_id === "string" && <ExplainButton runKey={m.data.trace_id} />}
-      {m.findings.length > 0 && (
+      {!blocks && m.findings.length > 0 && (
         <div style={{ width: "85%", display: "flex", flexDirection: "column", gap: "6px" }}>
           {shown.map((f) => <FindingCard key={f.finding_id} f={f} />)}
           {m.findings.length > SHOWN_FINDINGS && (

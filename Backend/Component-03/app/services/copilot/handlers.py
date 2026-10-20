@@ -9,8 +9,19 @@ from collections import Counter
 from dataclasses import dataclass, field
 
 from app import config
-from app.schemas.copilot import CopilotQuery
+from app.schemas.copilot import (
+    CopilotQuery,
+    FindingsBlock,
+    LinkBlock,
+    ListBlock,
+    ListItem,
+    QuestionBlock,
+    TableBlock,
+    TextBlock,
+    VerdictBlock,
+)
 from app.services import audit_reply, c4_report, intake, orchestrator
+from app.services import rules as rules_mod
 from app.services.copilot import whatif
 from app.services.copilot.entities import Entities
 from app.services.copilot.registry import REGISTRY, intent
@@ -41,24 +52,16 @@ class Turn:
 
 @dataclass
 class Reply:
-    text: str
+    """A handler's answer: blocks (preferred; the text is rendered from them) or plain text."""
+    text: str = ""
     data: dict | None = None
+    blocks: list = field(default_factory=list)
 
 
 # --- formatting --------------------------------------------------------------
 
 def _is_review(f: dict) -> bool:
     return f["rule_id"].startswith("REV-") or f["review_status"] == "needs_more_evidence"
-
-
-def _line(f: dict) -> str:
-    flag = " [citation failed]" if f.get("citation_unverified") else ""
-    return f"- {f['rule_id']} ({f['severity']}, {f['review_status']}){flag}: {f['message']}"
-
-
-def _bullets(findings: list[dict]) -> str:
-    more = f"\n...and {len(findings) - MAX} more." if len(findings) > MAX else ""
-    return "\n".join(_line(f) for f in findings[:MAX]) + more
 
 
 def _counts(findings: list[dict]) -> str:
@@ -95,8 +98,77 @@ def _filter(findings: list[dict], e: Entities, rec: dict) -> list[dict]:
     return out
 
 
-def _run_summary(result, store: ResultStore) -> str:
-    return audit_reply.describe_saved(result, store)
+def _names(rec: dict) -> dict[str, str]:
+    """doc_id -> what people call the document (its file name when known)."""
+    return {d["doc_id"]: d.get("name") or d["doc_id"] for d in rec.get("case", {}).get("docs", [])}
+
+
+def _on(f: dict, names: dict[str, str]) -> str:
+    return ", ".join(names.get(e, e) for e in f["evidence_ids"]) or "the case"
+
+
+def _findings_block(title: str, findings: list[dict]) -> FindingsBlock:
+    shown = findings[:MAX]
+    lines = []
+    for f in shown:
+        flag = " (citation failed)" if f.get("citation_unverified") else ""
+        lines.append(f"{f['rule_id']} · {f['severity']}{flag}: {f['message']}")
+    return FindingsBlock(title=title, finding_ids=[f["finding_id"] for f in shown], lines=lines,
+                         more=max(0, len(findings) - MAX))
+
+
+def _doc_words(doc_type: str) -> str:
+    return doc_type.replace("_", " ")
+
+
+# A reasoning-chain step "basis: ..." shown as a labelled point.
+_STEP_LABELS = {"rule": "Rule", "basis": "Basis", "tests": "Tests", "risk": "Risk", "check": "Value checked",
+                "evidence": "Evidence", "source": "Source", "kg links": "Linked in the KG",
+                "caution": "Caution"}
+
+
+def _step(step: str, names: dict[str, str]) -> ListItem:
+    """One reasoning-chain step, with document ids shown as their names."""
+    for prefix, label in _STEP_LABELS.items():
+        if step.startswith((prefix + " ", prefix + ":")):
+            text = step[len(prefix):].lstrip(": ")
+            if prefix == "check":  # "DOC.field = value"
+                doc_id, _, rest = text.partition(".")
+                text = f"{names.get(doc_id, doc_id)} · {rest}" if rest else text
+            elif prefix == "evidence":
+                text = ", ".join(names.get(e.strip(), e.strip()) for e in text.split(","))
+            elif prefix == "source":  # "DOC: C1 verified record v1"
+                doc_id, sep, rest = text.partition(": ")
+                text = f"{names.get(doc_id, doc_id)}: {rest}" if sep else text
+            return ListItem(label=label, text=text)
+    return ListItem(label="Note", text=step)
+
+
+def _rule_facts(kg: KGClient, rule_id: str) -> tuple[object | None, list[str]]:
+    """The KG rule (check or policy) and the document types it applies to."""
+    found, types = None, []
+    for doc_type in sorted(config.ALLOWED_DOC_TYPES - {"unknown"}):
+        rules = [*kg.get_check_rules(doc_type), *kg.get_rules(doc_type)]
+        hit = next((r for r in rules if r.rule_id == rule_id), None)
+        if hit is not None:
+            found = found or hit
+            types.append(doc_type)
+    return found, types
+
+
+def _rule_item(rule) -> ListItem:
+    """One rule as a list item: what it checks, its severity or limit."""
+    if hasattr(rule, "expression"):
+        return ListItem(label=f"{rule.rule_id} {rule.name}".strip(), text=f"checks `{rule.expression}`",
+                        tone=rule.severity)
+    need = rules_mod.required_approvals(rule)
+    limit = f"limit Rs {fmt(float(rule.limit))}" if rule.limit is not None else "no limit set"
+    approvals = f", needs {need} approvals" if need else ""
+    return ListItem(label=rule.rule_id, text=f"{rule.text.rstrip('.')} ({limit}{approvals})")
+
+
+def _audit_reply(result, store: ResultStore) -> Reply:
+    return Reply(blocks=audit_reply.describe_saved_blocks(result, store), data=result.model_dump())
 
 
 # --- what-if and audits (fresh_audit / evidence_append) ----------------------------
@@ -120,12 +192,13 @@ def whatif_check(turn: Turn) -> Reply:
     result = orchestrator.run_case(case, turn.kg, store=MemoryStore(), narrate=False)
     findings = [f.model_dump() for f in result.findings]
     rule_findings = [f for f in findings if not f["rule_id"].startswith("REV-")]
-    shown = ", ".join(f"{k}={fmt(v) if isinstance(v, float) else v}" for k, v in read["fields"].items())
-    head = (f"What-if check on a {read['doc_type']} (not saved). I read: {shown}. "
-            f"Correct me if a value is wrong.")
-    body = (_bullets(rule_findings) if rule_findings
-            else "No audit rule failed for these values.")
-    return Reply(f"{head}\n{body}", {"read": read, "findings": rule_findings, "unsaved": True,
+    read_items = [ListItem(label=k.replace("_", " "), text=fmt(v) if isinstance(v, float) else str(v))
+                  for k, v in read["fields"].items()]
+    blocks = [TextBlock(text=f"What-if check on a {_doc_words(read['doc_type'])} (not saved)."),
+              ListBlock(title="I read these values (correct me if one is wrong)", items=read_items)]
+    blocks.append(_findings_block("Rules that would fail", rule_findings) if rule_findings
+                  else TextBlock(text="No audit rule failed for these values."))
+    return Reply(blocks=blocks, data={"read": read, "findings": rule_findings, "unsaved": True,
                                       "result": result.model_dump()})
 
 
@@ -138,7 +211,7 @@ def whatif_check(turn: Turn) -> Reply:
         follow_ups=("Show the high severity findings", "What evidence is missing?", "What changed since the last audit?"))
 def evidence_append(turn: Turn) -> Reply:
     result = orchestrator.append_evidence(turn.case_id, turn.query.docs, turn.kg, store=turn.store)
-    return Reply(_run_summary(result, turn.store), result.model_dump())
+    return _audit_reply(result, turn.store)
 
 
 @intent("fresh_audit", group="fresh_audit",
@@ -153,7 +226,7 @@ def evidence_append(turn: Turn) -> Reply:
 def fresh_audit(turn: Turn) -> Reply:
     case = intake.normalize_case({"case_id": turn.case_id, "docs": turn.query.docs})
     result = orchestrator.run_case(case, turn.kg, store=turn.store)
-    return Reply(_run_summary(result, turn.store), result.model_dump())
+    return _audit_reply(result, turn.store)
 
 
 @intent("rerun_audit", group="fresh_audit",
@@ -167,7 +240,7 @@ def fresh_audit(turn: Turn) -> Reply:
 def rerun_audit(turn: Turn) -> Reply:
     case = intake.normalize_case(turn.record()["case"])
     result = orchestrator.run_case(case, turn.kg, store=turn.store)
-    return Reply(_run_summary(result, turn.store), result.model_dump())
+    return _audit_reply(result, turn.store)
 
 
 # --- questions about saved audits (case_query) ---------------------------------------
@@ -183,24 +256,30 @@ def rerun_audit(turn: Turn) -> Reply:
         follow_ups=("Show the findings that need review", "What evidence is missing?"))
 def explain_finding(turn: Turn) -> Reply:
     rec = turn.record()
-    matches = _filter(rec["findings"], turn.entities, rec)
-    named = turn.entities.rule_ids or turn.entities.doc_ids or turn.entities.finding_ids
-    if not named and len(rec["findings"]) > 1:
-        ids = ", ".join(sorted({f["rule_id"] for f in rec["findings"]}))
-        return Reply(f"Which finding? Case {turn.case_id} has: {ids}. Name a rule id or document.")
+    names = _names(rec)
+    e = turn.entities
+    matches = _filter(rec["findings"], e, rec)
+    narrowed = any((e.rule_ids, e.doc_ids, e.finding_ids, e.doc_types, e.severities, e.categories))
     if not matches:
         return Reply(f"No finding in case {turn.case_id} (version {rec['version']}) matches that.")
+    if len(matches) > 1 and not narrowed:
+        choices = [f"Why was {f['rule_id']} raised on {_on(f, names)}?" for f in matches[:5]]
+        return Reply(blocks=[QuestionBlock(text=f"Case {turn.case_id} has {len(matches)} findings. "
+                                                f"Which one should I explain?", choices=choices)],
+                     data={"version": rec["version"]})
     reasons = {r["finding"]["finding_id"]: r["reason"] for r in rec.get("rejected_findings", [])}
-    parts = []
+    blocks = []
     for f in matches[:3]:
-        lines = [f"{f['rule_id']} on {', '.join(f['evidence_ids']) or 'the case'}: {f['message']}",
-                 *(f"  - {step}" for step in f["reasoning_chain"]),
-                 (f"  - confidence {f['confidence']:.2f}, review status {f['review_status']}, "
-                 f"evidence {f['evidence_validation']}")]
+        items = [_step(s, names) for s in f["reasoning_chain"][1:]]
+        items.append(ListItem(label="Confidence", text=f"{f['confidence']:.2f} · review status "
+                                                       f"{f['review_status'].replace('_', ' ')}"))
+        items.append(ListItem(label="Evidence check", text=f["evidence_validation"].replace("_", " "),
+                              tone="failed" if f["evidence_validation"] == "failed" else "neutral"))
         if f["finding_id"] in reasons:
-            lines.append(f"  - citation problem: {reasons[f['finding_id']]}")
-        parts.append("\n".join(lines))
-    return Reply("\n\n".join(parts), {"version": rec["version"], "findings": matches[:3]})
+            items.append(ListItem(label="Citation problem", text=reasons[f["finding_id"]], tone="failed"))
+        blocks.append(TextBlock(text=f"**{f['rule_id']}** on {_on(f, names)} · {f['severity']}\n\n{f['message']}"))
+        blocks.append(ListBlock(title="Why", items=items))
+    return Reply(blocks=blocks, data={"version": rec["version"], "findings": matches[:3]})
 
 
 @intent("list_findings", group="case_query",
@@ -219,13 +298,15 @@ def list_findings(turn: Turn) -> Reply:
     if rec is None:
         return Reply(f"Case {turn.case_id} has no version {version}.")
     matches = _filter(rec["findings"], turn.entities, rec)
-    head = f"Case {turn.case_id} version {rec['version']}: {len(matches)} matching finding(s)."
     e = turn.entities
     filters = {"severities": e.severities, "rule_ids": e.rule_ids, "doc_ids": e.doc_ids,
                "doc_types": e.doc_types, "categories": e.categories,
                "review_statuses": e.review_statuses}
-    return Reply(f"{head}\n{_bullets(matches)}" if matches else head,
-                 {"version": rec["version"], "findings": matches, "filters": filters})
+    head = f"Case {turn.case_id}, version {rec['version']}: {len(matches)} matching finding(s)."
+    blocks = [TextBlock(text=head)]
+    if matches:
+        blocks.append(_findings_block("", matches))
+    return Reply(blocks=blocks, data={"version": rec["version"], "findings": matches, "filters": filters})
 
 
 @intent("evidence_gaps", group="case_query",
@@ -237,19 +318,24 @@ def list_findings(turn: Turn) -> Reply:
         follow_ups=("Show the findings that need review", "Show the audit history"))
 def evidence_gaps(turn: Turn) -> Reply:
     rec = turn.record()
-    lines = []
+    names = _names(rec)
+    blocks = [TextBlock(text=f"Evidence gaps in case {turn.case_id}, version {rec['version']}.")]
     if rec["rejected_records"]:
-        lines.append(f"Rejected documents (not checked): {', '.join(rec['rejected_records'])}.")
-    for r in rec.get("rejected_findings", [])[:MAX]:
-        lines.append(f"- {r['finding']['rule_id']} citation failed: {r['reason']}")
+        blocks.append(ListBlock(title="Left out of the rule checks", items=[
+            ListItem(label=names.get(d, d), text="its data could not be used", tone="failed")
+            for d in rec["rejected_records"]]))
+    failed = rec.get("rejected_findings", [])[:MAX]
+    if failed:
+        blocks.append(ListBlock(title="Citations that failed validation", items=[
+            ListItem(label=r["finding"]["rule_id"], text=r["reason"], tone="failed") for r in failed]))
     gaps = [f for f in rec["findings"] if f["rule_id"].startswith("REV-")]
     if gaps:
-        lines.append("Review items:\n" + _bullets(gaps))
-    text = "\n".join(lines) or f"No evidence gaps recorded for case {turn.case_id}."
-    return Reply(f"Case {turn.case_id} version {rec['version']}:\n{text}",
-                 {"version": rec["version"], "rejected_records": rec["rejected_records"],
-                  "rejected_findings": rec.get("rejected_findings", []), "review_items": gaps,
-                  "findings": gaps})
+        blocks.append(_findings_block("Review items", gaps))
+    if len(blocks) == 1:
+        blocks = [TextBlock(text=f"No evidence gaps recorded for case {turn.case_id}.")]
+    return Reply(blocks=blocks, data={"version": rec["version"], "rejected_records": rec["rejected_records"],
+                                      "rejected_findings": rec.get("rejected_findings", []),
+                                      "review_items": gaps, "findings": gaps})
 
 
 @intent("compare_versions", group="case_query",
@@ -274,13 +360,13 @@ def compare_versions(turn: Turn) -> Reply:
     resolved = [a[k] for k in a if k not in b]
     changed = [b[k] for k in b if k in a and any(
         a[k][x] != b[k][x] for x in ("severity", "message", "review_status", "evidence_validation"))]
-    parts = [(f"Case {turn.case_id}: version {old_v} -> {new_v}. "
-             f"{len(added)} new, {len(resolved)} resolved, {len(changed)} changed.")]
+    blocks = [TextBlock(text=f"Case {turn.case_id}: version {old_v} → {new_v}. {len(added)} new, "
+                             f"{len(resolved)} resolved, {len(changed)} changed.")]
     for title, items in (("New", added), ("Resolved", resolved), ("Changed", changed)):
         if items:
-            parts.append(f"{title}:\n{_bullets(items)}")
-    return Reply("\n".join(parts), {"from": old_v, "to": new_v, "findings": added + changed,
-                                    "new": added, "resolved": resolved, "changed": changed})
+            blocks.append(_findings_block(title, items))
+    return Reply(blocks=blocks, data={"from": old_v, "to": new_v, "findings": added + changed,
+                                      "new": added, "resolved": resolved, "changed": changed})
 
 
 @intent("list_versions", group="case_query",
@@ -291,10 +377,13 @@ def compare_versions(turn: Turn) -> Reply:
         follow_ups=("What changed since the last audit?", "Summarise this case"))
 def list_versions(turn: Turn) -> Reply:
     rows = turn.store.versions(turn.case_id)
-    lines = [f"- v{r['version']} {r['created_at'][:19]} {r['status']}: {r['findings']} finding(s), "
-             f"{r['docs']} document(s)" for r in rows]
-    return Reply(f"Case {turn.case_id} has {len(rows)} saved version(s):\n" + "\n".join(lines),
-                 {"versions": rows})
+    table = TableBlock(columns=["Version", "Saved", "Verdict", "Score", "Findings", "Documents"], rows=[
+        [f"v{r['version']}", r["created_at"][:16].replace("T", " "),
+         (r.get("verdict") or r["status"]).replace("_", " "),
+         "" if r.get("score") is None else str(r["score"]), str(r["findings"]), str(r["docs"])]
+        for r in rows])
+    return Reply(blocks=[TextBlock(text=f"Case {turn.case_id} has {len(rows)} saved version(s)."), table],
+                 data={"versions": rows})
 
 
 @intent("case_status", group="case_query",
@@ -307,14 +396,24 @@ def list_versions(turn: Turn) -> Reply:
         follow_ups=("Show the high severity findings", "What evidence is missing?", "What changed since the last audit?"))
 def case_status(turn: Turn) -> Reply:
     rec = turn.record()
+    names = _names(rec)
     failed = sum(f["evidence_validation"] == "failed" for f in rec["findings"])
-    text = (f"Case {turn.case_id} version {rec['version']} ({rec['created_at'][:19]}): "
-            f"{rec['status']}. {_counts(rec['findings'])}. "
-            f"{len(rec['rejected_records'])} document(s) rejected, {failed} citation(s) failed. "
-            f"Rules from the {rec['kg_source']} knowledge graph.")
+    facts = [
+        ListItem(label="Documents", text=", ".join(names.values()) or "none"),
+        ListItem(label="Findings", text=_counts(rec["findings"])),
+        ListItem(label="Rejected documents", text=str(len(rec["rejected_records"]))),
+        ListItem(label="Citations failed", text=str(failed), tone="failed" if failed else "neutral"),
+        ListItem(label="Rules from", text=f"the {rec['kg_source'].replace('_', ' ')} knowledge graph"),
+    ]
+    blocks = [VerdictBlock(case_id=turn.case_id, version=rec["version"],
+                           verdict=rec.get("verdict") or rec["status"], score=rec.get("score"),
+                           summary=rec.get("summary") or ""),
+              ListBlock(items=facts)]
     top = [f for f in rec["findings"] if f["severity"] == "high"]
-    return Reply(text + (f"\nHigh severity:\n{_bullets(top)}" if top else ""),
-                 {"version": rec["version"], "status": rec["status"], "findings": rec["findings"]})
+    if top:
+        blocks.append(_findings_block("High severity", top))
+    return Reply(blocks=blocks, data={"version": rec["version"], "status": rec["status"],
+                                      "findings": rec["findings"]})
 
 
 @intent("search_cases", group="case_query",
@@ -336,12 +435,17 @@ def search_cases(turn: Turn) -> Reply:
         matches = _filter(rec["findings"], turn.entities, rec) if filters else rec["findings"]
         if filters and not matches:
             continue
-        hits.append({"case_id": rec["case_id"], "version": rec["version"],
-                     "status": rec["status"], "matching_findings": len(matches)})
-    lines = [f"- {h['case_id']} v{h['version']} ({h['status']}): {h['matching_findings']} "
-             f"matching finding(s)" for h in hits[:MAX]]
-    return Reply(f"{len(hits)} case(s) match.\n" + "\n".join(lines) if hits
-                 else "No saved case matches.", {"cases": hits})
+        hits.append({"case_id": rec["case_id"], "version": rec["version"], "status": rec["status"],
+                     "verdict": rec.get("verdict"), "matching_findings": len(matches)})
+    if not hits:
+        return Reply("No saved case matches.", {"cases": hits})
+    table = TableBlock(columns=["Case", "Version", "Verdict", "Matching findings"], rows=[
+        [h["case_id"], f"v{h['version']}", (h["verdict"] or h["status"]).replace("_", " "),
+         str(h["matching_findings"])] for h in hits[:MAX]])
+    blocks = [TextBlock(text=f"{len(hits)} case(s) match."), table]
+    if len(hits) > MAX:
+        blocks.append(TextBlock(text=f"…and {len(hits) - MAX} more."))
+    return Reply(blocks=blocks, data={"cases": hits})
 
 
 # --- rules and standards (rule_query) --------------------------------------------------
@@ -354,20 +458,46 @@ def search_cases(turn: Turn) -> Reply:
         signals={"rule_ids": 2.0, "case_ids": -1.5}, needs=("rule",),
         follow_ups=("Which rules apply to invoices?", "What does LKAS 2 say about inventories?"))
 def rule_explain(turn: Turn) -> Reply:
-    lines, data = [], {}
+    blocks, data = [], {}
     for rule_id in turn.entities.rule_ids:
         if rule_id.startswith("REV-"):
-            lines.append(f"{rule_id} is a Component-03 review item (not a KG rule): a human "
-                         f"must check it; it is never counted as a violation.")
+            blocks.append(TextBlock(text=f"**{rule_id}** is a Component-03 review item, not a KG rule: "
+                                         f"a person must check it, and it never counts as a violation."))
             continue
         exp = turn.kg.explain_rule(rule_id)
+        rule, doc_types = _rule_facts(turn.kg, rule_id)
         data[rule_id] = exp.model_dump() if exp else None
-        if exp is None:
-            lines.append(f"{rule_id}: not found in the knowledge graph.")
+        if exp is None and rule is None:
+            blocks.append(TextBlock(text=f"**{rule_id}** was not found in the knowledge graph."))
             continue
-        cites = ", ".join(c.ref for c in exp.citations if c.ref)
-        lines.append(f"{rule_id}: {exp.explanation}" + (f" (sources: {cites})" if cites else ""))
-    return Reply("\n".join(lines), {"explanations": data, "kg_source": turn.kg.source})
+        name = getattr(rule, "name", "") or ""
+        items = []
+        if rule is not None and hasattr(rule, "expression"):
+            items.append(ListItem(label="Checks", text=f"`{rule.expression}`"))
+            items.append(ListItem(label="Severity", text=rule.severity, tone=rule.severity))
+        elif rule is not None:
+            need = rules_mod.required_approvals(rule)
+            if rule.limit is not None:
+                items.append(ListItem(label="Limit", text=f"Rs {fmt(float(rule.limit))}"))
+            if need:
+                items.append(ListItem(label="Approvals needed", text=str(need)))
+        if doc_types:
+            items.append(ListItem(label="Applies to", text=", ".join(_doc_words(t) for t in doc_types)))
+        if exp is not None:
+            cites = [c.ref for c in exp.citations if c.ref]
+            if cites:
+                items.append(ListItem(label="Based on", text=", ".join(cites)))
+            if exp.assertions:
+                items.append(ListItem(label="Tests", text=", ".join(exp.assertions)))
+            if exp.risks:
+                items.append(ListItem(label="Addresses", text=", ".join(exp.risks)))
+        about = (exp.explanation if exp else "") or getattr(rule, "text", "")
+        about = about.removeprefix(rule_id).strip(" :")  # the KG repeats the id at the start
+        title = " ".join(p for p in (rule_id, name) if p)
+        blocks.append(TextBlock(text=f"**{title}**" + (f"\n\n{about}" if about else "")))
+        if items:
+            blocks.append(ListBlock(items=items))
+    return Reply(blocks=blocks, data={"explanations": data, "kg_source": turn.kg.source})
 
 
 @intent("rule_lookup", group="rule_query",
@@ -379,41 +509,51 @@ def rule_explain(turn: Turn) -> Reply:
         signals={"doc_types": 1.0, "case_ids": -1.0}, needs=("doc_type",),
         follow_ups=("Explain POL-07", "Which checks apply to a balance sheet?"))
 def rule_lookup(turn: Turn) -> Reply:
-    lines, data = [], {}
+    blocks, data = [], {}
     for doc_type in turn.entities.doc_types:
         checks, policy = turn.kg.get_check_rules(doc_type), turn.kg.get_rules(doc_type)
         data[doc_type] = {"check_rules": [r.model_dump() for r in checks],
                           "policy_rules": [r.model_dump() for r in policy]}
-        names = [f"{r.rule_id} {r.name}" for r in checks]
-        names += [f"{r.rule_id} {r.text}" for r in policy]
-        lines.append(f"Rules for {doc_type}: " + ("; ".join(names) if names else "none in the KG."))
+        items = [_rule_item(r) for r in [*checks, *policy]]
+        if not items:
+            blocks.append(TextBlock(text=f"The knowledge graph has no rules for a {_doc_words(doc_type)} "
+                                         f"yet, so only the data checks run on it."))
+            continue
+        noun = _doc_words(doc_type)
+        article = "an" if noun[0] in "aeiou" else "a"
+        blocks.append(ListBlock(title=f"{len(items)} rule(s) apply to {article} {noun}", items=items))
+        compared = []
         for amount in turn.entities.amounts:
             for r in policy:
                 if r.limit is not None:
                     side = "above" if amount.value > r.limit else "within"
-                    lines.append(f"  {amount.text} is {side} the {r.rule_id} limit {fmt(float(r.limit))}.")
-    return Reply("\n".join(lines), {"rules": data, "kg_source": turn.kg.source})
+                    compared.append(ListItem(label=amount.text, text=f"is {side} the {r.rule_id} limit "
+                                                                    f"Rs {fmt(float(r.limit))}",
+                                             tone="review" if side == "above" else "passed"))
+        if compared:
+            blocks.append(ListBlock(title="Your amount", items=compared))
+    return Reply(blocks=blocks, data={"rules": data, "kg_source": turn.kg.source})
 
 
-# "define materiality", "what does net realisable value mean", "meaning of cash"
 _DEFINE = re.compile(r"\b(?:define|definition of|meaning of|what (?:is|are) meant by|what does)\s+"
                      r"(?:the\s+)?(?:term\s+)?['\"]?([A-Za-z][A-Za-z '\-]{1,60}?)['\"]?"
                      r"(?:\s+mean)?\s*\??\s*$", re.IGNORECASE)
 
 
 def _section_reply(turn: Turn) -> Reply | None:
-    shown, data = [], []
+    items, data = [], []
     for ref in turn.entities.sections[:3]:
         sec = turn.kg.get_section(ref)
         if sec is None:
-            shown.append(f"{ref}: not found in the knowledge graph.")
+            items.append(ListItem(label=ref, text="not found in the knowledge graph"))
             continue
         data.append(sec.model_dump())
-        text = f"{sec.id} ({sec.standard_title or sec.standard}, {sec.heading}): {sec.text}"
-        if sec.standard_status != "active":
-            text += f"\n  caution: {sec.standard} is {sec.standard_status}."
-        shown.append(text)
-    return Reply("\n".join(shown), {"sections": data, "kg_source": turn.kg.source}) if shown else None
+        details = [f"Caution: {sec.standard} is {sec.standard_status}."] if sec.standard_status != "active" else []
+        items.append(ListItem(label=f"{sec.id} · {sec.heading}" if sec.heading else sec.id,
+                              text=f"{sec.text} ({sec.standard_title or sec.standard})", details=details))
+    if not items:
+        return None
+    return Reply(blocks=[ListBlock(items=items)], data={"sections": data, "kg_source": turn.kg.source})
 
 
 def _definition_reply(turn: Turn) -> Reply | None:
@@ -423,22 +563,24 @@ def _definition_reply(turn: Turn) -> Reply | None:
     term = m.group(1).strip()
     defs = turn.kg.get_definitions(term)
     if defs:
-        lines = [f"{d.term}: {d.text}" + (f" (defined in {', '.join(d.defined_in)})" if d.defined_in else "")
+        items = [ListItem(label=d.term, text=d.text,
+                          details=[f"Defined in {', '.join(d.defined_in)}"] if d.defined_in else [])
                  for d in defs[:3]]
-        return Reply("\n".join(lines), {"definitions": [d.model_dump() for d in defs],
-                                        "kg_source": turn.kg.source})
+        return Reply(blocks=[ListBlock(items=items)], data={"definitions": [d.model_dump() for d in defs],
+                                                            "kg_source": turn.kg.source})
     item = turn.kg.get_line_item(term.lower().replace(" ", "_").replace("-", "_"))
     if item is None:
         return None
-    text = f"{item.name or item.code} is a line item"
+    details = []
     if item.statements:
-        text += f" in the {', '.join(item.statements)}"
+        details.append(f"Shown in: {', '.join(item.statements)}")
     if item.aliases:
-        text += f" (also written as {', '.join(item.aliases)})"
-    text += "."
+        details.append(f"Also written as: {', '.join(item.aliases)}")
     if item.equations:
-        text += "\nUsed in: " + "; ".join(item.equations)
-    return Reply(text, {"line_item": item.model_dump(), "kg_source": turn.kg.source})
+        details.append(f"Used in: {'; '.join(item.equations)}")
+    return Reply(blocks=[ListBlock(items=[ListItem(label=item.name or item.code, text="a line item in the "
+                                                   "financial statements", details=details)])],
+                 data={"line_item": item.model_dump(), "kg_source": turn.kg.source})
 
 
 @intent("standard_search", group="rule_query",
@@ -460,9 +602,10 @@ def standard_search(turn: Turn) -> Reply:
         return Reply("Nothing matched in the standards. Name a standard (e.g. LKAS 2), a paragraph "
                      "(e.g. LKAS 2:9) or a topic (e.g. inventories).",
                      {"search": [], "kg_source": turn.kg.source})
-    lines = [f"- {h.get('section') or h.get('standard') or 'source'}: {h.get('text', '')}"
+    items = [ListItem(label=h.get("section") or h.get("standard") or "Source", text=h.get("text", ""))
              for h in hits[:3]]
-    return Reply("\n".join(lines), {"search": hits, "kg_source": turn.kg.source})
+    return Reply(blocks=[ListBlock(title="From the standards", items=items)],
+                 data={"search": hits, "kg_source": turn.kg.source})
 
 
 @intent("generate_report", group="case_query",
@@ -487,8 +630,9 @@ def generate_report(turn: Turn) -> Reply:
     if not out.get("report_url"):
         return Reply(f"Component-04 made the report for case {turn.case_id} version {rec['version']}, "
                      f"but sent no link to it.", data)
-    return Reply(f"The audit report for case {turn.case_id} (version {rec['version']}) is ready: "
-                 f"{out['report_url']}", data)
+    return Reply(blocks=[TextBlock(text=f"The audit report for case {turn.case_id} (version "
+                                        f"{rec['version']}) is ready."),
+                         LinkBlock(label="Open the PDF report", url=out["report_url"])], data=data)
 
 
 # --- conversation ------------------------------------------------------------------
@@ -542,6 +686,8 @@ def out_of_scope(turn: Turn) -> Reply:
         patterns={r"\b(help|what can you do|how do i|commands|options)\b": 2.0},
         follow_ups=("Summarise this case", "Which rules apply to invoices?", "I paid Rs 150,000 cash but booked it on credit, is that ok?"))
 def help_intent(turn: Turn) -> Reply:
-    lines = [f"- {s.description} e.g. \"{s.examples[0]}\""
+    items = [ListItem(label=s.description.rstrip("."), text=f"e.g. “{s.examples[0]}”")
              for s in REGISTRY.values() if s.name not in CONVERSATION]
-    return Reply("I can:\n" + "\n".join(lines))
+    return Reply(blocks=[ListBlock(title="I can help with", items=items)])
+
+

@@ -6,7 +6,7 @@ Intents live in handlers.py (registry in registry.py). Replies are built in
 code from saved results and KG data.
 """
 from app.schemas.chat import SessionContext
-from app.schemas.copilot import CopilotQuery, CopilotResponse
+from app.schemas.copilot import CopilotQuery, CopilotResponse, QuestionBlock, TextBlock
 from app.services import intake
 from app.services.copilot import handlers  # noqa: F401 - registers the intents
 from app.services.copilot import memory as memory_rules
@@ -14,6 +14,7 @@ from app.services.copilot.entities import Entities, extract
 from app.services.copilot.handlers import Turn
 from app.services.copilot.nlu import RequestContext, understand
 from app.services.copilot.registry import NEEDS, REGISTRY
+from app.services.copilot.render import to_markdown
 from app.services.kg_client import KGClient, KGError, default_kg
 from app.services.store import ResultStore, default_store
 
@@ -116,7 +117,13 @@ def answer(q: CopilotQuery, kg: KGClient | None = None, store: ResultStore | Non
         "ts": datetime.now(UTC).isoformat(),
     })
 
-    def respond(reply: str, data: dict | None = None, needs: str | None = None) -> CopilotResponse:
+    def respond(reply: str, data: dict | None = None, needs: str | None = None,
+                blocks: list | None = None) -> CopilotResponse:
+        # Blocks are the reply; plain text becomes one block (a question when a detail is missing).
+        if blocks:
+            reply = reply or to_markdown(blocks)
+        else:
+            blocks = [QuestionBlock(text=reply) if needs else TextBlock(text=reply)]
         # ── XAI: copilot_end ──
         elapsed = (time.perf_counter() - t0) * 1000
         tracer.emit({
@@ -128,7 +135,7 @@ def answer(q: CopilotQuery, kg: KGClient | None = None, store: ResultStore | Non
             "status": "needs_slot" if needs else "done",
             "ts": datetime.now(UTC).isoformat(),
         })
-        return CopilotResponse(intent=spec.name, group=spec.group, reply=reply,
+        return CopilotResponse(intent=spec.name, group=spec.group, reply=reply, blocks=blocks,
                                suggestions=[] if needs else list(spec.follow_ups),
                                data={**(data or {}), **meta, **({"needs": needs} if needs else {})})
 
@@ -157,5 +164,5 @@ def answer(q: CopilotQuery, kg: KGClient | None = None, store: ResultStore | Non
         return respond(str(exc))
     except (ValueError, KGError) as exc:
         return respond(f"The knowledge graph could not answer: {exc}")
-    return respond(out.text, out.data)
+    return respond(out.text, out.data, blocks=out.blocks)
 
