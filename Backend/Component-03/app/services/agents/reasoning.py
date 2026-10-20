@@ -16,7 +16,7 @@ from app import config
 from app.schemas.case import AuditCase, AuditDocument
 from app.schemas.findings import Finding, TraceEntry
 from app.schemas.kg import RuleExplanation, StandardInfo
-from app.services import llm, rules
+from app.services import llm, rules, xai_trace
 from app.services.kg_client import KGClient, KGError
 
 KG_LOOKUP_WORKERS = 8
@@ -77,9 +77,18 @@ def run(case: AuditCase, findings: list[Finding], kg: KGClient,
                     for c in exp.citations if c.standard})
     standards: dict[str, StandardInfo | None] = _lookup_all(cited, kg.get_standard, "standard", failures)
     outdated = {code: std for code, std in standards.items() if std is not None and not std.current}
+    for code, std in standards.items():
+        rule_ids = sorted(r for r, exp in explanations.items() if exp and any(
+            c.standard == code for c in exp.citations))
+        xai_trace.step("standard_check", "passed" if std is None or std.current else "failed",
+                       standard=code, title=std.title if std else "",
+                       standard_status=std.status if std else "unknown",
+                       superseded_by=std.superseded_by if std else [], rule_ids=rule_ids)
 
     for doc_id, linked in links.items():
         absent = [x for x in linked if x not in case_ids]
+        xai_trace.step("evidence_link", "failed" if absent else "passed", doc_id=doc_id,
+                       linked=linked, missing=absent)
         if absent:
             out.append(rules.review(
                 f"{doc_id}-REV005", "REV-005",

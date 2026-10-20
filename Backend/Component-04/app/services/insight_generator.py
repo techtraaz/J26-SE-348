@@ -1,20 +1,20 @@
 """Smart Insight Generator — the AI Meta-Agent of Component 04.
 
-Triggered automatically when the subscriber receives a ``pipeline_end``
+Triggered automatically when the trace reader receives a ``pipeline_end``
 event.  It decides whether the completed audit was complex enough to
 warrant an LLM-generated diagnostic summary, and if so, calls the shared
-local Ollama instance and pushes the result to SSE as an ``insight_summary``
+LLM instance and pushes the result to SSE as an ``insight_summary``
 event.
 
 Smart Filter Logic (avoids spamming simple audits):
-  - Count of ``agent_end`` trace rows for the case.
+  - Count of ``chain_end`` trace rows for the case.
   - Total findings reported in ``pipeline_end``.
   - If the audit is trivial (few agents, zero findings), abort silently.
   - If it's complex, build a structured prompt from the trace data and
     ask the LLM for a 1–2 sentence diagnostic summary.
 
 Design:
-  - Runs as a fire-and-forget ``asyncio.create_task`` so the subscriber
+  - Runs as a fire-and-forget ``asyncio.create_task`` so the trace reader
     is never blocked waiting for the LLM.
   - If the LLM is offline, catches the exception and logs a warning —
     the audit pipeline is never affected.
@@ -44,7 +44,7 @@ def _should_generate(traces: list[dict], total_findings: int) -> bool:
     Returns True when the audit involved enough agents and findings
     to make a diagnostic summary valuable.
     """
-    agent_steps = [t for t in traces if t.get("event_type") == "agent_end"]
+    agent_steps = [t for t in traces if t.get("event_type") in ("agent_end", "chain_end")]
     agent_count = len(agent_steps)
 
     # Check for error keywords in any trace detail
@@ -74,11 +74,17 @@ def _build_prompt(case_id: str, traces: list[dict], total_findings: int) -> str:
     """Build a structured prompt for the LLM from trace data."""
     agent_lines = []
     for t in traces:
-        if t.get("event_type") == "agent_end":
+        if t.get("event_type") in ("agent_end", "chain_end"):
             name = t.get("agent_name", "unknown")
             detail = t.get("detail", "no detail")
             findings = t.get("findings_count", 0)
-            agent_lines.append(f"  - {name}: {detail} (findings: {findings})")
+            duration = t.get("duration_ms")
+            dur_str = f", took {duration:.0f}ms" if duration else ""
+            agent_lines.append(f"  - {name}: {detail} (findings: {findings}{dur_str})")
+        elif t.get("event_type") in ("chain_error", "agent_error"):
+            name = t.get("agent_name", "unknown")
+            error = t.get("detail") or t.get("error", "unknown error")
+            agent_lines.append(f"  - {name}: ERROR — {error}")
 
     agent_summary = "\n".join(agent_lines) if agent_lines else "  (no agent traces)"
 
@@ -117,7 +123,7 @@ async def _call_llm(prompt: str) -> str | None:
         logger.warning("LLM call timed out after %ds", config.LLM_TIMEOUT)
         return None
     except Exception:
-        logger.warning("LLM call failed — Ollama may be offline", exc_info=True)
+        logger.warning("LLM call failed — LLM may be offline", exc_info=True)
         return None
 
 
@@ -126,7 +132,7 @@ async def _call_llm(prompt: str) -> str | None:
 async def maybe_generate_insight(case_id: str, total_findings: int) -> None:
     """Evaluate and optionally generate an AI insight summary for a completed audit.
 
-    Called as a fire-and-forget task from the subscriber's pipeline_end
+    Called as a fire-and-forget task from the trace reader's pipeline_end
     handler.  Safe to fail — never crashes, never blocks the main flow.
     """
     try:

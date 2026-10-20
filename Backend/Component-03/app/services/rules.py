@@ -19,7 +19,7 @@ from app import config
 from app.schemas.case import AuditCase, AuditDocument
 from app.schemas.findings import EvidenceClaim, Finding, TraceEntry
 from app.schemas.kg import CheckRuleResponse, RuleResponse
-from app.services import expression
+from app.services import expression, xai_trace
 from app.services.expression import ExpressionError
 
 Value = float | str
@@ -107,33 +107,69 @@ def evaluate_rule(rule: CheckRuleResponse, doc: AuditDocument,
     Plain names read `doc`; `prior.x`, `child.x`, `parent.x` read the document in
     `scopes`. A missing or unreadable input skips the rule with a reason. With a
     case materiality, a failure whose amount difference is below it stays a
+    finding at low severity (never dropped); see below_materiality().
+    Every evaluation is also recorded as an XAI rule_check step."""
+    finding, skip, values = _evaluate_rule(rule, doc, scopes, materiality)
+    _trace_rule(rule, doc, scopes, finding, skip, values)
+    return finding, skip
+
+
+def _trace_rule(rule: CheckRuleResponse, doc: AuditDocument,
+                scopes: dict[str, AuditDocument] | None, finding: Finding | None,
+                skip: str | None, values: dict[str, Value]) -> None:
+    if finding is not None and finding.rule_id != rule.rule_id:
+        status, why = "error", finding.message  # REV-006: could not be evaluated
+    elif finding is not None:
+        status, why = "failed", finding.message
+    elif skip is not None:
+        status, why = "skipped", skip.split(": ", 1)[-1]
+    else:
+        status, why = "passed", None
+    xai_trace.step(
+        "rule_check", status, rule_id=rule.rule_id, rule_name=rule.name,
+        expression=rule.expression, doc_id=doc.doc_id, doc_type=doc.doc_type,
+        compared_with={k: v.doc_id for k, v in (scopes or {}).items()},
+        values=values, sides=expression.sides(rule.expression, values) if values else None,
+        severity=finding.severity if finding is not None else rule.severity,
+        below_materiality=bool(finding and "below the case materiality" in finding.message),
+        reason=why)
+
+
+def _evaluate_rule(rule: CheckRuleResponse, doc: AuditDocument,
+                  scopes: dict[str, AuditDocument] | None = None,
+                  materiality: float | None = None) -> tuple[Finding | None, str | None, dict[str, Value]]:
+    """(finding, skip_reason). A passing rule returns (None, None).
+
+    Plain names read `doc`; `prior.x`, `child.x`, `parent.x` read the document in
+    `scopes`. A missing or unreadable input skips the rule with a reason. With a
+    case materiality, a failure whose amount difference is below it stays a
     finding at low severity (never dropped); see below_materiality()."""
+    values: dict[str, Value] = {}
     names = rule_names(rule)
     if names is None:
-        return _rule_error(rule, doc, "expression cannot be parsed"), None
-    values: dict[str, Value] = {}
+        return _rule_error(rule, doc, "expression cannot be parsed"), None, values
     sources: dict[str, tuple[AuditDocument, str]] = {}
     for name in names:
         scope, _, field = name.rpartition(".")
         target = (scopes or {}).get(scope) if scope else doc
         if target is None:
-            return None, f"{rule.rule_id} on {doc.doc_id}: no {scope} document"
+            return None, f"{rule.rule_id} on {doc.doc_id}: no {scope} document", values
         hit = resolve(target, field, rule)
         if hit is None:
-            return None, f"{rule.rule_id} on {doc.doc_id}: missing {name}"
+            return None, f"{rule.rule_id} on {doc.doc_id}: missing {name}", values
         key, value = hit
         if key in config.NUMERIC_FIELDS and not _is_number(value):
-            return None, f"{rule.rule_id} on {doc.doc_id}: {name} is not a number"
+            return None, f"{rule.rule_id} on {doc.doc_id}: {name} is not a number", values
         if not (_is_number(value) or isinstance(value, str)):
-            return None, f"{rule.rule_id} on {doc.doc_id}: {name} is not a value"
+            return None, f"{rule.rule_id} on {doc.doc_id}: {name} is not a value", values
         values[name] = float(value) if _is_number(value) else value
         sources[name] = (target, key)
     try:
         ok = expression.evaluate(rule.expression, values, config.AMOUNT_TOLERANCE)
     except ExpressionError as exc:
-        return _rule_error(rule, doc, str(exc)), None
+        return _rule_error(rule, doc, str(exc)), None, values
     if ok:
-        return None, None
+        return None, None, values
     evidence_ids: list[str] = []
     for target, _ in sources.values():
         if target.doc_id not in evidence_ids:
@@ -154,7 +190,7 @@ def evaluate_rule(rule: CheckRuleResponse, doc: AuditDocument,
         evidence_ids=evidence_ids,
         confidence=min(confidence_of(t, k) for t, k in sources.values()) if sources else 1.0,
         claims=[EvidenceClaim(evidence_id=t.doc_id, field=k, claimed_value=values[n])
-                for n, (t, k) in sources.items()]), None
+                for n, (t, k) in sources.items()]), None, values
 
 
 def below_materiality(rule: CheckRuleResponse, category: str, values: dict[str, Value],
@@ -198,6 +234,15 @@ def required_approvals(rule: RuleResponse) -> int | None:
     return _APPROVAL_COUNT[m.group(1).lower()] if m else None
 
 
+def _trace_policy(r: RuleResponse, doc: AuditDocument, key: str, amount: float, status: str,
+                  need: int | None = None, signed: float | None = None) -> None:
+    """XAI: one policy_check per limit rule, with the outcome the audit actually
+    reached (above the limit with enough approvals signed passes)."""
+    xai_trace.step("policy_check", status, rule_id=r.rule_id, text=r.text, doc_id=doc.doc_id,
+                   doc_type=doc.doc_type, field=key, amount=amount, limit=float(r.limit),
+                   approvals_required=need, approvals_signed=signed)
+
+
 def policy_findings(doc: AuditDocument, rules: list[RuleResponse]) -> list[Finding]:
     """KG policy limits, e.g. POL-07: an amount above the limit needs dual approval.
     When the document's approval stamp was read (`approvals` = signed rows), too few
@@ -211,17 +256,23 @@ def policy_findings(doc: AuditDocument, rules: list[RuleResponse]) -> list[Findi
     signed = float(signed) if _is_number(signed) else None
     out = []
     for r in rules:
-        if r.limit is None or amount <= r.limit:
+        if r.limit is None:
+            continue
+        if amount <= r.limit:
+            _trace_policy(r, doc, key, amount, "passed")
             continue
         need = required_approvals(r)
         above = f"{r.text} {doc.doc_id} has {key} {fmt(amount)} above the limit {fmt(float(r.limit))}"
         claims = [EvidenceClaim(evidence_id=doc.doc_id, field=key, claimed_value=amount)]
         if need is None or signed is None:
+            _trace_policy(r, doc, key, amount, "review", need, signed)
             severity, message = "medium", f"{above}; confirm the required approval."
             confidence = confidence_of(doc, key)
         elif signed >= need:
+            _trace_policy(r, doc, key, amount, "passed", need, signed)
             continue
         else:
+            _trace_policy(r, doc, key, amount, "failed", need, signed)
             severity = "high"
             message = (f"{above} but only {int(signed)} of {need} required approvals "
                        f"is signed on the document.")

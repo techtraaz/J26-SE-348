@@ -6,7 +6,7 @@ A rule applies to a child/parent pair when either document's type has it.
 from app.schemas.case import AuditCase, AuditDocument
 from app.schemas.findings import Finding, TraceEntry
 from app.schemas.kg import CheckRuleResponse
-from app.services import rules
+from app.services import rules, xai_trace
 from app.services.kg_client import KGClient, KGError
 
 
@@ -54,6 +54,10 @@ def run(case: AuditCase, kg: KGClient) -> tuple[list[Finding], list[TraceEntry]]
                     continue  # first year: nothing to compare with
                 if isinstance(prior, str):
                     skipped.append(f"{rule.rule_id} on {d.doc_id}: {prior}")
+                    xai_trace.step("rule_check", "skipped", rule_id=rule.rule_id,
+                                   rule_name=rule.name, expression=rule.expression,
+                                   doc_id=d.doc_id, doc_type=d.doc_type,
+                                   reason=f"no single prior-year document ({prior})")
                     continue
                 apply(rule, d, {"prior": prior})
             else:

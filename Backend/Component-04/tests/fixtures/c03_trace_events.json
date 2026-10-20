@@ -1,0 +1,1857 @@
+[
+ {
+  "event_type": "pipeline_start",
+  "doc_count": 3,
+  "ts": "2026-10-20T06:52:34.884454+00:00",
+  "case_id": "ACME-1",
+  "version": 1,
+  "trace_id": "e30569cc41104a4ab44edf82d46e7ec8",
+  "run_kind": "audit",
+  "schema": 2,
+  "seq": 1
+ },
+ {
+  "event_type": "chain_start",
+  "agent": "data_quality",
+  "run_id": "01a15815-52ca-7c61-abbe-e40ef862d9b5",
+  "parent_run_id": "01a15815-52c9-7ed0-bb69-3d1903beaf55",
+  "ts": "2026-10-20T06:52:34.890105+00:00",
+  "case_id": "ACME-1",
+  "version": 1,
+  "trace_id": "e30569cc41104a4ab44edf82d46e7ec8",
+  "run_kind": "audit",
+  "schema": 2,
+  "seq": 2
+ },
+ {
+  "event_type": "step",
+  "agent": "data_quality",
+  "kind": "evidence_read",
+  "status": "ok",
+  "duration_ms": null,
+  "facts": {
+   "doc_id": "BS",
+   "doc_type": "balance_sheet",
+   "period_year": 2026,
+   "parent_doc_id": null,
+   "field_count": 3,
+   "fields": {
+    "assets": 100,
+    "liabilities": 30,
+    "capital": 20
+   },
+   "min_confidence": null,
+   "source": null,
+   "verified_version": null,
+   "confirmed_by": null,
+   "methods": []
+  },
+  "ts": "2026-10-20T06:52:34.890105+00:00",
+  "case_id": "ACME-1",
+  "version": 1,
+  "trace_id": "e30569cc41104a4ab44edf82d46e7ec8",
+  "run_kind": "audit",
+  "schema": 2,
+  "seq": 3
+ },
+ {
+  "event_type": "step",
+  "agent": "data_quality",
+  "kind": "evidence_read",
+  "status": "ok",
+  "duration_ms": null,
+  "facts": {
+   "doc_id": "INV",
+   "doc_type": "invoice",
+   "period_year": 2026,
+   "parent_doc_id": null,
+   "field_count": 1,
+   "fields": {
+    "amount": 150000
+   },
+   "min_confidence": null,
+   "source": null,
+   "verified_version": null,
+   "confirmed_by": null,
+   "methods": []
+  },
+  "ts": "2026-10-20T06:52:34.891102+00:00",
+  "case_id": "ACME-1",
+  "version": 1,
+  "trace_id": "e30569cc41104a4ab44edf82d46e7ec8",
+  "run_kind": "audit",
+  "schema": 2,
+  "seq": 4
+ },
+ {
+  "event_type": "step",
+  "agent": "data_quality",
+  "kind": "evidence_read",
+  "status": "ok",
+  "duration_ms": null,
+  "facts": {
+   "doc_id": "RC",
+   "doc_type": "receipt",
+   "period_year": 2026,
+   "parent_doc_id": "INV",
+   "field_count": 1,
+   "fields": {
+    "amount": 140000
+   },
+   "min_confidence": null,
+   "source": null,
+   "verified_version": null,
+   "confirmed_by": null,
+   "methods": []
+  },
+  "ts": "2026-10-20T06:52:34.891102+00:00",
+  "case_id": "ACME-1",
+  "version": 1,
+  "trace_id": "e30569cc41104a4ab44edf82d46e7ec8",
+  "run_kind": "audit",
+  "schema": 2,
+  "seq": 5
+ },
+ {
+  "event_type": "step",
+  "agent": "data_quality",
+  "kind": "dq_check",
+  "status": "passed",
+  "duration_ms": null,
+  "facts": {
+   "doc_id": "BS",
+   "doc_type": "balance_sheet",
+   "check": "required fields present and readable"
+  },
+  "ts": "2026-10-20T06:52:34.891102+00:00",
+  "case_id": "ACME-1",
+  "version": 1,
+  "trace_id": "e30569cc41104a4ab44edf82d46e7ec8",
+  "run_kind": "audit",
+  "schema": 2,
+  "seq": 6
+ },
+ {
+  "event_type": "step",
+  "agent": "data_quality",
+  "kind": "dq_check",
+  "status": "passed",
+  "duration_ms": null,
+  "facts": {
+   "doc_id": "INV",
+   "doc_type": "invoice",
+   "check": "required fields present and readable"
+  },
+  "ts": "2026-10-20T06:52:34.891102+00:00",
+  "case_id": "ACME-1",
+  "version": 1,
+  "trace_id": "e30569cc41104a4ab44edf82d46e7ec8",
+  "run_kind": "audit",
+  "schema": 2,
+  "seq": 7
+ },
+ {
+  "event_type": "step",
+  "agent": "data_quality",
+  "kind": "dq_check",
+  "status": "passed",
+  "duration_ms": null,
+  "facts": {
+   "doc_id": "RC",
+   "doc_type": "receipt",
+   "check": "required fields present and readable"
+  },
+  "ts": "2026-10-20T06:52:34.891102+00:00",
+  "case_id": "ACME-1",
+  "version": 1,
+  "trace_id": "e30569cc41104a4ab44edf82d46e7ec8",
+  "run_kind": "audit",
+  "schema": 2,
+  "seq": 8
+ },
+ {
+  "event_type": "chain_end",
+  "agent": "data_quality",
+  "run_id": "01a15815-52ca-7c61-abbe-e40ef862d9b5",
+  "parent_run_id": "01a15815-52c9-7ed0-bb69-3d1903beaf55",
+  "duration_ms": 0.48,
+  "data": {
+   "findings_count": 0,
+   "trace_count": 1,
+   "trace_details": [
+    "Data quality: 0 violation(s), 0 review item(s) in 3 document(s)."
+   ],
+   "trace_preview": "{'agent_name': 'data_quality', 'decision_type': 'gate', 'detail': 'Data quality: 0 violation(s), 0 review item(s) in 3 document(s).', 'seq': 1}",
+   "rejected_records_count": 0,
+   "early_stop": false
+  },
+  "ts": "2026-10-20T06:52:34.891102+00:00",
+  "case_id": "ACME-1",
+  "version": 1,
+  "trace_id": "e30569cc41104a4ab44edf82d46e7ec8",
+  "run_kind": "audit",
+  "schema": 2,
+  "seq": 9
+ },
+ {
+  "event_type": "chain_start",
+  "agent": "anomaly",
+  "run_id": "01a15815-52cc-7c53-8162-af5d38c4e8c8",
+  "parent_run_id": "01a15815-52c9-7ed0-bb69-3d1903beaf55",
+  "ts": "2026-10-20T06:52:34.892103+00:00",
+  "case_id": "ACME-1",
+  "version": 1,
+  "trace_id": "e30569cc41104a4ab44edf82d46e7ec8",
+  "run_kind": "audit",
+  "schema": 2,
+  "seq": 10
+ },
+ {
+  "event_type": "chain_start",
+  "agent": "compliance",
+  "run_id": "01a15815-52cd-7cb2-8c8a-e1fe704f9b48",
+  "parent_run_id": "01a15815-52c9-7ed0-bb69-3d1903beaf55",
+  "ts": "2026-10-20T06:52:34.893103+00:00",
+  "case_id": "ACME-1",
+  "version": 1,
+  "trace_id": "e30569cc41104a4ab44edf82d46e7ec8",
+  "run_kind": "audit",
+  "schema": 2,
+  "seq": 11
+ },
+ {
+  "event_type": "step",
+  "agent": "anomaly",
+  "kind": "kg_fetch",
+  "status": "ok",
+  "duration_ms": 1.26,
+  "facts": {
+   "method": "get_check_rules",
+   "arg": "balance_sheet",
+   "source": "mock",
+   "result": {
+    "count": 7,
+    "ids": [
+     "CHK-001",
+     "CHK-004",
+     "CHK-006",
+     "CHK-007",
+     "CHK-009",
+     "CHK-010",
+     "CHK-011"
+    ]
+   }
+  },
+  "ts": "2026-10-20T06:52:34.894104+00:00",
+  "case_id": "ACME-1",
+  "version": 1,
+  "trace_id": "e30569cc41104a4ab44edf82d46e7ec8",
+  "run_kind": "audit",
+  "schema": 2,
+  "seq": 12
+ },
+ {
+  "event_type": "step",
+  "agent": "anomaly",
+  "kind": "kg_fetch",
+  "status": "ok",
+  "duration_ms": 0.02,
+  "facts": {
+   "method": "get_check_rules",
+   "arg": "invoice",
+   "source": "mock",
+   "result": {
+    "count": 3,
+    "ids": [
+     "CHK-003",
+     "CHK-005",
+     "CHK-006"
+    ]
+   }
+  },
+  "ts": "2026-10-20T06:52:34.894104+00:00",
+  "case_id": "ACME-1",
+  "version": 1,
+  "trace_id": "e30569cc41104a4ab44edf82d46e7ec8",
+  "run_kind": "audit",
+  "schema": 2,
+  "seq": 13
+ },
+ {
+  "event_type": "step",
+  "agent": "anomaly",
+  "kind": "rule_check",
+  "status": "skipped",
+  "duration_ms": null,
+  "facts": {
+   "rule_id": "CHK-005",
+   "rule_name": "Cash out without asset in",
+   "expression": "not (cash_out > 0 and purchase_basis == 'credit' and asset_in == 0)",
+   "doc_id": "INV",
+   "doc_type": "invoice",
+   "compared_with": {},
+   "values": {},
+   "sides": null,
+   "severity": "high",
+   "below_materiality": false,
+   "reason": "missing cash_out"
+  },
+  "ts": "2026-10-20T06:52:34.894104+00:00",
+  "case_id": "ACME-1",
+  "version": 1,
+  "trace_id": "e30569cc41104a4ab44edf82d46e7ec8",
+  "run_kind": "audit",
+  "schema": 2,
+  "seq": 14
+ },
+ {
+  "event_type": "step",
+  "agent": "anomaly",
+  "kind": "kg_fetch",
+  "status": "ok",
+  "duration_ms": 0.0,
+  "facts": {
+   "method": "get_check_rules",
+   "arg": "receipt",
+   "source": "mock",
+   "result": {
+    "count": 0,
+    "ids": []
+   }
+  },
+  "ts": "2026-10-20T06:52:34.894104+00:00",
+  "case_id": "ACME-1",
+  "version": 1,
+  "trace_id": "e30569cc41104a4ab44edf82d46e7ec8",
+  "run_kind": "audit",
+  "schema": 2,
+  "seq": 15
+ },
+ {
+  "event_type": "step",
+  "agent": "anomaly",
+  "kind": "rule_check",
+  "status": "failed",
+  "duration_ms": null,
+  "facts": {
+   "rule_id": "CHK-003",
+   "rule_name": "Child amount matches parent",
+   "expression": "child.amount == parent.amount",
+   "doc_id": "RC",
+   "doc_type": "receipt",
+   "compared_with": {
+    "child": "RC",
+    "parent": "INV"
+   },
+   "values": {
+    "child.amount": 140000.0,
+    "parent.amount": 150000.0
+   },
+   "sides": {
+    "left": "child.amount",
+    "op": "==",
+    "right": "parent.amount",
+    "left_value": 140000.0,
+    "right_value": 150000.0
+   },
+   "severity": "high",
+   "below_materiality": false,
+   "reason": "Child amount matches parent failed for RC: child.amount == parent.amount is false (child.amount=140,000.00, parent.amount=150,000.00)."
+  },
+  "ts": "2026-10-20T06:52:34.894104+00:00",
+  "case_id": "ACME-1",
+  "version": 1,
+  "trace_id": "e30569cc41104a4ab44edf82d46e7ec8",
+  "run_kind": "audit",
+  "schema": 2,
+  "seq": 16
+ },
+ {
+  "event_type": "chain_end",
+  "agent": "anomaly",
+  "run_id": "01a15815-52cc-7c53-8162-af5d38c4e8c8",
+  "parent_run_id": "01a15815-52c9-7ed0-bb69-3d1903beaf55",
+  "duration_ms": 2.28,
+  "data": {
+   "findings_count": 1,
+   "findings_preview": "{'finding_id': 'RC-CHK-003', 'rule_id': 'CHK-003', 'category': 'arithmetic', 'severity': 'high', 'message': 'Child amount matches parent failed for RC: child.amount == parent.amount is false (child.amount=140,000.00, parent.amount=150,000.00).', 'evidence_ids': ['RC', 'INV'], 'policy_ids': [], 'confidence': 1.0, 'review_status': 'pending_review', 'claims': [{'evidence_id': 'RC', 'field': 'amount', 'claimed_value': 140000.0}, {'evidence_id': 'INV', 'field': 'amount', 'claimed_value': 150000.0}], 'reasoning_chain': [], 'evidence_validation': 'unverified', 'citation_unverified': False, 'supersedes': None, 'created_at': '2026-10-20T06:52:34.894104+00:00'}",
+   "trace_count": 2,
+   "trace_details": [
+    "Anomaly scan found 1 issue(s).",
+    "Not applicable (inputs missing): CHK-005 on INV: missing cash_out."
+   ],
+   "trace_preview": "{'agent_name': 'anomaly', 'decision_type': 'check', 'detail': 'Anomaly scan found 1 issue(s).', 'seq': 2}"
+  },
+  "ts": "2026-10-20T06:52:34.895129+00:00",
+  "case_id": "ACME-1",
+  "version": 1,
+  "trace_id": "e30569cc41104a4ab44edf82d46e7ec8",
+  "run_kind": "audit",
+  "schema": 2,
+  "seq": 17
+ },
+ {
+  "event_type": "step",
+  "agent": "compliance",
+  "kind": "kg_fetch",
+  "status": "ok",
+  "duration_ms": 2.54,
+  "facts": {
+   "method": "get_check_rules",
+   "arg": "balance_sheet",
+   "source": "mock",
+   "result": {
+    "count": 7,
+    "ids": [
+     "CHK-001",
+     "CHK-004",
+     "CHK-006",
+     "CHK-007",
+     "CHK-009",
+     "CHK-010",
+     "CHK-011"
+    ]
+   }
+  },
+  "ts": "2026-10-20T06:52:34.896110+00:00",
+  "case_id": "ACME-1",
+  "version": 1,
+  "trace_id": "e30569cc41104a4ab44edf82d46e7ec8",
+  "run_kind": "audit",
+  "schema": 2,
+  "seq": 18
+ },
+ {
+  "event_type": "step",
+  "agent": "compliance",
+  "kind": "kg_fetch",
+  "status": "ok",
+  "duration_ms": 0.01,
+  "facts": {
+   "method": "get_rules",
+   "arg": "balance_sheet",
+   "source": "mock",
+   "result": {
+    "count": 0,
+    "ids": []
+   }
+  },
+  "ts": "2026-10-20T06:52:34.896110+00:00",
+  "case_id": "ACME-1",
+  "version": 1,
+  "trace_id": "e30569cc41104a4ab44edf82d46e7ec8",
+  "run_kind": "audit",
+  "schema": 2,
+  "seq": 19
+ },
+ {
+  "event_type": "step",
+  "agent": "compliance",
+  "kind": "rule_check",
+  "status": "failed",
+  "duration_ms": null,
+  "facts": {
+   "rule_id": "CHK-001",
+   "rule_name": "Accounting equation",
+   "expression": "assets == liabilities + capital",
+   "doc_id": "BS",
+   "doc_type": "balance_sheet",
+   "compared_with": {},
+   "values": {
+    "assets": 100.0,
+    "liabilities": 30.0,
+    "capital": 20.0
+   },
+   "sides": {
+    "left": "assets",
+    "op": "==",
+    "right": "liabilities + capital",
+    "left_value": 100.0,
+    "right_value": 50.0
+   },
+   "severity": "high",
+   "below_materiality": false,
+   "reason": "Accounting equation failed for BS: assets == liabilities + capital is false (assets=100.00, liabilities=30.00, capital=20.00)."
+  },
+  "ts": "2026-10-20T06:52:34.896110+00:00",
+  "case_id": "ACME-1",
+  "version": 1,
+  "trace_id": "e30569cc41104a4ab44edf82d46e7ec8",
+  "run_kind": "audit",
+  "schema": 2,
+  "seq": 20
+ },
+ {
+  "event_type": "step",
+  "agent": "compliance",
+  "kind": "rule_check",
+  "status": "skipped",
+  "duration_ms": null,
+  "facts": {
+   "rule_id": "CHK-007",
+   "rule_name": "Total assets equals current plus non-current",
+   "expression": "total_assets == total_current_assets + total_non_current_assets",
+   "doc_id": "BS",
+   "doc_type": "balance_sheet",
+   "compared_with": {},
+   "values": {
+    "total_assets": 100.0
+   },
+   "sides": null,
+   "severity": "medium",
+   "below_materiality": false,
+   "reason": "missing total_current_assets"
+  },
+  "ts": "2026-10-20T06:52:34.896110+00:00",
+  "case_id": "ACME-1",
+  "version": 1,
+  "trace_id": "e30569cc41104a4ab44edf82d46e7ec8",
+  "run_kind": "audit",
+  "schema": 2,
+  "seq": 21
+ },
+ {
+  "event_type": "step",
+  "agent": "compliance",
+  "kind": "rule_check",
+  "status": "skipped",
+  "duration_ms": null,
+  "facts": {
+   "rule_id": "CHK-009",
+   "rule_name": "Cash flow closing cash ties to SFP",
+   "expression": "closing_cash == cash_and_cash_equivalents",
+   "doc_id": "BS",
+   "doc_type": "balance_sheet",
+   "compared_with": {},
+   "values": {},
+   "sides": null,
+   "severity": "high",
+   "below_materiality": false,
+   "reason": "missing closing_cash"
+  },
+  "ts": "2026-10-20T06:52:34.896110+00:00",
+  "case_id": "ACME-1",
+  "version": 1,
+  "trace_id": "e30569cc41104a4ab44edf82d46e7ec8",
+  "run_kind": "audit",
+  "schema": 2,
+  "seq": 22
+ },
+ {
+  "event_type": "step",
+  "agent": "compliance",
+  "kind": "rule_check",
+  "status": "skipped",
+  "duration_ms": null,
+  "facts": {
+   "rule_id": "CHK-010",
+   "rule_name": "Closing equity ties to SFP",
+   "expression": "closing_equity == total_equity",
+   "doc_id": "BS",
+   "doc_type": "balance_sheet",
+   "compared_with": {},
+   "values": {},
+   "sides": null,
+   "severity": "high",
+   "below_materiality": false,
+   "reason": "missing closing_equity"
+  },
+  "ts": "2026-10-20T06:52:34.896110+00:00",
+  "case_id": "ACME-1",
+  "version": 1,
+  "trace_id": "e30569cc41104a4ab44edf82d46e7ec8",
+  "run_kind": "audit",
+  "schema": 2,
+  "seq": 23
+ },
+ {
+  "event_type": "step",
+  "agent": "compliance",
+  "kind": "rule_check",
+  "status": "skipped",
+  "duration_ms": null,
+  "facts": {
+   "rule_id": "CHK-011",
+   "rule_name": "Inventory not above NRV",
+   "expression": "inventories <= inventory_nrv",
+   "doc_id": "BS",
+   "doc_type": "balance_sheet",
+   "compared_with": {},
+   "values": {},
+   "sides": null,
+   "severity": "medium",
+   "below_materiality": false,
+   "reason": "missing inventories"
+  },
+  "ts": "2026-10-20T06:52:34.896110+00:00",
+  "case_id": "ACME-1",
+  "version": 1,
+  "trace_id": "e30569cc41104a4ab44edf82d46e7ec8",
+  "run_kind": "audit",
+  "schema": 2,
+  "seq": 24
+ },
+ {
+  "event_type": "step",
+  "agent": "compliance",
+  "kind": "kg_fetch",
+  "status": "ok",
+  "duration_ms": 0.0,
+  "facts": {
+   "method": "get_check_rules",
+   "arg": "invoice",
+   "source": "mock",
+   "result": {
+    "count": 3,
+    "ids": [
+     "CHK-003",
+     "CHK-005",
+     "CHK-006"
+    ]
+   }
+  },
+  "ts": "2026-10-20T06:52:34.896110+00:00",
+  "case_id": "ACME-1",
+  "version": 1,
+  "trace_id": "e30569cc41104a4ab44edf82d46e7ec8",
+  "run_kind": "audit",
+  "schema": 2,
+  "seq": 25
+ },
+ {
+  "event_type": "step",
+  "agent": "compliance",
+  "kind": "kg_fetch",
+  "status": "ok",
+  "duration_ms": 0.01,
+  "facts": {
+   "method": "get_rules",
+   "arg": "invoice",
+   "source": "mock",
+   "result": {
+    "count": 1,
+    "ids": [
+     "POL-07"
+    ]
+   }
+  },
+  "ts": "2026-10-20T06:52:34.896110+00:00",
+  "case_id": "ACME-1",
+  "version": 1,
+  "trace_id": "e30569cc41104a4ab44edf82d46e7ec8",
+  "run_kind": "audit",
+  "schema": 2,
+  "seq": 26
+ },
+ {
+  "event_type": "step",
+  "agent": "compliance",
+  "kind": "policy_check",
+  "status": "failed",
+  "duration_ms": null,
+  "facts": {
+   "rule_id": "POL-07",
+   "text": "Purchases above Rs. 100,000 need dual approval.",
+   "doc_id": "INV",
+   "doc_type": "invoice",
+   "field": "amount",
+   "amount": 150000.0,
+   "limit": 100000.0
+  },
+  "ts": "2026-10-20T06:52:34.896110+00:00",
+  "case_id": "ACME-1",
+  "version": 1,
+  "trace_id": "e30569cc41104a4ab44edf82d46e7ec8",
+  "run_kind": "audit",
+  "schema": 2,
+  "seq": 27
+ },
+ {
+  "event_type": "step",
+  "agent": "compliance",
+  "kind": "kg_fetch",
+  "status": "ok",
+  "duration_ms": 0.0,
+  "facts": {
+   "method": "get_check_rules",
+   "arg": "receipt",
+   "source": "mock",
+   "result": {
+    "count": 0,
+    "ids": []
+   }
+  },
+  "ts": "2026-10-20T06:52:34.896110+00:00",
+  "case_id": "ACME-1",
+  "version": 1,
+  "trace_id": "e30569cc41104a4ab44edf82d46e7ec8",
+  "run_kind": "audit",
+  "schema": 2,
+  "seq": 28
+ },
+ {
+  "event_type": "step",
+  "agent": "compliance",
+  "kind": "kg_fetch",
+  "status": "ok",
+  "duration_ms": 0.0,
+  "facts": {
+   "method": "get_rules",
+   "arg": "receipt",
+   "source": "mock",
+   "result": {
+    "count": 0,
+    "ids": []
+   }
+  },
+  "ts": "2026-10-20T06:52:34.896110+00:00",
+  "case_id": "ACME-1",
+  "version": 1,
+  "trace_id": "e30569cc41104a4ab44edf82d46e7ec8",
+  "run_kind": "audit",
+  "schema": 2,
+  "seq": 29
+ },
+ {
+  "event_type": "chain_end",
+  "agent": "compliance",
+  "run_id": "01a15815-52cd-7cb2-8c8a-e1fe704f9b48",
+  "parent_run_id": "01a15815-52c9-7ed0-bb69-3d1903beaf55",
+  "duration_ms": 3.43,
+  "data": {
+   "findings_count": 2,
+   "findings_preview": "{'finding_id': 'BS-CHK-001', 'rule_id': 'CHK-001', 'category': 'ledger', 'severity': 'high', 'message': 'Accounting equation failed for BS: assets == liabilities + capital is false (assets=100.00, liabilities=30.00, capital=20.00).', 'evidence_ids': ['BS'], 'policy_ids': [], 'confidence': 1.0, 'review_status': 'pending_review', 'claims': [{'evidence_id': 'BS', 'field': 'assets', 'claimed_value': 100.0}, {'evidence_id': 'BS', 'field': 'liabilities', 'claimed_value': 30.0}, {'evidence_id': 'BS', 'field': 'capital', 'claimed_value': 20.0}], 'reasoning_chain': [], 'evidence_validation': 'unverified', 'citation_unverified': False, 'supersedes': None, 'created_at': '2026-10-20T06:52:34.896110+00:00'}",
+   "trace_count": 2,
+   "trace_details": [
+    "Compliance ran 5 rule check(s) on 3 document(s): 2 finding(s).",
+    "Not applicable (inputs missing): CHK-007 on BS: missing total_current_assets; CHK-009 on BS: missing closing_cash; CHK-010 on BS: missing closing_equity; CHK-011 on BS: missing inventories."
+   ],
+   "trace_preview": "{'agent_name': 'compliance', 'decision_type': 'check', 'detail': 'Compliance ran 5 rule check(s) on 3 document(s): 2 finding(s).', 'seq': 4}"
+  },
+  "ts": "2026-10-20T06:52:34.896110+00:00",
+  "case_id": "ACME-1",
+  "version": 1,
+  "trace_id": "e30569cc41104a4ab44edf82d46e7ec8",
+  "run_kind": "audit",
+  "schema": 2,
+  "seq": 30
+ },
+ {
+  "event_type": "chain_start",
+  "agent": "reasoning",
+  "run_id": "01a15815-52d2-71a1-af4c-8a8f31676d11",
+  "parent_run_id": "01a15815-52c9-7ed0-bb69-3d1903beaf55",
+  "ts": "2026-10-20T06:52:34.898110+00:00",
+  "case_id": "ACME-1",
+  "version": 1,
+  "trace_id": "e30569cc41104a4ab44edf82d46e7ec8",
+  "run_kind": "audit",
+  "schema": 2,
+  "seq": 31
+ },
+ {
+  "event_type": "step",
+  "agent": "reasoning",
+  "kind": "kg_fetch",
+  "status": "ok",
+  "duration_ms": 0.04,
+  "facts": {
+   "method": "explain_rule",
+   "arg": "CHK-001",
+   "source": "mock",
+   "result": {
+    "standards": [
+     "CF"
+    ],
+    "assertions": [
+     "Accuracy",
+     "Completeness"
+    ]
+   }
+  },
+  "ts": "2026-10-20T06:52:34.898110+00:00",
+  "case_id": "ACME-1",
+  "version": 1,
+  "trace_id": "e30569cc41104a4ab44edf82d46e7ec8",
+  "run_kind": "audit",
+  "schema": 2,
+  "seq": 32
+ },
+ {
+  "event_type": "step",
+  "agent": "reasoning",
+  "kind": "kg_fetch",
+  "status": "ok",
+  "duration_ms": 0.02,
+  "facts": {
+   "method": "explain_rule",
+   "arg": "CHK-003",
+   "source": "mock",
+   "result": {
+    "standards": [],
+    "assertions": [
+     "Accuracy",
+     "Occurrence"
+    ]
+   }
+  },
+  "ts": "2026-10-20T06:52:34.898110+00:00",
+  "case_id": "ACME-1",
+  "version": 1,
+  "trace_id": "e30569cc41104a4ab44edf82d46e7ec8",
+  "run_kind": "audit",
+  "schema": 2,
+  "seq": 33
+ },
+ {
+  "event_type": "step",
+  "agent": "reasoning",
+  "kind": "kg_fetch",
+  "status": "ok",
+  "duration_ms": 0.01,
+  "facts": {
+   "method": "explain_rule",
+   "arg": "POL-07",
+   "source": "mock",
+   "result": {
+    "standards": [],
+    "assertions": []
+   }
+  },
+  "ts": "2026-10-20T06:52:34.898110+00:00",
+  "case_id": "ACME-1",
+  "version": 1,
+  "trace_id": "e30569cc41104a4ab44edf82d46e7ec8",
+  "run_kind": "audit",
+  "schema": 2,
+  "seq": 34
+ },
+ {
+  "event_type": "step",
+  "agent": "reasoning",
+  "kind": "kg_fetch",
+  "status": "ok",
+  "duration_ms": 0.01,
+  "facts": {
+   "method": "get_evidence_chain",
+   "arg": "BS",
+   "source": "mock",
+   "result": {
+    "count": 1,
+    "ids": [
+     "BS"
+    ]
+   }
+  },
+  "ts": "2026-10-20T06:52:34.899110+00:00",
+  "case_id": "ACME-1",
+  "version": 1,
+  "trace_id": "e30569cc41104a4ab44edf82d46e7ec8",
+  "run_kind": "audit",
+  "schema": 2,
+  "seq": 35
+ },
+ {
+  "event_type": "step",
+  "agent": "reasoning",
+  "kind": "kg_fetch",
+  "status": "ok",
+  "duration_ms": 0.01,
+  "facts": {
+   "method": "get_evidence_chain",
+   "arg": "INV",
+   "source": "mock",
+   "result": {
+    "count": 1,
+    "ids": [
+     "INV"
+    ]
+   }
+  },
+  "ts": "2026-10-20T06:52:34.899110+00:00",
+  "case_id": "ACME-1",
+  "version": 1,
+  "trace_id": "e30569cc41104a4ab44edf82d46e7ec8",
+  "run_kind": "audit",
+  "schema": 2,
+  "seq": 36
+ },
+ {
+  "event_type": "step",
+  "agent": "reasoning",
+  "kind": "kg_fetch",
+  "status": "ok",
+  "duration_ms": 0.0,
+  "facts": {
+   "method": "get_evidence_chain",
+   "arg": "RC",
+   "source": "mock",
+   "result": {
+    "count": 1,
+    "ids": [
+     "RC"
+    ]
+   }
+  },
+  "ts": "2026-10-20T06:52:34.899110+00:00",
+  "case_id": "ACME-1",
+  "version": 1,
+  "trace_id": "e30569cc41104a4ab44edf82d46e7ec8",
+  "run_kind": "audit",
+  "schema": 2,
+  "seq": 37
+ },
+ {
+  "event_type": "step",
+  "agent": "reasoning",
+  "kind": "kg_fetch",
+  "status": "ok",
+  "duration_ms": 0.03,
+  "facts": {
+   "method": "get_standard",
+   "arg": "CF",
+   "source": "mock",
+   "result": {
+    "code": "CF",
+    "title": "Conceptual Framework for Financial Reporting",
+    "status": "active"
+   }
+  },
+  "ts": "2026-10-20T06:52:34.900113+00:00",
+  "case_id": "ACME-1",
+  "version": 1,
+  "trace_id": "e30569cc41104a4ab44edf82d46e7ec8",
+  "run_kind": "audit",
+  "schema": 2,
+  "seq": 38
+ },
+ {
+  "event_type": "step",
+  "agent": "reasoning",
+  "kind": "standard_check",
+  "status": "passed",
+  "duration_ms": null,
+  "facts": {
+   "standard": "CF",
+   "title": "Conceptual Framework for Financial Reporting",
+   "standard_status": "active",
+   "superseded_by": [],
+   "rule_ids": [
+    "CHK-001"
+   ]
+  },
+  "ts": "2026-10-20T06:52:34.900113+00:00",
+  "case_id": "ACME-1",
+  "version": 1,
+  "trace_id": "e30569cc41104a4ab44edf82d46e7ec8",
+  "run_kind": "audit",
+  "schema": 2,
+  "seq": 39
+ },
+ {
+  "event_type": "step",
+  "agent": "reasoning",
+  "kind": "evidence_link",
+  "status": "passed",
+  "duration_ms": null,
+  "facts": {
+   "doc_id": "BS",
+   "linked": [],
+   "missing": []
+  },
+  "ts": "2026-10-20T06:52:34.900113+00:00",
+  "case_id": "ACME-1",
+  "version": 1,
+  "trace_id": "e30569cc41104a4ab44edf82d46e7ec8",
+  "run_kind": "audit",
+  "schema": 2,
+  "seq": 40
+ },
+ {
+  "event_type": "step",
+  "agent": "reasoning",
+  "kind": "evidence_link",
+  "status": "passed",
+  "duration_ms": null,
+  "facts": {
+   "doc_id": "INV",
+   "linked": [],
+   "missing": []
+  },
+  "ts": "2026-10-20T06:52:34.900113+00:00",
+  "case_id": "ACME-1",
+  "version": 1,
+  "trace_id": "e30569cc41104a4ab44edf82d46e7ec8",
+  "run_kind": "audit",
+  "schema": 2,
+  "seq": 41
+ },
+ {
+  "event_type": "step",
+  "agent": "reasoning",
+  "kind": "evidence_link",
+  "status": "passed",
+  "duration_ms": null,
+  "facts": {
+   "doc_id": "RC",
+   "linked": [],
+   "missing": []
+  },
+  "ts": "2026-10-20T06:52:34.900113+00:00",
+  "case_id": "ACME-1",
+  "version": 1,
+  "trace_id": "e30569cc41104a4ab44edf82d46e7ec8",
+  "run_kind": "audit",
+  "schema": 2,
+  "seq": 42
+ },
+ {
+  "event_type": "step",
+  "agent": "reasoning",
+  "kind": "llm_call",
+  "status": "skipped",
+  "duration_ms": null,
+  "facts": {
+   "purpose": "summary line",
+   "reason": "language model is turned off; rule-based fallback used"
+  },
+  "ts": "2026-10-20T06:52:34.900113+00:00",
+  "case_id": "ACME-1",
+  "version": 1,
+  "trace_id": "e30569cc41104a4ab44edf82d46e7ec8",
+  "run_kind": "audit",
+  "schema": 2,
+  "seq": 43
+ },
+ {
+  "event_type": "chain_end",
+  "agent": "reasoning",
+  "run_id": "01a15815-52d2-71a1-af4c-8a8f31676d11",
+  "parent_run_id": "01a15815-52c9-7ed0-bb69-3d1903beaf55",
+  "duration_ms": 2.49,
+  "data": {
+   "reasoned_count": 3,
+   "reasoned_preview": "{'finding_id': 'RC-CHK-003', 'rule_id': 'CHK-003', 'category': 'arithmetic', 'severity': 'high', 'message': 'Child amount matches parent failed for RC: child.amount == parent.amount is false (child.amount=140,000.00, parent.amount=150,000.00).', 'evidence_ids': ['RC', 'INV'], 'policy_ids': [], 'confidence': 1.0, 'review_status': 'pending_review', 'claims': [{'evidence_id': 'RC', 'field': 'amount', 'claimed_value': 140000.0}, {'evidence_id': 'INV', 'field': 'amount', 'claimed_value': 150000.0}], 'reasoning_chain': ['rule CHK-003 (arithmetic, high)', 'basis: CHK-003 Child amount matches parent checks child.amount == parent.amount.', 'tests: Accuracy, Occurrence', 'risk: Material misstatement due to error, Material misstatement due to fraud', 'check RC.amount = 140,000.00', 'check INV.amount ",
+   "trace_count": 1,
+   "trace_details": [
+    "Case ACME-1: 3 finding(s), 0 need review, all pending auditor review."
+   ],
+   "trace_preview": "{'agent_name': 'reasoning', 'decision_type': 'merge', 'detail': 'Case ACME-1: 3 finding(s), 0 need review, all pending auditor review.', 'seq': 6}"
+  },
+  "ts": "2026-10-20T06:52:34.900113+00:00",
+  "case_id": "ACME-1",
+  "version": 1,
+  "trace_id": "e30569cc41104a4ab44edf82d46e7ec8",
+  "run_kind": "audit",
+  "schema": 2,
+  "seq": 44
+ },
+ {
+  "event_type": "chain_start",
+  "agent": "evidence_validation",
+  "run_id": "01a15815-52d5-7c50-b9db-eba41c7e1c3e",
+  "parent_run_id": "01a15815-52c9-7ed0-bb69-3d1903beaf55",
+  "ts": "2026-10-20T06:52:34.901139+00:00",
+  "case_id": "ACME-1",
+  "version": 1,
+  "trace_id": "e30569cc41104a4ab44edf82d46e7ec8",
+  "run_kind": "audit",
+  "schema": 2,
+  "seq": 45
+ },
+ {
+  "event_type": "step",
+  "agent": "evidence_validation",
+  "kind": "citation_check",
+  "status": "passed",
+  "duration_ms": null,
+  "facts": {
+   "finding_id": "RC-CHK-003",
+   "rule_id": "CHK-003",
+   "evidence_ids": [
+    "RC",
+    "INV"
+   ],
+   "claims": [
+    {
+     "doc_id": "RC",
+     "field": "amount",
+     "claimed": 140000.0,
+     "actual": 140000
+    },
+    {
+     "doc_id": "INV",
+     "field": "amount",
+     "claimed": 150000.0,
+     "actual": 150000
+    }
+   ],
+   "problems": []
+  },
+  "ts": "2026-10-20T06:52:34.901139+00:00",
+  "case_id": "ACME-1",
+  "version": 1,
+  "trace_id": "e30569cc41104a4ab44edf82d46e7ec8",
+  "run_kind": "audit",
+  "schema": 2,
+  "seq": 46
+ },
+ {
+  "event_type": "step",
+  "agent": "evidence_validation",
+  "kind": "citation_check",
+  "status": "passed",
+  "duration_ms": null,
+  "facts": {
+   "finding_id": "BS-CHK-001",
+   "rule_id": "CHK-001",
+   "evidence_ids": [
+    "BS"
+   ],
+   "claims": [
+    {
+     "doc_id": "BS",
+     "field": "assets",
+     "claimed": 100.0,
+     "actual": 100
+    },
+    {
+     "doc_id": "BS",
+     "field": "liabilities",
+     "claimed": 30.0,
+     "actual": 30
+    },
+    {
+     "doc_id": "BS",
+     "field": "capital",
+     "claimed": 20.0,
+     "actual": 20
+    }
+   ],
+   "problems": []
+  },
+  "ts": "2026-10-20T06:52:34.901139+00:00",
+  "case_id": "ACME-1",
+  "version": 1,
+  "trace_id": "e30569cc41104a4ab44edf82d46e7ec8",
+  "run_kind": "audit",
+  "schema": 2,
+  "seq": 47
+ },
+ {
+  "event_type": "step",
+  "agent": "evidence_validation",
+  "kind": "citation_check",
+  "status": "passed",
+  "duration_ms": null,
+  "facts": {
+   "finding_id": "INV-POL-07",
+   "rule_id": "POL-07",
+   "evidence_ids": [
+    "INV"
+   ],
+   "claims": [
+    {
+     "doc_id": "INV",
+     "field": "amount",
+     "claimed": 150000.0,
+     "actual": 150000
+    }
+   ],
+   "problems": []
+  },
+  "ts": "2026-10-20T06:52:34.901139+00:00",
+  "case_id": "ACME-1",
+  "version": 1,
+  "trace_id": "e30569cc41104a4ab44edf82d46e7ec8",
+  "run_kind": "audit",
+  "schema": 2,
+  "seq": 48
+ },
+ {
+  "event_type": "chain_end",
+  "agent": "evidence_validation",
+  "run_id": "01a15815-52d5-7c50-b9db-eba41c7e1c3e",
+  "parent_run_id": "01a15815-52c9-7ed0-bb69-3d1903beaf55",
+  "duration_ms": 0.31,
+  "data": {
+   "final_findings_count": 3,
+   "final_findings_preview": "{'finding_id': 'RC-CHK-003', 'rule_id': 'CHK-003', 'category': 'arithmetic', 'severity': 'high', 'message': 'Child amount matches parent failed for RC: child.amount == parent.amount is false (child.amount=140,000.00, parent.amount=150,000.00).', 'evidence_ids': ['RC', 'INV'], 'policy_ids': [], 'confidence': 1.0, 'review_status': 'pending_review', 'claims': [{'evidence_id': 'RC', 'field': 'amount', 'claimed_value': 140000.0}, {'evidence_id': 'INV', 'field': 'amount', 'claimed_value': 150000.0}], 'reasoning_chain': ['rule CHK-003 (arithmetic, high)', 'basis: CHK-003 Child amount matches parent checks child.amount == parent.amount.', 'tests: Accuracy, Occurrence', 'risk: Material misstatement due to error, Material misstatement due to fraud', 'check RC.amount = 140,000.00', 'check INV.amount ",
+   "rejected_findings_count": 0,
+   "rejected_citations_count": 0,
+   "trace_count": 1,
+   "trace_details": [
+    "Checked 3 finding(s): 3 values verified, 0 citations exist (no values to check), 0 flagged, 0 with no evidence."
+   ],
+   "trace_preview": "{'agent_name': 'evidence_validation', 'decision_type': 'validate', 'detail': 'Checked 3 finding(s): 3 values verified, 0 citations exist (no values to check), 0 flagged, 0 with no evidence.', 'seq': 7}"
+  },
+  "ts": "2026-10-20T06:52:34.901139+00:00",
+  "case_id": "ACME-1",
+  "version": 1,
+  "trace_id": "e30569cc41104a4ab44edf82d46e7ec8",
+  "run_kind": "audit",
+  "schema": 2,
+  "seq": 49
+ },
+ {
+  "event_type": "pipeline_end",
+  "total_findings": 3,
+  "status": "pending_auditor_review",
+  "ts": "2026-10-20T06:52:34.902129+00:00",
+  "case_id": "ACME-1",
+  "version": 1,
+  "trace_id": "e30569cc41104a4ab44edf82d46e7ec8",
+  "run_kind": "audit",
+  "schema": 2,
+  "seq": 50
+ },
+ {
+  "event_type": "copilot_start",
+  "agent": "copilot",
+  "detail": "why did CHK-001 fail on case ACME-1?",
+  "ts": "2026-10-20T06:52:34.902129+00:00",
+  "case_id": "ACME-1",
+  "version": 0,
+  "trace_id": "5163fe70280d4f04914ed33e5b5d11c5",
+  "run_kind": "copilot",
+  "schema": 2,
+  "seq": 1
+ },
+ {
+  "event_type": "step",
+  "agent": "copilot_nlu",
+  "kind": "entities",
+  "status": "ok",
+  "duration_ms": null,
+  "facts": {
+   "case_id": "ACME-1",
+   "found": {
+    "case_ids": [
+     "ACME-1"
+    ],
+    "rule_ids": [
+     "CHK-001"
+    ]
+   },
+   "from_memory": false
+  },
+  "ts": "2026-10-20T06:52:34.910622+00:00",
+  "case_id": "ACME-1",
+  "version": 0,
+  "trace_id": "5163fe70280d4f04914ed33e5b5d11c5",
+  "run_kind": "copilot",
+  "schema": 2,
+  "seq": 2
+ },
+ {
+  "event_type": "copilot_nlu",
+  "agent": "copilot_nlu",
+  "detail": "Intent: explain_finding (method: rules)",
+  "intent": "explain_finding",
+  "nlu_method": "rules",
+  "ts": "2026-10-20T06:52:34.914619+00:00",
+  "case_id": "ACME-1",
+  "version": 0,
+  "trace_id": "5163fe70280d4f04914ed33e5b5d11c5",
+  "run_kind": "copilot",
+  "schema": 2,
+  "seq": 3
+ },
+ {
+  "event_type": "copilot_end",
+  "agent": "copilot",
+  "detail": "CHK-001 on BS: Accounting equation failed for BS: assets == liabilities + capital is false (assets=100.00, liabilities=30.00, capital=20.00).\n  - rule CHK-001 (ledger, high)\n  - basis: CHK-001 Accounting equation checks assets == liabilities + capital. Source: Conceptual Framework para 4.4.\n  - test",
+  "intent": "explain_finding",
+  "duration_ms": 11.9,
+  "status": "done",
+  "ts": "2026-10-20T06:52:34.914619+00:00",
+  "case_id": "ACME-1",
+  "version": 0,
+  "trace_id": "5163fe70280d4f04914ed33e5b5d11c5",
+  "run_kind": "copilot",
+  "schema": 2,
+  "seq": 4
+ },
+ {
+  "event_type": "copilot_start",
+  "agent": "copilot",
+  "detail": "audit these documents",
+  "ts": "2026-10-20T06:52:34.914619+00:00",
+  "case_id": "GEN-20261020-AB12",
+  "version": 0,
+  "trace_id": "93781a6af858404680e8aaf488f3079a",
+  "run_kind": "copilot",
+  "schema": 2,
+  "seq": 1
+ },
+ {
+  "event_type": "step",
+  "agent": "copilot_nlu",
+  "kind": "entities",
+  "status": "ok",
+  "duration_ms": null,
+  "facts": {
+   "case_id": "NEW-1",
+   "found": {},
+   "from_memory": false
+  },
+  "ts": "2026-10-20T06:52:34.914619+00:00",
+  "case_id": "GEN-20261020-AB12",
+  "version": 0,
+  "trace_id": "93781a6af858404680e8aaf488f3079a",
+  "run_kind": "copilot",
+  "schema": 2,
+  "seq": 2
+ },
+ {
+  "event_type": "copilot_nlu",
+  "agent": "copilot_nlu",
+  "detail": "Intent: fresh_audit (method: rules)",
+  "intent": "fresh_audit",
+  "nlu_method": "rules",
+  "ts": "2026-10-20T06:52:34.914619+00:00",
+  "case_id": "GEN-20261020-AB12",
+  "version": 0,
+  "trace_id": "93781a6af858404680e8aaf488f3079a",
+  "run_kind": "copilot",
+  "schema": 2,
+  "seq": 3
+ },
+ {
+  "event_type": "pipeline_start",
+  "doc_count": 1,
+  "ts": "2026-10-20T06:52:34.915621+00:00",
+  "case_id": "NEW-1",
+  "version": 1,
+  "trace_id": "0925081642ac4fcba2d92fc4cd48cfd9",
+  "run_kind": "audit",
+  "schema": 2,
+  "seq": 1,
+  "stream_id": "GEN-20261020-AB12"
+ },
+ {
+  "event_type": "chain_start",
+  "agent": "data_quality",
+  "run_id": "01a15815-52e4-7e20-9bf2-c2a10361173e",
+  "parent_run_id": "01a15815-52e3-73f3-9e00-61aebc883002",
+  "ts": "2026-10-20T06:52:34.916621+00:00",
+  "case_id": "NEW-1",
+  "version": 1,
+  "trace_id": "0925081642ac4fcba2d92fc4cd48cfd9",
+  "run_kind": "audit",
+  "schema": 2,
+  "seq": 2,
+  "stream_id": "GEN-20261020-AB12"
+ },
+ {
+  "event_type": "step",
+  "agent": "data_quality",
+  "kind": "evidence_read",
+  "status": "ok",
+  "duration_ms": null,
+  "facts": {
+   "doc_id": "INV-9",
+   "doc_type": "invoice",
+   "period_year": 2026,
+   "parent_doc_id": null,
+   "field_count": 1,
+   "fields": {
+    "amount": 150000
+   },
+   "min_confidence": null,
+   "source": null,
+   "verified_version": null,
+   "confirmed_by": null,
+   "methods": []
+  },
+  "ts": "2026-10-20T06:52:34.916621+00:00",
+  "case_id": "NEW-1",
+  "version": 1,
+  "trace_id": "0925081642ac4fcba2d92fc4cd48cfd9",
+  "run_kind": "audit",
+  "schema": 2,
+  "seq": 3,
+  "stream_id": "GEN-20261020-AB12"
+ },
+ {
+  "event_type": "step",
+  "agent": "data_quality",
+  "kind": "dq_check",
+  "status": "passed",
+  "duration_ms": null,
+  "facts": {
+   "doc_id": "INV-9",
+   "doc_type": "invoice",
+   "check": "required fields present and readable"
+  },
+  "ts": "2026-10-20T06:52:34.916621+00:00",
+  "case_id": "NEW-1",
+  "version": 1,
+  "trace_id": "0925081642ac4fcba2d92fc4cd48cfd9",
+  "run_kind": "audit",
+  "schema": 2,
+  "seq": 4,
+  "stream_id": "GEN-20261020-AB12"
+ },
+ {
+  "event_type": "chain_end",
+  "agent": "data_quality",
+  "run_id": "01a15815-52e4-7e20-9bf2-c2a10361173e",
+  "parent_run_id": "01a15815-52e3-73f3-9e00-61aebc883002",
+  "duration_ms": 0.26,
+  "data": {
+   "findings_count": 0,
+   "trace_count": 1,
+   "trace_details": [
+    "Data quality: 0 violation(s), 0 review item(s) in 1 document(s)."
+   ],
+   "trace_preview": "{'agent_name': 'data_quality', 'decision_type': 'gate', 'detail': 'Data quality: 0 violation(s), 0 review item(s) in 1 document(s).', 'seq': 1}",
+   "rejected_records_count": 0,
+   "early_stop": false
+  },
+  "ts": "2026-10-20T06:52:34.916621+00:00",
+  "case_id": "NEW-1",
+  "version": 1,
+  "trace_id": "0925081642ac4fcba2d92fc4cd48cfd9",
+  "run_kind": "audit",
+  "schema": 2,
+  "seq": 5,
+  "stream_id": "GEN-20261020-AB12"
+ },
+ {
+  "event_type": "chain_start",
+  "agent": "anomaly",
+  "run_id": "01a15815-52e6-7b82-a1d1-790fcca42f8f",
+  "parent_run_id": "01a15815-52e3-73f3-9e00-61aebc883002",
+  "ts": "2026-10-20T06:52:34.917621+00:00",
+  "case_id": "NEW-1",
+  "version": 1,
+  "trace_id": "0925081642ac4fcba2d92fc4cd48cfd9",
+  "run_kind": "audit",
+  "schema": 2,
+  "seq": 6,
+  "stream_id": "GEN-20261020-AB12"
+ },
+ {
+  "event_type": "step",
+  "agent": "anomaly",
+  "kind": "kg_fetch",
+  "status": "ok",
+  "duration_ms": 0.01,
+  "facts": {
+   "method": "get_check_rules",
+   "arg": "invoice",
+   "source": "mock",
+   "result": {
+    "count": 3,
+    "ids": [
+     "CHK-003",
+     "CHK-005",
+     "CHK-006"
+    ]
+   }
+  },
+  "ts": "2026-10-20T06:52:34.917621+00:00",
+  "case_id": "NEW-1",
+  "version": 1,
+  "trace_id": "0925081642ac4fcba2d92fc4cd48cfd9",
+  "run_kind": "audit",
+  "schema": 2,
+  "seq": 7,
+  "stream_id": "GEN-20261020-AB12"
+ },
+ {
+  "event_type": "step",
+  "agent": "anomaly",
+  "kind": "rule_check",
+  "status": "skipped",
+  "duration_ms": null,
+  "facts": {
+   "rule_id": "CHK-005",
+   "rule_name": "Cash out without asset in",
+   "expression": "not (cash_out > 0 and purchase_basis == 'credit' and asset_in == 0)",
+   "doc_id": "INV-9",
+   "doc_type": "invoice",
+   "compared_with": {},
+   "values": {},
+   "sides": null,
+   "severity": "high",
+   "below_materiality": false,
+   "reason": "missing cash_out"
+  },
+  "ts": "2026-10-20T06:52:34.917621+00:00",
+  "case_id": "NEW-1",
+  "version": 1,
+  "trace_id": "0925081642ac4fcba2d92fc4cd48cfd9",
+  "run_kind": "audit",
+  "schema": 2,
+  "seq": 8,
+  "stream_id": "GEN-20261020-AB12"
+ },
+ {
+  "event_type": "chain_end",
+  "agent": "anomaly",
+  "run_id": "01a15815-52e6-7b82-a1d1-790fcca42f8f",
+  "parent_run_id": "01a15815-52e3-73f3-9e00-61aebc883002",
+  "duration_ms": 0.45,
+  "data": {
+   "findings_count": 0,
+   "trace_count": 2,
+   "trace_details": [
+    "Anomaly scan found 0 issue(s).",
+    "Not applicable (inputs missing): CHK-005 on INV-9: missing cash_out."
+   ],
+   "trace_preview": "{'agent_name': 'anomaly', 'decision_type': 'check', 'detail': 'Anomaly scan found 0 issue(s).', 'seq': 2}"
+  },
+  "ts": "2026-10-20T06:52:34.917621+00:00",
+  "case_id": "NEW-1",
+  "version": 1,
+  "trace_id": "0925081642ac4fcba2d92fc4cd48cfd9",
+  "run_kind": "audit",
+  "schema": 2,
+  "seq": 9,
+  "stream_id": "GEN-20261020-AB12"
+ },
+ {
+  "event_type": "chain_start",
+  "agent": "compliance",
+  "run_id": "01a15815-52e7-7ee2-8b6b-d4f908781d9c",
+  "parent_run_id": "01a15815-52e3-73f3-9e00-61aebc883002",
+  "ts": "2026-10-20T06:52:34.918655+00:00",
+  "case_id": "NEW-1",
+  "version": 1,
+  "trace_id": "0925081642ac4fcba2d92fc4cd48cfd9",
+  "run_kind": "audit",
+  "schema": 2,
+  "seq": 10,
+  "stream_id": "GEN-20261020-AB12"
+ },
+ {
+  "event_type": "step",
+  "agent": "compliance",
+  "kind": "kg_fetch",
+  "status": "ok",
+  "duration_ms": 0.01,
+  "facts": {
+   "method": "get_check_rules",
+   "arg": "invoice",
+   "source": "mock",
+   "result": {
+    "count": 3,
+    "ids": [
+     "CHK-003",
+     "CHK-005",
+     "CHK-006"
+    ]
+   }
+  },
+  "ts": "2026-10-20T06:52:34.918655+00:00",
+  "case_id": "NEW-1",
+  "version": 1,
+  "trace_id": "0925081642ac4fcba2d92fc4cd48cfd9",
+  "run_kind": "audit",
+  "schema": 2,
+  "seq": 11,
+  "stream_id": "GEN-20261020-AB12"
+ },
+ {
+  "event_type": "step",
+  "agent": "compliance",
+  "kind": "kg_fetch",
+  "status": "ok",
+  "duration_ms": 0.0,
+  "facts": {
+   "method": "get_rules",
+   "arg": "invoice",
+   "source": "mock",
+   "result": {
+    "count": 1,
+    "ids": [
+     "POL-07"
+    ]
+   }
+  },
+  "ts": "2026-10-20T06:52:34.918655+00:00",
+  "case_id": "NEW-1",
+  "version": 1,
+  "trace_id": "0925081642ac4fcba2d92fc4cd48cfd9",
+  "run_kind": "audit",
+  "schema": 2,
+  "seq": 12,
+  "stream_id": "GEN-20261020-AB12"
+ },
+ {
+  "event_type": "step",
+  "agent": "compliance",
+  "kind": "policy_check",
+  "status": "failed",
+  "duration_ms": null,
+  "facts": {
+   "rule_id": "POL-07",
+   "text": "Purchases above Rs. 100,000 need dual approval.",
+   "doc_id": "INV-9",
+   "doc_type": "invoice",
+   "field": "amount",
+   "amount": 150000.0,
+   "limit": 100000.0
+  },
+  "ts": "2026-10-20T06:52:34.918655+00:00",
+  "case_id": "NEW-1",
+  "version": 1,
+  "trace_id": "0925081642ac4fcba2d92fc4cd48cfd9",
+  "run_kind": "audit",
+  "schema": 2,
+  "seq": 13,
+  "stream_id": "GEN-20261020-AB12"
+ },
+ {
+  "event_type": "chain_end",
+  "agent": "compliance",
+  "run_id": "01a15815-52e7-7ee2-8b6b-d4f908781d9c",
+  "parent_run_id": "01a15815-52e3-73f3-9e00-61aebc883002",
+  "duration_ms": 0.34,
+  "data": {
+   "findings_count": 1,
+   "findings_preview": "{'finding_id': 'INV-9-POL-07', 'rule_id': 'POL-07', 'category': 'compliance', 'severity': 'medium', 'message': 'Purchases above Rs. 100,000 need dual approval. INV-9 has amount 150,000.00 above the limit 100,000.00; confirm the required approval.', 'evidence_ids': ['INV-9'], 'policy_ids': ['POL-07'], 'confidence': 1.0, 'review_status': 'pending_review', 'claims': [{'evidence_id': 'INV-9', 'field': 'amount', 'claimed_value': 150000.0}], 'reasoning_chain': [], 'evidence_validation': 'unverified', 'citation_unverified': False, 'supersedes': None, 'created_at': '2026-10-20T06:52:34.919622+00:00'}",
+   "trace_count": 1,
+   "trace_details": [
+    "Compliance ran 0 rule check(s) on 1 document(s): 1 finding(s)."
+   ],
+   "trace_preview": "{'agent_name': 'compliance', 'decision_type': 'check', 'detail': 'Compliance ran 0 rule check(s) on 1 document(s): 1 finding(s).', 'seq': 4}"
+  },
+  "ts": "2026-10-20T06:52:34.919622+00:00",
+  "case_id": "NEW-1",
+  "version": 1,
+  "trace_id": "0925081642ac4fcba2d92fc4cd48cfd9",
+  "run_kind": "audit",
+  "schema": 2,
+  "seq": 14,
+  "stream_id": "GEN-20261020-AB12"
+ },
+ {
+  "event_type": "chain_start",
+  "agent": "reasoning",
+  "run_id": "01a15815-52e8-7b81-b330-03df4f583b74",
+  "parent_run_id": "01a15815-52e3-73f3-9e00-61aebc883002",
+  "ts": "2026-10-20T06:52:34.919622+00:00",
+  "case_id": "NEW-1",
+  "version": 1,
+  "trace_id": "0925081642ac4fcba2d92fc4cd48cfd9",
+  "run_kind": "audit",
+  "schema": 2,
+  "seq": 15,
+  "stream_id": "GEN-20261020-AB12"
+ },
+ {
+  "event_type": "step",
+  "agent": "reasoning",
+  "kind": "kg_fetch",
+  "status": "ok",
+  "duration_ms": 0.01,
+  "facts": {
+   "method": "explain_rule",
+   "arg": "POL-07",
+   "source": "mock",
+   "result": {
+    "standards": [],
+    "assertions": []
+   }
+  },
+  "ts": "2026-10-20T06:52:34.920619+00:00",
+  "case_id": "NEW-1",
+  "version": 1,
+  "trace_id": "0925081642ac4fcba2d92fc4cd48cfd9",
+  "run_kind": "audit",
+  "schema": 2,
+  "seq": 16,
+  "stream_id": "GEN-20261020-AB12"
+ },
+ {
+  "event_type": "step",
+  "agent": "reasoning",
+  "kind": "kg_fetch",
+  "status": "ok",
+  "duration_ms": 0.01,
+  "facts": {
+   "method": "get_evidence_chain",
+   "arg": "INV-9",
+   "source": "mock",
+   "result": {
+    "count": 1,
+    "ids": [
+     "INV-9"
+    ]
+   }
+  },
+  "ts": "2026-10-20T06:52:34.920619+00:00",
+  "case_id": "NEW-1",
+  "version": 1,
+  "trace_id": "0925081642ac4fcba2d92fc4cd48cfd9",
+  "run_kind": "audit",
+  "schema": 2,
+  "seq": 17,
+  "stream_id": "GEN-20261020-AB12"
+ },
+ {
+  "event_type": "step",
+  "agent": "reasoning",
+  "kind": "evidence_link",
+  "status": "passed",
+  "duration_ms": null,
+  "facts": {
+   "doc_id": "INV-9",
+   "linked": [],
+   "missing": []
+  },
+  "ts": "2026-10-20T06:52:34.921622+00:00",
+  "case_id": "NEW-1",
+  "version": 1,
+  "trace_id": "0925081642ac4fcba2d92fc4cd48cfd9",
+  "run_kind": "audit",
+  "schema": 2,
+  "seq": 18,
+  "stream_id": "GEN-20261020-AB12"
+ },
+ {
+  "event_type": "step",
+  "agent": "reasoning",
+  "kind": "llm_call",
+  "status": "skipped",
+  "duration_ms": null,
+  "facts": {
+   "purpose": "summary line",
+   "reason": "language model is turned off; rule-based fallback used"
+  },
+  "ts": "2026-10-20T06:52:34.921622+00:00",
+  "case_id": "NEW-1",
+  "version": 1,
+  "trace_id": "0925081642ac4fcba2d92fc4cd48cfd9",
+  "run_kind": "audit",
+  "schema": 2,
+  "seq": 19,
+  "stream_id": "GEN-20261020-AB12"
+ },
+ {
+  "event_type": "chain_end",
+  "agent": "reasoning",
+  "run_id": "01a15815-52e8-7b81-b330-03df4f583b74",
+  "parent_run_id": "01a15815-52e3-73f3-9e00-61aebc883002",
+  "duration_ms": 1.56,
+  "data": {
+   "reasoned_count": 1,
+   "reasoned_preview": "{'finding_id': 'INV-9-POL-07', 'rule_id': 'POL-07', 'category': 'compliance', 'severity': 'medium', 'message': 'Purchases above Rs. 100,000 need dual approval. INV-9 has amount 150,000.00 above the limit 100,000.00; confirm the required approval.', 'evidence_ids': ['INV-9'], 'policy_ids': ['POL-07'], 'confidence': 1.0, 'review_status': 'pending_review', 'claims': [{'evidence_id': 'INV-9', 'field': 'amount', 'claimed_value': 150000.0}], 'reasoning_chain': ['rule POL-07 (compliance, medium)', 'basis: POL-07 Purchases above Rs. 100,000 need dual approval.', 'check INV-9.amount = 150,000.00', 'evidence: INV-9'], 'evidence_validation': 'unverified', 'citation_unverified': False, 'supersedes': None, 'created_at': '2026-10-20T06:52:34.919622+00:00'}",
+   "trace_count": 1,
+   "trace_details": [
+    "Case NEW-1: 1 finding(s), 0 need review, all pending auditor review."
+   ],
+   "trace_preview": "{'agent_name': 'reasoning', 'decision_type': 'merge', 'detail': 'Case NEW-1: 1 finding(s), 0 need review, all pending auditor review.', 'seq': 5}"
+  },
+  "ts": "2026-10-20T06:52:34.921622+00:00",
+  "case_id": "NEW-1",
+  "version": 1,
+  "trace_id": "0925081642ac4fcba2d92fc4cd48cfd9",
+  "run_kind": "audit",
+  "schema": 2,
+  "seq": 20,
+  "stream_id": "GEN-20261020-AB12"
+ },
+ {
+  "event_type": "chain_start",
+  "agent": "evidence_validation",
+  "run_id": "01a15815-52ea-7ca2-a274-f14a01763a44",
+  "parent_run_id": "01a15815-52e3-73f3-9e00-61aebc883002",
+  "ts": "2026-10-20T06:52:34.921622+00:00",
+  "case_id": "NEW-1",
+  "version": 1,
+  "trace_id": "0925081642ac4fcba2d92fc4cd48cfd9",
+  "run_kind": "audit",
+  "schema": 2,
+  "seq": 21,
+  "stream_id": "GEN-20261020-AB12"
+ },
+ {
+  "event_type": "step",
+  "agent": "evidence_validation",
+  "kind": "citation_check",
+  "status": "passed",
+  "duration_ms": null,
+  "facts": {
+   "finding_id": "INV-9-POL-07",
+   "rule_id": "POL-07",
+   "evidence_ids": [
+    "INV-9"
+   ],
+   "claims": [
+    {
+     "doc_id": "INV-9",
+     "field": "amount",
+     "claimed": 150000.0,
+     "actual": 150000
+    }
+   ],
+   "problems": []
+  },
+  "ts": "2026-10-20T06:52:34.921622+00:00",
+  "case_id": "NEW-1",
+  "version": 1,
+  "trace_id": "0925081642ac4fcba2d92fc4cd48cfd9",
+  "run_kind": "audit",
+  "schema": 2,
+  "seq": 22,
+  "stream_id": "GEN-20261020-AB12"
+ },
+ {
+  "event_type": "chain_end",
+  "agent": "evidence_validation",
+  "run_id": "01a15815-52ea-7ca2-a274-f14a01763a44",
+  "parent_run_id": "01a15815-52e3-73f3-9e00-61aebc883002",
+  "duration_ms": 0.16,
+  "data": {
+   "final_findings_count": 1,
+   "final_findings_preview": "{'finding_id': 'INV-9-POL-07', 'rule_id': 'POL-07', 'category': 'compliance', 'severity': 'medium', 'message': 'Purchases above Rs. 100,000 need dual approval. INV-9 has amount 150,000.00 above the limit 100,000.00; confirm the required approval.', 'evidence_ids': ['INV-9'], 'policy_ids': ['POL-07'], 'confidence': 1.0, 'review_status': 'pending_review', 'claims': [{'evidence_id': 'INV-9', 'field': 'amount', 'claimed_value': 150000.0}], 'reasoning_chain': ['rule POL-07 (compliance, medium)', 'basis: POL-07 Purchases above Rs. 100,000 need dual approval.', 'check INV-9.amount = 150,000.00', 'evidence: INV-9'], 'evidence_validation': 'passed', 'citation_unverified': False, 'supersedes': None, 'created_at': '2026-10-20T06:52:34.919622+00:00'}",
+   "rejected_findings_count": 0,
+   "rejected_citations_count": 0,
+   "trace_count": 1,
+   "trace_details": [
+    "Checked 1 finding(s): 1 values verified, 0 citations exist (no values to check), 0 flagged, 0 with no evidence."
+   ],
+   "trace_preview": "{'agent_name': 'evidence_validation', 'decision_type': 'validate', 'detail': 'Checked 1 finding(s): 1 values verified, 0 citations exist (no values to check), 0 flagged, 0 with no evidence.', 'seq': 6}"
+  },
+  "ts": "2026-10-20T06:52:34.922623+00:00",
+  "case_id": "NEW-1",
+  "version": 1,
+  "trace_id": "0925081642ac4fcba2d92fc4cd48cfd9",
+  "run_kind": "audit",
+  "schema": 2,
+  "seq": 23,
+  "stream_id": "GEN-20261020-AB12"
+ },
+ {
+  "event_type": "pipeline_end",
+  "total_findings": 1,
+  "status": "pending_auditor_review",
+  "ts": "2026-10-20T06:52:34.922623+00:00",
+  "case_id": "NEW-1",
+  "version": 1,
+  "trace_id": "0925081642ac4fcba2d92fc4cd48cfd9",
+  "run_kind": "audit",
+  "schema": 2,
+  "seq": 24,
+  "stream_id": "GEN-20261020-AB12"
+ },
+ {
+  "event_type": "copilot_end",
+  "agent": "copilot",
+  "detail": "Case NEW-1 version 1 saved (pending_auditor_review): 1 rule finding(s) (high 0, medium 1, low 0), 0 need review.\n- POL-07 (medium, pending_review): Purchases above Rs. 100,000 need dual approval. INV-9 has amount 150,000.00 above the limit 100,000.00; confirm the required approval.",
+  "intent": "fresh_audit",
+  "duration_ms": 8.7,
+  "status": "done",
+  "ts": "2026-10-20T06:52:34.923621+00:00",
+  "case_id": "GEN-20261020-AB12",
+  "version": 0,
+  "trace_id": "93781a6af858404680e8aaf488f3079a",
+  "run_kind": "copilot",
+  "schema": 2,
+  "seq": 4
+ }
+]
