@@ -58,22 +58,76 @@ def _entities(q: CopilotQuery, store: ResultStore,
     return memory_rules.apply(ent, q.text, memory if same_case else None), case_id
 
 
+# ── Copilot XAI tracing (fire-and-forget, same collection as orchestrator) ──
+# One RunTracer per turn: events are queued for the background writer, so a
+# slow or offline MongoDB never delays the reply.
+
+import time
+from datetime import UTC, datetime
+
+from app.services import xai_trace
+
+
 def answer(q: CopilotQuery, kg: KGClient | None = None, store: ResultStore | None = None,
            memory: SessionContext | None = None) -> CopilotResponse:
     """One request. `memory` (a chat session's context) lets follow-ups such as
     "why did that one fire?" resolve; without it every request stands alone."""
     kg = kg or default_kg()
     store = store or default_store()
+    t0 = time.perf_counter()
+    ts = datetime.now(UTC).isoformat()
+
     entities, case_id = _entities(q, store, memory)
-    turn = Turn(query=q, entities=entities, kg=kg, store=store, case_id=case_id)
+    # Keyed by the chat session the user is looking at (a case chat's session is
+    # its case id), so a general chat that names a case still sees its own steps.
+    tracer = xai_trace.RunTracer(q.session_id or case_id or "general", 0,
+                                 store.trace_exporter(), kind="copilot")
+
+    # ── XAI: copilot_start ──
+    tracer.emit({
+        "event_type": "copilot_start",
+        "agent": "copilot",
+        "detail": q.text[:300],
+        "ts": ts,
+    })
+
+    xai_trace.record(tracer, "copilot_nlu", "entities", "ok", case_id=case_id,
+                     found=entities.as_dict(), from_memory=bool(memory and memory.case_id == case_id))
+    turn = Turn(query=q, entities=entities, store=store, case_id=case_id,
+                kg=xai_trace.traced_kg(kg, tracer, "copilot"))
     ctx = RequestContext(has_docs=bool(q.docs), case_id=case_id,
                          case_audited=bool(case_id) and turn.record() is not None,
                          memory=memory.summary() if memory else "")
-    nlu = understand(q.text, entities, ctx)
+    with xai_trace.scope(tracer, "copilot_nlu"):
+        nlu = understand(q.text, entities, ctx)
     spec = REGISTRY[nlu.intent]
-    meta = {"nlu": nlu.as_dict(), "entities": entities.as_dict(), "case_id": case_id}
+    meta = {"nlu": nlu.as_dict(), "entities": entities.as_dict(), "case_id": case_id,
+            "trace_id": tracer.trace_id}  # this turn's XAI trace (Component-04's "Explain")
+
+    # ── XAI: copilot_nlu ──
+    tracer.emit({
+        "event_type": "copilot_nlu",
+        "agent": "copilot_nlu",
+        "detail": f"Intent: {nlu.intent} (method: {nlu.method})",
+        "intent": nlu.intent,
+        "nlu_method": nlu.method,
+        # why: the rules' guess and scores, whether they were sure, the LLM's choice or error
+        "routing": nlu.as_dict(),
+        "ts": datetime.now(UTC).isoformat(),
+    })
 
     def respond(reply: str, data: dict | None = None, needs: str | None = None) -> CopilotResponse:
+        # ── XAI: copilot_end ──
+        elapsed = (time.perf_counter() - t0) * 1000
+        tracer.emit({
+            "event_type": "copilot_end",
+            "agent": "copilot",
+            "detail": reply[:300],
+            "intent": spec.name,
+            "duration_ms": round(elapsed, 1),
+            "status": "needs_slot" if needs else "done",
+            "ts": datetime.now(UTC).isoformat(),
+        })
         return CopilotResponse(intent=spec.name, group=spec.group, reply=reply,
                                suggestions=[] if needs else list(spec.follow_ups),
                                data={**(data or {}), **meta, **({"needs": needs} if needs else {})})
@@ -81,9 +135,12 @@ def answer(q: CopilotQuery, kg: KGClient | None = None, store: ResultStore | Non
     for need in spec.needs:
         missing = _missing(need, turn)
         if missing:
+            xai_trace.record(tracer, "copilot", "decision", "skipped",
+                             decision=f"{spec.name} needs more information", reason=missing)
             return respond(missing, needs=need)
     try:
-        out = spec.handler(turn)
+        with xai_trace.scope(tracer, "copilot"):
+            out = spec.handler(turn)
     except intake.IntakeError as exc:
         return respond(f"The documents could not be read: {exc}")
     except LookupError as exc:
@@ -91,3 +148,4 @@ def answer(q: CopilotQuery, kg: KGClient | None = None, store: ResultStore | Non
     except (ValueError, KGError) as exc:
         return respond(f"The knowledge graph could not answer: {exc}")
     return respond(out.text, out.data)
+

@@ -64,7 +64,9 @@ def converse(q: CopilotQuery, kg: KGClient, store: ResultStore, chats: ChatStore
     chats.add_message(ChatMessage(
         message_id=_id(), session_id=session.session_id, case_id=case_id, role="copilot",
         text=response.reply, intent=response.intent, group=response.group,
-        suggestions=response.suggestions, refs=refs, findings=inline))
+        suggestions=response.suggestions, refs=refs, findings=inline,
+        data={**({"routing": data["nlu"]} if data.get("nlu") else {}),
+              **({"trace_id": data["trace_id"]} if data.get("trace_id") else {})}))
     session.context = memory_rules.update(session.context, response)
     session.updated_at = now_iso()
     chats.save_session(session)

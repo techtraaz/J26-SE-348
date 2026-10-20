@@ -2,10 +2,11 @@
 
 Responsibilities:
   - Initialise the SQLite database on startup.
-  - Launch the Redis subscriber as a background task.
+  - Launch the MongoDB trace reader as a background task.
   - Expose REST endpoints for querying stored traces and audit runs.
+  - Serve SSE endpoints for live XAI "Thinking" timeline.
 
-The subscriber runs alongside the ASGI server inside the same event
+The reader runs alongside the ASGI server inside the same event
 loop but never blocks the HTTP request path.
 """
 
@@ -26,7 +27,7 @@ from sse_starlette.sse import EventSourceResponse
 from app.reporting import pdf_renderer
 from app.services import database as db
 from app.services import sse_manager
-from app.services import subscriber
+from app.services import trace_reader
 
 # ── Logging ────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -47,27 +48,29 @@ async def lifespan(_app: FastAPI):
     await db.init_db()
     logger.info("Database ready.")
 
-    # 2. Launch the Redis listener as a background task
-    listener_task = asyncio.create_task(subscriber.run_listener())
-    logger.info("Subscriber background task launched.")
+    # 2. Launch the MongoDB trace reader as a background task
+    reader_task = asyncio.create_task(trace_reader.run_reader())
+    logger.info("Trace reader background task launched.")
 
     yield  # ← server is running
 
     # 3. Graceful shutdown
-    listener_task.cancel()
+    reader_task.cancel()
     try:
-        await listener_task
+        await reader_task
     except asyncio.CancelledError:
         pass
-    logger.info("Subscriber stopped.  Goodbye.")
+    logger.info("Trace reader stopped.  Goodbye.")
 
 
 # ── FastAPI app ────────────────────────────────────────────────────────
 
 app = FastAPI(
     title="NOMOS Component 04 — XAI Trace Collector",
-    description="Passive observer that captures, verifies, and stores execution traces from the multi-agent audit system.",
-    version="0.1.0",
+    description="Independent sidecar that captures, verifies, and stores "
+                "execution traces from the multi-agent audit system via "
+                "LangGraph BaseCallbackHandler events in MongoDB.",
+    version="0.2.0",
     lifespan=lifespan,
 )
 
@@ -98,6 +101,7 @@ async def health():
     return {
         "ok": True,
         "service": "component-04-xai-trace-collector",
+        "architecture": "callback-mongodb-sidecar",
         "active_sse_cases": sse_manager.active_case_ids(),
     }
 
@@ -118,14 +122,15 @@ async def get_traces(case_id: str):
     return {"case_id": case_id, "trace_count": len(traces), "traces": traces}
 
 
-# ── Real-time SSE stream ──────────────────────────────────────────────
+# ── Real-time SSE stream (XAI Thinking Timeline) ─────────────────────
 
-@app.get("/traces/stream/{case_id}")
-async def stream_traces(case_id: str, request: Request):
-    """Server-Sent Events endpoint — pushes live trace updates for a case.
+@app.get("/xai/stream/{case_id}")
+async def stream_xai(case_id: str, request: Request):
+    """Server-Sent Events endpoint — pushes live XAI trace updates for a case.
 
     The frontend opens an EventSource connection to this URL.  Each time
-    the subscriber persists a new trace, it is broadcast here in real time.
+    the trace reader picks up a new callback event from MongoDB, it is
+    broadcast here in real time.
     """
 
     async def _event_generator():
@@ -138,6 +143,13 @@ async def stream_traces(case_id: str, request: Request):
             }
 
     return EventSourceResponse(_event_generator())
+
+
+# Legacy SSE endpoint — kept for backward compatibility
+@app.get("/traces/stream/{case_id}")
+async def stream_traces(case_id: str, request: Request):
+    """Alias for /xai/stream/{case_id} — backward compatible."""
+    return await stream_xai(case_id, request)
 
 
 # ── PDF Report generation ─────────────────────────────────────────────
@@ -177,4 +189,3 @@ async def download_report(filename: str):
         media_type="application/pdf",
         filename=filename,
     )
-

@@ -27,19 +27,19 @@ export function useVerifiedIntake(caseId: string) {
     setItems((all) => all.map((i) => (i.documentId === documentId ? { ...i, ...patch } : i)));
 
   /** C3 turns the reviewed (or automatic) decisions into case documents. */
-  async function addToCase(documentId: string, record: VerifiedRecord, r: ReviewResult) {
+  async function addToCase(documentId: string, name: string, record: VerifiedRecord, r: ReviewResult) {
     const out = await c3.confirmC1(caseId, [{
-      verified: record, doc_type: r.docType, period_year: r.periodYear,
+      verified: record, name, doc_type: r.docType, period_year: r.periodYear,
       parent_doc_id: r.parentDocId, fields: r.fields,
     }]);
     stageDocs(caseId, out.case.docs);
     update(documentId, { state: "added", busy: false, message: out.issues.length ? out.issues.join(" ") : undefined });
   }
 
-  async function read(documentId: string, record: VerifiedRecord, docType?: string) {
+  async function read(documentId: string, name: string, record: VerifiedRecord, docType?: string) {
     const [preview] = await c3.previewC1(caseId, [{ verified: record, ...(docType ? { doc_type: docType } : {}) }]);
     const automatic = automaticReview(preview);
-    if (automatic) await addToCase(documentId, record, automatic);
+    if (automatic) await addToCase(documentId, name, record, automatic);
     else update(documentId, { state: "review", busy: false, preview, message: reviewReasons(preview).join(" · ") });
   }
 
@@ -56,7 +56,7 @@ export function useVerifiedIntake(caseId: string) {
             params: { path: { document_id: d.id } },
           }));
           update(d.id, { record });
-          await read(d.id, record);
+          await read(d.id, d.filename, record);
         } catch (e) {
           fail(d.id, e);
         }
@@ -69,7 +69,7 @@ export function useVerifiedIntake(caseId: string) {
     if (!item.record) return;
     update(item.documentId, { busy: true });
     try {
-      await addToCase(item.documentId, item.record, r);
+      await addToCase(item.documentId, item.name, item.record, r);
     } catch (e) {
       fail(item.documentId, e);
     }
@@ -80,7 +80,7 @@ export function useVerifiedIntake(caseId: string) {
     if (!item.record) return;
     update(item.documentId, { busy: true });
     try {
-      await read(item.documentId, item.record, docType);
+      await read(item.documentId, item.name, item.record, docType);
     } catch (e) {
       fail(item.documentId, e);
     }

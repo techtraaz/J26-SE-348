@@ -3,6 +3,9 @@ __pycache__/
 *.pyc
 *.pyo
 
+# Environment secrets
+.env
+
 # Virtual environment
 .venv/
 

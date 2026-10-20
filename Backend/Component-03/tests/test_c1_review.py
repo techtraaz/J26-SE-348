@@ -185,3 +185,115 @@ def test_api_preview_then_confirm():
     unfinished = {"case_id": "API-R", "documents": [{"extraction": {
         "document_id": "d", "run": {"status": "running"}, "regions": []}}]}
     assert client.post("/audit/intake/c1/preview", json=unfinished).status_code == 422
+
+
+# --- C1's real contract 0.1 (Backend/Component-01/app/schemas/review.py) ----------------
+
+C1_CONTRACT_01 = {  # as GET /api/v1/documents/{id}/verified returns it, plus the export's tag
+    "schema_version": "0.1",
+    "document_id": "6f1c2a9e-3b7d-4c1e-9f0a-2d5b8e7c4a11", "version": 2,
+    "based_on_run_id": "a91e7d3c-5f2b-4e8a-b1c6-9d0f3e2a7b55", "confirmed_by": None,
+    "confirmed_at": "2026-10-20T09:00:00+00:00",
+    "lines": [
+        {"line_id": "0b6f0a51-1c2d-4e3f-8a9b-0c1d2e3f4a5b", "page": 1, "sequence": 1, "text": "TAX INVOICE",
+         "confidence": 0.99, "box": [250, 80, 400, 100], "provenance": "paddleocr", "escalated": None,
+         "human_action": "accepted"},
+        {"line_id": "1c7a1b62-2d3e-4f40-9b0c-1d2e3f4a5b6c", "page": 1, "sequence": 2, "text": "Date: 12/03/2026",
+         "confidence": 0.98, "box": [420, 110, 560, 125], "provenance": "paddleocr", "escalated": None,
+         "human_action": "accepted"},
+        {"line_id": "2d8b2c73-3e4f-4051-8c1d-2e3f4a5b6c7d", "page": 1, "sequence": 3,
+         "text": "Grand Total Rs. 177,000.00", "confidence": 0.41, "box": [380, 255, 560, 270],
+         "provenance": "paddleocr", "escalated": None, "human_action": "edited"},
+        {"line_id": "3e9c3d84-4f50-4162-9d2e-3f4a5b6c7d8e", "page": 1, "sequence": 4,
+         "text": "Payment Method: Credit", "confidence": None, "box": [40, 300, 260, 315],
+         "provenance": "human", "escalated": None, "human_action": "added"},
+    ],
+}
+
+
+def test_c1_contract_01_flows_through_review_and_audit(kg, store):
+    p = c1_review.preview("C1-REAL", [C1Input.model_validate({"verified": C1_CONTRACT_01})], kg)[0]
+    assert p["human_verified"] and p["doc_type"] == "invoice"
+    assert p["suggestions"]["period_year"]["value"] == 2026
+    assert fields_of(p) == {"amount": 177000.0, "purchase_basis": "credit"}
+
+    out = c1_review.confirm_case("C1-REAL", [ReviewedDocument.model_validate({
+        "verified": C1_CONTRACT_01, "doc_type": "invoice", "period_year": 2026,
+        "fields": [{"field": f["field"], "line_id": f["line"]["line_id"]} for f in p["fields"]]})], kg)
+    d = out["case"]["docs"][0]
+    assert d["doc_id"] == C1_CONTRACT_01["document_id"]  # C1's id is the doc id everywhere
+    assert d["confidences"] == {"amount": 1.0, "purchase_basis": 1.0}  # verified: raw 0.41 does not count
+    assert d["source"]["verified_version"] == 2
+    assert not any("machine extraction" in i for i in out["issues"])
+
+    result = orchestrator.run_case(intake.normalize_case(out["case"]), kg, store=store)
+    pol = next(f for f in result.findings if f.rule_id == "POL-07")
+    assert any("C1 verified record v2" in s for s in pol.reasoning_chain)
+
+
+def _stamp(director_date: str) -> dict:
+    """A verified invoice above the POL-07 limit with its approval stamp."""
+    texts = ["TAX INVOICE", "Date: 07/10/2026", "Grand Total Rs. 636,256.00",
+             "Verified (Accounts) Name / Designation Signature Date", "Nadeesha Fernando",
+             "Accounts Executive 07/10/2026",
+             "Approval 1 - Finance Name / Designation Signature Date", "Ruwan Jayasinghe",
+             "Finance Manager 07/10/2026",
+             "Approval 2 - Director Name / Designation Signature Date",
+             *(["Dilan Wickramaratne", f"Director {director_date}"] if director_date else [])]
+    return {**C1_CONTRACT_01, "lines": [
+        {"line_id": f"L{i}", "page": 1, "sequence": i, "text": t, "confidence": 0.9, "box": [40, 20 * i, 400, 20 * i + 15],
+         "provenance": "paddleocr", "escalated": None, "human_action": "accepted"}
+        for i, t in enumerate(texts, 1)]}
+
+
+@pytest.mark.parametrize("director_date,signed,pol07", [("08/10/2026", 2.0, None), ("", 1.0, "high")])
+def test_approval_stamp_decides_pol07(kg, store, director_date, signed, pol07):
+    record = _stamp(director_date)
+    p = c1_review.preview("C1-APPR", [C1Input.model_validate({"verified": record})], kg)[0]
+    assert fields_of(p)["approvals"] == signed
+    out = c1_review.confirm_case("C1-APPR", [ReviewedDocument.model_validate({
+        "verified": record, "doc_type": "invoice", "period_year": 2026,
+        "fields": [{"field": "amount", "line_id": "L3"}, {"field": "approvals", "line_id": "L7"}]})], kg)
+    d = out["case"]["docs"][0]
+    assert d["fields"]["approvals"] == signed and d["methods"]["approvals"] == "c3:rules"
+    result = orchestrator.run_case(intake.normalize_case(out["case"]), kg, store=store)
+    pol = [f for f in result.findings if f.rule_id == "POL-07"]
+    assert [f.severity for f in pol] == ([pol07] if pol07 else [])
+    if pol07:
+        assert pol[0].evidence_validation == "passed"  # both claims match the document
+
+
+def _ocr(*rows):
+    """Lines with boxes, as PaddleOCR splits them: (text, x, y)."""
+    return [Line(f"p1#{i}", 1, i, t, 0.99, (x, y, x + 10 * len(t), y + 20), "paddleocr", False)
+            for i, (t, x, y) in enumerate(rows, 1)]
+
+
+def test_note_column_is_not_the_amount():
+    from app.services.field_mapper import lexicon, map_by_rules
+    lines = _ocr(("Inventories", 130, 600), ("7", 645, 600), ("7,015,300", 815, 600), ("6,384,900", 1035, 600))
+    lines.append(Line("p1#9", 1, 9, "Stated capital 10 50,000,000 50,000,000", 0.99, None, "paddleocr", False))
+    out = map_by_rules(lines, lexicon({"inventories": "inventories", "stated capital": "share_capital"}))
+    assert out["inventories"].value == 7015300.0 and out["share_capital"].value == 50000000.0
+
+
+def test_stamp_rows_by_geometry():
+    """Real OCR order of an invoice stamp: Approval 2 - Director is blank."""
+    from app.services.field_mapper import read_approvals
+    lines = _ocr(("Verified (Accounts)", 116, 1403), ("Date", 950, 1398), ("12/10/2026", 959, 1433),
+                 ("Approval 1 - Finance", 115, 1479), ("Name / Designation", 349, 1477), ("Date", 950, 1475),
+                 ("Ruwan Jayasinghe", 348, 1501), ("12/10/2026", 959, 1510), ("Finance Manager", 349, 1523),
+                 ("Approval 2 - Director", 116, 1558), ("Name / Designation", 349, 1554), ("Date", 951, 1552),
+                 ("Ceylon Office Interiors - Original", 103, 1679))
+    assert [(r.label, r.signed) for r in read_approvals(lines)] == [
+        ("Approval 1 - Finance", True), ("Approval 2 - Director", False)]
+
+
+def test_sign_off_columns_by_geometry():
+    """PREPARED BY / REVIEWED BY / APPROVED BY side by side, dates three rows down."""
+    from app.services.field_mapper import read_approvals
+    lines = _ocr(("PREPARED BY", 103, 1455), ("REVIEWED BY", 461, 1455), ("APPROVED BY", 819, 1454),
+                 ("Nadeesha Fernando", 102, 1566), ("Ruwan Jayasinghe", 460, 1567), ("Dilan W", 819, 1564),
+                 ("Date: 12/10/2026", 102, 1608), ("Date: 13/10/2026", 460, 1608), ("Date:", 819, 1608))
+    rows = read_approvals(lines)
+    assert [(r.label, r.signed) for r in rows] == [("APPROVED BY", False)]  # its own date is blank

@@ -1,25 +1,42 @@
 """Single place for all settings. Values can be overridden in .env."""
 import os
+import re
 from pathlib import Path
 
+_INLINE_COMMENT = re.compile(r"\s+#.*$")
 
-def _load_dotenv(path: Path) -> None:
-    """Read simple KEY=VALUE lines into the environment (no extra library)."""
-    if not path.exists():
-        return
-    for raw in path.read_text(encoding="utf-8").splitlines():
+
+def parse_dotenv(text: str) -> dict[str, str]:
+    """KEY=VALUE lines (no extra library). A '#' after a space starts a comment,
+    so `KG_TIMEOUT=5   # seconds` gives 5; a '#' inside a value (a password in a
+    URI) is kept. Quoted values are taken as written."""
+    out: dict[str, str] = {}
+    for raw in text.splitlines():
         line = raw.strip()
         if not line or line.startswith("#") or "=" not in line:
             continue
         key, _, value = line.partition("=")
-        os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
+        value = value.strip()
+        if value[:1] in ("'", '"') and value[0] in value[1:]:
+            value = value[1:value.index(value[0], 1)]
+        else:
+            value = _INLINE_COMMENT.sub("", value)
+        out[key.strip()] = value
+    return out
+
+
+def _load_dotenv(path: Path) -> None:
+    if path.exists():
+        for key, value in parse_dotenv(path.read_text(encoding="utf-8")).items():
+            os.environ.setdefault(key, value)
 
 
 def _flag(name: str, default: bool) -> bool:
     return os.getenv(name, str(default)).strip().lower() in {"1", "true", "yes", "on"}
 
 
-_load_dotenv(Path(__file__).resolve().parents[1] / ".env")
+COMPONENT_ROOT = Path(__file__).resolve().parents[1]
+_load_dotenv(COMPONENT_ROOT / ".env")
 
 # --- LLM (self-hosted; narrates and reads requests, never decides a verdict) --
 # Provider: ollama | openai (any self-hosted OpenAI-compatible server: llama.cpp,
@@ -31,6 +48,10 @@ LLM_BASE_URL: str = os.getenv("C03_LLM_BASE_URL", os.getenv(
     "OLLAMA_HOST", "http://localhost:11434" if LLM_PROVIDER == "ollama" else "http://localhost:8080/v1"))
 LLM_API_KEY: str = os.getenv("C03_LLM_API_KEY", "")  # only if the local server needs one
 LLM_TIMEOUT: float = float(os.getenv("C03_LLM_TIMEOUT", "8"))  # audit trace narration
+# The case summary written for the auditor (Reasoning agent): a few paragraphs,
+# so it needs longer than a trace line. Rejected if it uses a number not in the facts.
+LLM_SUMMARY_TIMEOUT: float = float(os.getenv("C03_LLM_SUMMARY_TIMEOUT", "90"))
+LLM_SUMMARY_MAX_CHARS: int = int(os.getenv("C03_LLM_SUMMARY_MAX_CHARS", "3000"))
 COPILOT_LLM_TIMEOUT: float = float(os.getenv("C03_COPILOT_LLM_TIMEOUT", "25"))  # first call loads the model
 LLM_RETRY_COOLDOWN: float = float(os.getenv("C03_LLM_RETRY_COOLDOWN", "30"))
 
@@ -61,7 +82,18 @@ ALLOW_FREE_CYPHER: bool = False
 #   live -> never fall back; KG problems become visible REV-007 findings
 KG_MODE: str = os.getenv("KG_MODE", "auto")
 KG_URL: str = os.getenv("KG_URL", "")  # C2 base URL, e.g. http://localhost:8002
+# Component-01, for POST /audit/run/c1 (C3 fetches verified records itself).
+C1_URL: str = os.getenv("C1_URL", "http://127.0.0.1:8000")
+C1_TIMEOUT: float = float(os.getenv("C1_TIMEOUT", "30"))
 KG_TIMEOUT: float = float(os.getenv("KG_TIMEOUT", "5"))
+# How C2 searches the standards for the Copilot: keyword | semantic | hybrid.
+# hybrid uses C2's embeddings and falls back to keyword (with a note) when they are off.
+KG_SEARCH_MODE: str = os.getenv("KG_SEARCH_MODE", "hybrid").lower()
+# What the mock reads. Empty: the committed app/services/mock_data.json. For local
+# runs set it to a snapshot of the live KG (scripts/snapshot_kg.py), e.g.
+# data/kg_snapshot.json; relative paths start at Backend/Component-03. Tests always
+# use the committed file.
+KG_MOCK_FILE: str = os.getenv("KG_MOCK_FILE", "")
 
 # C2's DocumentType codes (Component-02 seed 05_audit.yaml) plus "unknown".
 ALLOWED_DOC_TYPES: frozenset[str] = frozenset({
@@ -99,6 +131,7 @@ NUMERIC_FIELDS: frozenset[str] = frozenset({
     "revenue", "sales", "turnover", "cost_of_sales", "cogs", "gross_profit",
     "cash", "cash_and_cash_equivalents", "closing_cash", "closing_equity",
     "inventories", "inventory", "closing_inventory", "inventory_nrv", "inventory_cost",
+    "approvals",
 })
 
 # C2 check rules carry no category, so C3 maps the ones it knows.
@@ -107,6 +140,9 @@ RULE_CATEGORY: dict[str, str] = {
     "CHK-001": "ledger", "CHK-002": "ledger",
     "CHK-003": "arithmetic", "CHK-004": "arithmetic",
     "CHK-005": "possible_fraud",
+    "CHK-007": "arithmetic", "CHK-008": "arithmetic",  # totals within one statement
+    "CHK-009": "arithmetic", "CHK-010": "arithmetic",  # ties between statements
+    "CHK-011": "compliance",  # LKAS 2 measurement requirement
 }
 DEFAULT_RULE_CATEGORY: str = "compliance"
 
@@ -115,6 +151,8 @@ CODE_CHECKED_RULES: frozenset[str] = frozenset({"CHK-006"})
 
 # Field a KG policy limit (e.g. POL-07) is compared against.
 POLICY_LIMIT_FIELD: str = "amount"
+# Signed approval rows read from a document's approval stamp (C3 field).
+APPROVALS_FIELD: str = "approvals"
 
 # Equality tolerance for money (1 cent).
 AMOUNT_TOLERANCE: float = 0.01
@@ -133,10 +171,9 @@ COUNTERS_COLLECTION: str = "c03_version_counters"
 # mongo -> MongoDB (fails loudly when unreachable); memory -> process only (tests/dev)
 STORE_MODE: str = os.getenv("C03_STORE_MODE", "mongo" if MONGODB_URI else "memory")
 
-# --- Trace events for Component-04 (Redis pub/sub, best-effort) ------------
-EVENTS_ENABLED: bool = _flag("C03_EVENTS_ENABLED", True)
-REDIS_URL: str = os.getenv("C03_REDIS_URL", "redis://localhost:6379/0")
-TRACE_CHANNEL: str = os.getenv("C03_TRACE_CHANNEL", "nomos:trace_events")
+# --- XAI callback traces (MongoDB, fire-and-forget for Component-04) --------
+CALLBACK_TRACES_COLLECTION: str = "c03_callback_traces"
+CALLBACK_TRACES_TTL_DAYS: int = int(os.getenv("C03_CALLBACK_TTL_DAYS", "7"))
 
 # --- API ---------------------------------------------------------------------
 CORS_ORIGINS: list[str] = [o.strip() for o in os.getenv(

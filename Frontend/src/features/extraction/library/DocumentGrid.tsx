@@ -6,7 +6,9 @@ import { pageImageUrl } from '@/features/extraction/api/client'
 import type { DocumentOut } from '@/features/extraction/api/types'
 import { formatRelativeTime } from '@/features/extraction/format'
 import { DocumentProgress } from './DocumentProgress'
-import { FileIcon } from './DocumentList'
+import { DocumentMenu } from './DocumentActions'
+import type { DocumentAction } from './DocumentActions'
+import { FileIcon, FolderLink } from './DocumentList'
 import { StatusChip } from './StatusChip'
 
 function Thumbnail({ document }: { document: DocumentOut }) {
@@ -31,11 +33,23 @@ function Thumbnail({ document }: { document: DocumentOut }) {
   )
 }
 
-export function DocumentGrid({ documents }: { documents: DocumentOut[] }) {
+interface DocumentGridProps {
+  documents: DocumentOut[]
+  onAction: (action: DocumentAction, document: DocumentOut) => void
+  showFolder?: boolean // All documents: say where each one is filed
+}
+
+export function DocumentGrid({ documents, onAction, showFolder = false }: DocumentGridProps) {
   return (
     <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
       {documents.map((doc) => (
-        <li key={doc.id}>
+        <li key={doc.id} className="relative">
+          {/* Beside the link, not inside it: a button may not sit in a link. */}
+          <DocumentMenu
+            document={doc}
+            onAction={(action) => onAction(action, doc)}
+            className="absolute right-2 top-2 z-10 rounded-full bg-surface/90 shadow-(--shadow-sm)"
+          />
           <Link
             to={extractionPaths.document(doc.id)}
             className="block overflow-hidden rounded-lg border border-line-light bg-surface transition hover:border-line hover:shadow-(--shadow-md)"
@@ -57,6 +71,11 @@ export function DocumentGrid({ documents }: { documents: DocumentOut[] }) {
               )}
             </div>
           </Link>
+          {showFolder && (
+            <div className="mt-1.5 px-1 text-xs">
+              <FolderLink document={doc} />
+            </div>
+          )}
         </li>
       ))}
     </ul>

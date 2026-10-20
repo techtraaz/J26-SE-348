@@ -3,11 +3,9 @@ import threading
 
 import pytest
 
-from app.schemas.trace_events import parse_trace_event
 from app.services import intake, orchestrator
-from app.services.events import EventPublisher
 from app.services.store import MemoryStore, StoreError
-from tests.conftest import FakeRedis, doc
+from tests.conftest import doc
 
 DOCS = [doc("BS", "balance_sheet", {"assets": 100, "liabilities": 30, "capital": 20}),
         doc("INV", "invoice", {"amount": 150000}),
@@ -85,32 +83,11 @@ def test_store_failure_is_loud(kg):
         orchestrator.run_case(case(), kg, store=Broken())
 
 
-def test_events_match_c4_contract_and_end_after_save(kg, store):
-    redis = FakeRedis()
-    seen_saved = []
-
-    class Spy(FakeRedis):
-        def publish(self, channel, text):
-            if json.loads(text)["event"] == "pipeline_end":
-                seen_saved.append(store.get("C", 1) is not None)
-            redis.publish(channel, text)
-    r = orchestrator.run_case(case(), kg, publisher=EventPublisher(client=Spy()), store=store)
-    events = [json.loads(t) for _, t in redis.sent]
-    assert events[0]["event"] == "pipeline_start"
-    assert events[-1]["event"] == "pipeline_end"
-    assert sum(e["event"] == "agent_end" for e in events) == 5
-    for e in events:
-        parse_trace_event(e)
-    assert seen_saved == [True] and r.events_published
-    assert store.get("C", 1)["events_published"] is True
-
-
-def test_event_failure_never_breaks_audit(kg, store):
-    r = orchestrator.run_case(case(), kg, publisher=EventPublisher(client=FakeRedis(fail=True)),
-                              store=store)
-    assert r.status == "pending_auditor_review" and not r.events_published
-    assert any(t.agent_name == "events" for t in r.trace)
-    assert any(t["agent_name"] == "events" for t in store.get("C", 1)["trace"])
+def test_xai_callback_runs_without_traces_col(kg, store):
+    """MemoryStore returns None for traces_collection — callback must not crash."""
+    r = orchestrator.run_case(case(), kg, store=store)
+    assert r.status == "pending_auditor_review"
+    assert r.version == 1
 
 
 def test_stream_yields_updates_then_one_saved_result(kg, store):

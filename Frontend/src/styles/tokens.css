@@ -5,6 +5,7 @@
   --surface-muted: #ece7e0;
   --border: #ddd7ce;
   --border-light: #e8e3dc;
+  --border-strong: #cbc2b6; /* outlines of cards and inputs that must stand out */
 
   --text: #3d3429;
   --text-h: #1a1410;
@@ -50,6 +51,7 @@
   --surface-muted: #2e2a22;
   --border: #3a352c;
   --border-light: #3a352c;
+  --border-strong: #4d473c;
 
   --text: #c9bfb3;
   --text-h: #f0ebe5;

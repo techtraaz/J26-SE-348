@@ -1,6 +1,6 @@
 # Proposed C1 endpoint: verified records for downstream components
 
-**From:** Component 03 (Amarasinghe) · **To:** Component 01 (Jayanath) · **Status:** proposal
+**From:** Component 03 (Amarasinghe) · **To:** Component 01 (Jayanath) · **Status:** implemented in C1 as contract 0.1 (`GET /api/v1/documents/{id}/verified`, `app/services/export/contract_v1.py`); C3 tests it in `tests/test_c1_review.py`
 
 C1's `verified_records` table is described as "the immutable confirmed version
 that downstream reads", but no endpoint returns it yet. C3 currently reads the

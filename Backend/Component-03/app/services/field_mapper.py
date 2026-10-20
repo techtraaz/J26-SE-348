@@ -93,6 +93,13 @@ class MappedField:
 
 
 @dataclass
+class ApprovalRow:
+    label: str  # e.g. "Approval 2 - Director"
+    signed: bool  # a signing date is filled in
+    line_ids: list[str]  # the label and the lines under it
+
+
+@dataclass
 class Suggestion:
     value: str | int
     evidence: str
@@ -195,6 +202,13 @@ def _same_row(a: Line, b: Line) -> bool:
     return (bottom - top) / shorter >= 0.5 and b.box[0] >= a.box[0]
 
 
+def _is_note_ref(text: str, next_text: str) -> bool:
+    """A 'Note' column reference such as the 7 in 'Inventories 7 7,015,300': a bare
+    number of up to three digits followed on its row by a money-formatted amount."""
+    bare = text.strip()
+    return bare.isdigit() and len(bare) <= 3 and any(c in next_text for c in ",.")
+
+
 def _is_pure_value(line: Line) -> float | None:
     found = _amounts(line.text)
     if len(found) != 1:
@@ -227,7 +241,11 @@ def map_by_rules(lines: list[Line], lex: dict[str, str]) -> dict[str, MappedFiel
                 add(MappedField(name, value, line.line_id, "rules", label, None, specificity))
             continue
         if found:  # label and amount on one line; the first amount is the current period
-            add(MappedField(name, found[0][0], line.line_id, "rules", label, None, specificity))
+            first = found[0]
+            if len(found) > 1 and _is_note_ref(line.text[first[1]:first[2]],
+                                               line.text[found[1][1]:found[1][2]]):
+                first = found[1]
+            add(MappedField(name, first[0], line.line_id, "rules", label, None, specificity))
             continue
         partner = _value_partner(line, lines, i)
         if partner is not None:
@@ -247,7 +265,65 @@ def map_by_rules(lines: list[Line], lex: dict[str, str]) -> dict[str, MappedFiel
                 out["purchase_basis"] = MappedField("purchase_basis", "credit", line.line_id,
                                                     "rules", "on credit", None, 1)
                 break
+    rows = read_approvals(lines)
+    if rows:
+        signed = sum(r.signed for r in rows)
+        summary = "; ".join(f"{r.label} ({'signed' if r.signed else 'blank'})" for r in rows)
+        out[APPROVALS_FIELD] = MappedField(APPROVALS_FIELD, float(signed), rows[0].line_ids[0],
+                                           "rules", summary, None, 1)
     return out
+
+
+# --- approval stamps ---------------------------------------------------------------
+
+APPROVALS_FIELD = config.APPROVALS_FIELD  # number of approval rows that are signed (dated)
+# A stamp row starts a line: "Approval 1 - Finance", "Approved by", "Verified (Accounts)".
+_APPROVAL_ROW = re.compile(r"^\W*approv(?:al|ed)\b", re.IGNORECASE)
+_STAMP_ROW = re.compile(r"^\W*(approv(?:al|ed)|verified|prepared|checked|reviewed)\b", re.IGNORECASE)
+_SIGNED_DATE = re.compile(r"\b\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}\b")
+APPROVAL_ROW_LINES = 8  # without boxes: header cells, name, designation and date as lines
+APPROVAL_REACH = 10  # with boxes: a stamp row reaches this many label heights down
+
+
+def _stamp_area(label: Line, lines: list[Line], stamps: list[Line]) -> list[Line]:
+    """Lines inside a stamp label's area: right of the label up to the next stamp
+    label on its row (sign-off columns), and down to the next stamp label under it
+    (stamp rows), at most APPROVAL_REACH label heights."""
+    x0, top, _, bottom = label.box  # type: ignore[misc]
+    height = (bottom - top) or 1
+    same_page = [s for s in stamps if s is not label and s.page == label.page and s.box]
+    right = min((s.box[0] for s in same_page if _same_row(label, s)), default=float("inf"))
+    under = [s.box[1] - (s.box[3] - s.box[1]) / 2 for s in same_page
+             if s.box[1] >= bottom and s.box[0] < right and s.box[2] > x0 - height]
+    end = min([top + APPROVAL_REACH * height, *under])
+    return [ln for ln in lines if ln is not label and ln.page == label.page and ln.box
+            and top - height / 2 <= ln.box[1] < end and x0 - height <= ln.box[0] < right]
+
+
+def read_approvals(lines: list[Line]) -> list[ApprovalRow]:
+    """The approval rows of an authorisation stamp or sign-off block. A row counts
+    as signed when a date is filled in for it (the signature itself is an image,
+    not text). A row ends at the next stamp row, so a blank row never borrows the
+    next one's date. Lines without boxes are read in order instead."""
+    stamps = [ln for ln in lines if _STAMP_ROW.search(ln.text)]
+    rows = []
+    for i, line in enumerate(lines):
+        if not _APPROVAL_ROW.search(line.text):
+            continue
+        if line.box:
+            area = _stamp_area(line, lines, stamps)
+        else:
+            area = []
+            for nxt in lines[i + 1:i + 1 + APPROVAL_ROW_LINES]:
+                if nxt.page != line.page or _STAMP_ROW.search(nxt.text):
+                    break
+                area.append(nxt)
+        dated = [ln for ln in [line, *area] if _SIGNED_DATE.search(ln.text)]
+        label = re.split(r"\b(name|designation|signature|date)\b", line.text, maxsplit=1,
+                         flags=re.IGNORECASE)[0].strip(" -:/")
+        rows.append(ApprovalRow(label or line.text.strip(), bool(dated),
+                                [line.line_id, *(d.line_id for d in dated if d is not line)]))
+    return rows
 
 
 def _by_id(lines: list[Line], line_id: str) -> Line:
@@ -257,8 +333,11 @@ def _by_id(lines: list[Line], line_id: str) -> Line:
 def _value_partner(label: Line, lines: list[Line], index: int) -> Line | None:
     """The amount for a label-only line: to its right on the same row, else the next line."""
     row = [ln for ln in lines if ln is not label and _same_row(label, ln) and _is_pure_value(ln) is not None]
+    row.sort(key=lambda ln: ln.box[0] - label.box[2])  # type: ignore[index]
+    if len(row) > 1 and _is_note_ref(row[0].text, row[1].text):
+        row = row[1:]
     if row:
-        return min(row, key=lambda ln: ln.box[0] - label.box[2])  # type: ignore[index]
+        return row[0]
     nxt = lines[index + 1] if index + 1 < len(lines) else None
     below = nxt is not None and nxt.page == label.page and _is_pure_value(nxt) is not None
     lined_up = below and (not (label.box and nxt.box)

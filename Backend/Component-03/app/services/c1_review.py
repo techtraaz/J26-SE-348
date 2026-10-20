@@ -33,6 +33,7 @@ class C1Input(BaseModel):
     verified: C1VerifiedRecord | None = None
     extraction: C1Extraction | None = None
     doc_type: str | None = None  # the reviewer's choice; suggested when absent
+    name: str | None = Field(None, max_length=255)  # C1's file name, shown in reports
 
     @model_validator(mode="after")
     def _one_source(self):
@@ -78,7 +79,8 @@ def _origin(line: fm.Line, source: DocumentSource) -> str:
 
 def field_names(kg: KGClient) -> list[str]:
     """Names a reviewer may give a field: C2's line items plus C3's everyday fields."""
-    return sorted(set(kg.get_field_map().values()) | set(fm.EVERYDAY_LABELS.values()))
+    return sorted(set(kg.get_field_map().values()) | set(fm.EVERYDAY_LABELS.values())
+                  | {fm.APPROVALS_FIELD})
 
 
 def _ref(line: fm.Line | None) -> dict[str, Any] | None:
@@ -100,7 +102,8 @@ def preview(case_id: str, documents: list[C1Input], kg: KGClient) -> list[dict]:
         for f in mapping.fields.values():
             value_line, label_line = by_id[f.line_id], by_id.get(f.label_line_id or "")
             ai = f.method == "llm"
-            conf = line_confidence(value_line, label_line)
+            conf = (_approvals(lines, by_id, 0)[1] if f.field == fm.APPROVALS_FIELD
+                    else line_confidence(value_line, label_line))
             fields.append({
                 "field": f.field, "value": f.value, "method": f.method, "label": f.label,
                 "needs_confirmation": ai,
@@ -109,7 +112,7 @@ def preview(case_id: str, documents: list[C1Input], kg: KGClient) -> list[dict]:
                 "alternatives": f.alternatives})
         doc_type = doc.doc_type or (mapping.doc_type.value if mapping.doc_type else "unknown")
         out.append({
-            "document_id": source.document_id, "source": source.model_dump(),
+            "document_id": source.document_id, "name": doc.name, "source": source.model_dump(),
             "human_verified": source.human_verified,
             "suggestions": {
                 "doc_type": mapping.doc_type.__dict__ if mapping.doc_type else None,
@@ -146,6 +149,15 @@ def _value(decision: FieldDecision, line: fm.Line | None) -> tuple[float | str, 
     return number, False
 
 
+def _approvals(lines: list[fm.Line], by_id: dict[str, fm.Line], i: int) -> tuple[float, float]:
+    """(signed approval rows, lowest confidence of the stamp lines)."""
+    rows = fm.read_approvals(lines)
+    if not rows:
+        raise intake.IntakeError(f"documents[{i}]: no approval rows found; type the count as a value")
+    stamp = [by_id[lid] for r in rows for lid in r.line_ids]
+    return float(sum(r.signed for r in rows)), line_confidence(*stamp)
+
+
 def confirm(case_id: str, documents: list[ReviewedDocument], kg: KGClient) -> list[dict]:
     """Reviewed documents as raw case documents (validated by intake afterwards)."""
     allowed = set(field_names(kg))
@@ -164,6 +176,10 @@ def confirm(case_id: str, documents: list[ReviewedDocument], kg: KGClient) -> li
             line = by_id.get(d.line_id) if d.line_id else None
             if d.line_id and line is None:
                 raise intake.IntakeError(f"documents[{i}]: line {d.line_id!r} is not in the C1 record")
+            if d.field == fm.APPROVALS_FIELD and d.value is None:
+                fields[d.field], confidences[d.field] = _approvals(lines, by_id, i)
+                methods[d.field] = "c3:rules"
+                continue
             value, typed = _value(d, line)
             rule_hit = by_rules.get(d.field)
             how: Literal["human", "rules", "confirmed", "unconfirmed"]
@@ -181,7 +197,8 @@ def confirm(case_id: str, documents: list[ReviewedDocument], kg: KGClient) -> li
             confidences[d.field] = conf
             methods[d.field] = (f"{_origin(line, source)}|" if line else "") + f"c3:{how}"
         raw_docs.append({
-            "doc_id": doc.doc_id or source.document_id, "doc_type": doc.doc_type or "unknown",
+            "doc_id": doc.doc_id or source.document_id, "name": doc.name,
+            "doc_type": doc.doc_type or "unknown",
             "period_year": doc.period_year, "parent_doc_id": doc.parent_doc_id,
             "fields": fields, "confidences": confidences, "methods": methods,
             "source": source.model_dump()})

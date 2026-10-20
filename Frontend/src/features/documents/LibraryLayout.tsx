@@ -8,7 +8,9 @@ import { CasePanel } from "./CasePanel";
 // while the library scrolls. Narrow screens stack the panel below. The panel is
 // hidden on a document's review page, which needs the width.
 export function LibraryLayout() {
-  const reviewing = useMatch(`${routes.documents}/:documentId`) !== null;
+  // "/documents/folders" has the same shape as a document's page: it is not one.
+  const match = useMatch(`${routes.documents}/:documentId`);
+  const reviewing = match !== null && match.params.documentId !== "folders";
   return (
     <div className="flex min-w-0 flex-1 flex-col lg:flex-row">
       <ExtractionLayout />

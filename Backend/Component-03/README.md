@@ -90,10 +90,59 @@ rules 100% precision / 90% recall, rules + phi4-mini 100% / 100%, type and year
 100%. Add real C1 documents to make it meaningful.
 
 **Component-02.** `KG_URL` is C2's base URL (e.g. `http://localhost:8002`). C3
-calls only C2's fixed `GET /query/...` endpoints: `rules`, `check-rules`,
-`evidence-chain`, `rules/{id}/explain`, `search`. Never `/query/cypher`.
+calls only C2's fixed `GET /query/...` endpoints, never `/query/cypher`:
+
+| Endpoint | Used by |
+|---|---|
+| `rules`, `check-rules` | Compliance, Anomaly (which rules apply to each document type) |
+| `fields` | Library field mapping (line items and aliases) |
+| `rules/{id}/explain` | Reasoning: basis, cited paragraphs (`policy_ids`), assertions, risks |
+| `standards/{code}` | Reasoning: a cited standard that is not current (e.g. superseded) gets a caution in the chain |
+| `evidence-chain/{doc_id}` | Reasoning: linked documents (only the document itself until C2's ledger exists) |
+| `sections`, `definitions`, `line-items`, `search` | Copilot: "LKAS 2:9", "define net realisable value", "what does capital mean", topics |
+
 `KG_MODE=auto` uses the bundled mock (same shapes and rules as C2's seed) only
 when C2 is unreachable, and the result says `kg_source: "mock_fallback"`.
+Reasoning's KG lookups run in parallel, so the live KG's network round trips
+do not add up per rule.
+
+**Before relying on a live C2**, check it against what C3 needs:
+
+```powershell
+.venv\Scripts\python.exe -m scripts.check_kg_contract          # uses KG_URL
+```
+
+It lists the rules per document type, which agent runs each and whether C3
+can evaluate it, the explanations and cited standards' status, and flags any
+reply C3 could not use (exit code 1) or an unreachable C2 (exit code 2).
+
+**Working without C2: a snapshot of the live KG.** While C2 is up, save its
+replies once, then run and tune C3 against them offline:
+
+```powershell
+.venv\Scripts\python.exe -m scripts.snapshot_kg             # saves data/kg_snapshot.json
+.venv\Scripts\python.exe -m scripts.snapshot_kg --compare   # how the committed mock differs
+```
+
+Then set `KG_MOCK_FILE=data/kg_snapshot.json` (and `KG_MODE=mock` to never
+call C2) in `.env`. The snapshot is gitignored; the audit trace says when it
+was taken. Tests always use the committed `mock_data.json`, which follows C2's
+seed rules; `--compare` shows what to update in it when the live KG changes.
+
+## Materiality
+
+A case may carry `materiality` (an amount, SLAuS 320), set by the auditor in the
+Library or sent with the case JSON (`{"case_id": ..., "materiality": 50000, "docs": [...]}`).
+Evidence appends and re-runs keep it unless a new value is sent.
+
+- A failed rule whose **amount difference** is below it stays a finding, at
+  `low` severity, and its message says so ("the difference 5.00 is below the case
+  materiality 50,000.00; C2 rates this rule high"). Nothing is dropped.
+- Only plain amount comparisons have a difference (`assets == liabilities +
+  capital`, `inventories <= inventory_nrv`). Fraud patterns (CHK-005: material
+  whatever the amount, SLAuS 240), ratios and thresholds (CHK-004) and policy
+  limits (POL-07) are never softened.
+- No materiality = every difference above 1 cent counts at the rule's severity.
 
 ## How rules run
 
@@ -194,10 +243,18 @@ independent set written by other people is needed for the dissertation figure.
 
 - MongoDB `nomos_xai.c03_audit_results`: one record per run, `_id`
   `"<case_id>:v<version>"`, every `AuditResult` field plus `case` (the input).
-  Saved **before** `pipeline_end` is published.
-- Redis `nomos:trace_events`: `pipeline_start`, `agent_end` ×5, `pipeline_end`.
-  These are C4's shapes, plus `version` (start/end), `status` (end) and
-  `traces` (all trace lines of an agent).
+  Saved **before** `pipeline_end` is queued. It includes `rules_applied` (every
+  KG rule run on every document, passed ones too, with the same facts as its live
+  `rule_check` / `policy_check` step), each document's `name` (C1's file name) and
+  `events_published` (True when every XAI step of the run was queued for C4; when
+  False a trace line says why).
+- MongoDB `nomos_xai.c03_callback_traces` (kept `C03_CALLBACK_TTL_DAYS` days),
+  written in the background so tracing never slows an audit: `pipeline_start`,
+  `chain_start` / `chain_end` per agent, `step` events (`evidence_read`,
+  `dq_check`, `kg_fetch`, `rule_check`, `policy_check`, `standard_check`,
+  `evidence_link`, `citation_check`, `llm_call`, ...), `pipeline_end`; Copilot
+  turns add `copilot_start`, `copilot_nlu` (with the full `routing`) and
+  `copilot_end`.
 
 ## Locked rules
 

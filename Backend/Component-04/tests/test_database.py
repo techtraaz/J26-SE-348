@@ -71,6 +71,7 @@ async def test_insert_and_retrieve_trace():
         detail="Checked 12 rules, 2 violations found.",
         findings_count=2,
         step_index=1,
+        duration_ms=412.5,
         source_timestamp="2026-01-01T00:00:01Z",
         received_at="2026-01-01T00:00:02Z",
         raw_payload={"agent": "compliance", "findings_count": 2},
@@ -82,6 +83,7 @@ async def test_insert_and_retrieve_trace():
     assert traces[0]["agent_name"] == "compliance"
     assert traces[0]["findings_count"] == 2
     assert traces[0]["event_type"] == "agent_end"
+    assert traces[0]["duration_ms"] == 412.5
 
 
 async def test_get_traces_returns_empty_for_unknown_case():
@@ -113,6 +115,7 @@ async def test_traces_ordered_by_step_index():
             detail=None,
             findings_count=0,
             step_index=step,
+            duration_ms=None,
             source_timestamp="2026-01-01T00:00:00Z",
             received_at="2026-01-01T00:00:00Z",
             raw_payload={},

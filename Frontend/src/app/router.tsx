@@ -18,8 +18,9 @@ export const router = createBrowserRouter([
         path: routes.documents,
         element: <LibraryLayout />,
         children: [
-          { index: true, element: <LibraryPage /> },
-          { path: "folders/:folderId", element: <LibraryPage /> },
+          { index: true, element: <LibraryPage view="all" /> },
+          { path: "folders", element: <LibraryPage view="folders" /> },
+          { path: "folders/:folderId", element: <LibraryPage view="folders" /> }, // or "unfiled"
           { path: ":documentId", element: <DocumentPage /> },
         ],
       },

@@ -9,7 +9,7 @@ from app.schemas.copilot import CopilotQuery
 from app.services import copilot, intake, llm, orchestrator
 from app.services.copilot.entities import extract
 from app.services.copilot.nlu import RequestContext, understand
-from app.services.copilot.registry import REGISTRY
+from app.services.copilot.registry import FALLBACK_INTENT, REGISTRY
 from app.services.llm.providers import LLMError, LLMProvider
 from tests.conftest import doc
 
@@ -148,14 +148,13 @@ def test_rule_lookup_compares_amount_with_limit(kg, store):
 
 
 def test_whatif_reads_text_runs_checks_and_saves_nothing(kg, store, monkeypatch):
-    monkeypatch.setattr(config, "EVENTS_ENABLED", True)  # what-if must still send nothing
     r = ask(kg, store, "I paid Rs 180,000 in cash for a printer but booked it on credit, "
                        "no asset recorded. is that ok?")
     assert r.intent == "whatif_check" and r.group == "fresh_audit"
     assert r.data["read"]["fields"] == {"cash_out": 180000.0, "amount": 180000.0,
                                         "purchase_basis": "credit", "asset_in": 0.0}
     assert {f["rule_id"] for f in r.data["result"]["findings"]} == {"CHK-005", "POL-07"}
-    assert store.latest_all() == [] and not r.data["result"]["events_published"]
+    assert store.latest_all() == []
 
 
 def test_whatif_rejects_llm_numbers_not_in_the_text(kg, store, fake_llm):
@@ -192,7 +191,7 @@ def test_every_follow_up_routes_to_a_real_intent(monkeypatch):
     for spec in REGISTRY.values():
         for text in spec.follow_ups:
             got = understand(text, extract(text), RequestContext(case_id="C-1")).intent
-            assert got != "help", f"{spec.name} follow-up {text!r} routes to help"
+            assert got != FALLBACK_INTENT, f"{spec.name} follow-up {text!r} matches no intent"
 
 
 def test_replies_carry_suggestions_and_findings(kg, audited):

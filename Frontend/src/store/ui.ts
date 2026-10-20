@@ -9,12 +9,21 @@ type UIState = {
   generalSessionId: string; // this browser's general-questions chat
   draftCases: string[]; // started here, not audited yet
   staged: Record<string, AuditDocument[]>; // documents waiting to be sent, per case
+  xaiPanelOpen: boolean;
+  sidebarOpen: boolean; // the Cases sidebar in Chat
+  xaiActiveTab: "thinking" | "report";
+  // The run a chat reply's "Explain" asked the panel to show (not persisted).
+  xaiFocus: { runKey: string; at: number } | null;
   toggleTheme: () => void;
   setCase: (id: string | null) => void;
   newCase: () => string;
   stageDocs: (caseId: string, docs: AuditDocument[]) => void;
   unstage: (caseId: string, docId: string) => void;
   clearStaged: (caseId: string) => void;
+  toggleXaiPanel: () => void;
+  toggleSidebar: () => void;
+  setXaiTab: (tab: "thinking" | "report") => void;
+  explainRun: (runKey: string) => void;
 };
 
 const stamp = () => {
@@ -31,6 +40,10 @@ export const useUI = create<UIState>()(
       generalSessionId: `GEN-${stamp()}-${random()}`,
       draftCases: [],
       staged: {},
+      xaiPanelOpen: false,
+      sidebarOpen: true,
+      xaiActiveTab: "thinking",
+      xaiFocus: null,
       toggleTheme: () => set((s) => ({ theme: s.theme === "light" ? "dark" : "light" })),
       setCase: (id) => set({ selectedCase: id }),
       newCase: () => {
@@ -46,13 +59,18 @@ export const useUI = create<UIState>()(
       unstage: (caseId, docId) =>
         set((s) => ({ staged: { ...s.staged, [caseId]: (s.staged[caseId] ?? []).filter((d) => d.doc_id !== docId) } })),
       clearStaged: (caseId) => set((s) => ({ staged: { ...s.staged, [caseId]: [] } })),
+      toggleXaiPanel: () => set((s) => ({ xaiPanelOpen: !s.xaiPanelOpen })),
+      toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
+      setXaiTab: (tab) => set({ xaiActiveTab: tab }),
+      explainRun: (runKey) =>
+        set({ xaiPanelOpen: true, xaiActiveTab: "thinking", xaiFocus: { runKey, at: Date.now() } }),
     }),
     {
       name: "nomos-ui",
       version: 2, // v1 kept chat messages here; they now live on the server
       storage: createJSONStorage(() => localStorage),
       partialize: (s) => ({ theme: s.theme, selectedCase: s.selectedCase, generalSessionId: s.generalSessionId,
-                            draftCases: s.draftCases, staged: s.staged }),
+                            draftCases: s.draftCases, staged: s.staged, sidebarOpen: s.sidebarOpen }),
       migrate: (old) => {
         const { messages: _dropped, ...rest } = (old ?? {}) as Record<string, unknown>;
         void _dropped;
