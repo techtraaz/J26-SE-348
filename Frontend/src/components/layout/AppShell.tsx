@@ -1,6 +1,13 @@
-import { NavLink, Outlet } from "react-router-dom";
+import { NavLink, Outlet, useMatch } from "react-router-dom";
+import { Sparkles } from "lucide-react";
 import { useUI } from "@/store/ui";
 import { routes } from "@/config/routes";
+import { XaiPanel } from "@/components/ui/XaiPanel";
+import { CasesSidebar } from "@/components/layout/CasesSidebar";
+
+const TOP_BAR_HEIGHT = 60; // CasesSidebar's brand row has the same height
+const SIDEBAR_OPEN = 260; // CasesSidebar widths
+const SIDEBAR_CLOSED = 56;
 
 const tabs = [
   { to: routes.documents, label: "Library" },
@@ -8,20 +15,31 @@ const tabs = [
 ];
 
 export function AppShell() {
-  const { theme } = useUI();
+  const { theme, xaiPanelOpen, toggleXaiPanel, sidebarOpen } = useUI();
+  const onChat = useMatch(routes.dashboard) !== null;
+  // The top bar sits beside the sidebar on Chat; shift the tabs back by half its
+  // width so Library and Chat stay at the same place on every page.
+  const tabShift = onChat ? (sidebarOpen ? SIDEBAR_OPEN : SIDEBAR_CLOSED) / 2 : 0;
   return (
-    <div data-theme={theme} style={{ background: "var(--bg)", color: "var(--text)", minHeight: "100vh", display: "flex", flexDirection: "column" }}>
+    // The shell fills the viewport and only <main> scrolls, so the header stays put on every page.
+    // On Chat the Cases sidebar runs the full height on the left; the top bar spans the rest.
+    <div data-theme={theme} style={{ background: "var(--bg)", color: "var(--text)", height: "100vh", overflow: "hidden", display: "flex" }}>
+      {onChat && <CasesSidebar />}
+      <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
       {/* ── Top Navigation Bar ── */}
       <header style={{
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        padding: "14px 24px",
+        height: `${TOP_BAR_HEIGHT}px`,
+        padding: "0 24px",
         position: "relative",
+        flexShrink: 0,
         borderBottom: "1px solid var(--border-light)",
       }}>
         {/* Center Tabs */}
-        <nav style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+        <nav style={{ display: "flex", alignItems: "center", gap: "4px",
+                      transform: `translateX(-${tabShift}px)`, transition: "transform 0.2s ease" }}>
           {tabs.map((t) => (
             <NavLink
               key={t.to}
@@ -44,35 +62,60 @@ export function AppShell() {
           ))}
         </nav>
 
-        {/* User Avatar */}
-        <div style={{
+        {/* Right-side action: the Explainability panel (Chat only) */}
+        {onChat && <div style={{
           position: "absolute",
           right: "24px",
           top: "50%",
           transform: "translateY(-50%)",
         }}>
-          <div style={{
-            width: "32px",
-            height: "32px",
-            borderRadius: "50%",
-            border: "1.5px solid var(--border)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            cursor: "pointer",
-          }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-              <circle cx="12" cy="7" r="4" />
-            </svg>
-          </div>
-        </div>
+          <button
+            id="xai-toggle-btn"
+            type="button"
+            className="icon-btn"
+            onClick={toggleXaiPanel}
+            aria-pressed={xaiPanelOpen}
+            aria-label={xaiPanelOpen ? "Hide explainability" : "Show explainability"}
+            data-tip={xaiPanelOpen ? "Hide explainability" : "Show explainability"}
+            data-tip-side="bottom-end"
+            style={{
+              height: "34px",
+              padding: "0 12px",
+              borderRadius: "10px",
+              border: "1px solid " + (xaiPanelOpen ? "var(--border-strong)" : "transparent"),
+              background: xaiPanelOpen ? "var(--sidebar-active)" : "transparent",
+              color: xaiPanelOpen ? "var(--text-h)" : "var(--text-muted)",
+              display: "flex",
+              alignItems: "center",
+              gap: "7px",
+              cursor: "pointer",
+              fontFamily: "inherit",
+              fontSize: "13px",
+              fontWeight: 500,
+            }}
+          >
+            <Sparkles size={16} strokeWidth={1.6} />
+            Explain
+          </button>
+        </div>}
       </header>
 
-      {/* ── Main Content ── */}
-      <main style={{ flex: 1, display: "flex", flexDirection: "column" }}>
-        <Outlet />
-      </main>
+      {/* ── Page + Explainability panel, side by side below the header ── */}
+      <div style={{ flex: 1, minHeight: 0, display: "flex" }}>
+        <main className="thin-scroll" style={{
+          flex: 1,
+          minWidth: 0,
+          minHeight: 0,
+          overflowY: "auto",
+          display: "flex",
+          flexDirection: "column",
+        }}>
+          <Outlet />
+        </main>
+
+        {onChat && <XaiPanel />}
+      </div>
+      </div>
     </div>
   );
 }

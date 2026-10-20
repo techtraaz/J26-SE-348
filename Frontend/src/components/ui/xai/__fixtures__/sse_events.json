@@ -1,0 +1,2494 @@
+{
+ "ACME-1": [
+  {
+   "event_type": "pipeline_start",
+   "step_index": 0,
+   "doc_count": 3,
+   "detail": "Pipeline started with 3 document(s).",
+   "case_id": "ACME-1",
+   "source_timestamp": "2026-10-20T06:52:34.884454+00:00",
+   "received_at": "2026-10-20T07:00:30.472351+00:00",
+   "run_key": "e30569cc41104a4ab44edf82d46e7ec8",
+   "run_kind": "audit",
+   "version": 1,
+   "seq": 1
+  },
+  {
+   "event_type": "agent_thinking",
+   "step_index": 1,
+   "stage": "data_quality",
+   "label": "Data quality",
+   "agent_name": "data_quality",
+   "case_id": "ACME-1",
+   "source_timestamp": "2026-10-20T06:52:34.890105+00:00",
+   "received_at": "2026-10-20T07:00:30.508350+00:00",
+   "run_key": "e30569cc41104a4ab44edf82d46e7ec8",
+   "run_kind": "audit",
+   "version": 1,
+   "seq": 2
+  },
+  {
+   "event_type": "step",
+   "stage": "data_quality",
+   "label": "Data quality",
+   "agent_name": "data_quality",
+   "verb": "Read",
+   "target": "BS",
+   "detail": "balance sheet · 3 fields · values supplied directly",
+   "facts": [
+    {
+     "label": "Document type",
+     "value": "balance sheet"
+    },
+    {
+     "label": "Period",
+     "value": "2,026"
+    },
+    {
+     "label": "Source",
+     "value": "values supplied directly"
+    },
+    {
+     "label": "Assets",
+     "value": "100"
+    },
+    {
+     "label": "Liabilities",
+     "value": "30"
+    },
+    {
+     "label": "Capital",
+     "value": "20"
+    }
+   ],
+   "kind": "evidence_read",
+   "status": "ok",
+   "tone": "neutral",
+   "check": false,
+   "duration_ms": null,
+   "step_index": 2,
+   "case_id": "ACME-1",
+   "source_timestamp": "2026-10-20T06:52:34.890105+00:00",
+   "received_at": "2026-10-20T07:00:30.508350+00:00",
+   "run_key": "e30569cc41104a4ab44edf82d46e7ec8",
+   "run_kind": "audit",
+   "version": 1,
+   "seq": 3
+  },
+  {
+   "event_type": "step",
+   "stage": "data_quality",
+   "label": "Data quality",
+   "agent_name": "data_quality",
+   "verb": "Read",
+   "target": "INV",
+   "detail": "invoice · 1 field · values supplied directly",
+   "facts": [
+    {
+     "label": "Document type",
+     "value": "invoice"
+    },
+    {
+     "label": "Period",
+     "value": "2,026"
+    },
+    {
+     "label": "Source",
+     "value": "values supplied directly"
+    },
+    {
+     "label": "Amount",
+     "value": "150,000"
+    }
+   ],
+   "kind": "evidence_read",
+   "status": "ok",
+   "tone": "neutral",
+   "check": false,
+   "duration_ms": null,
+   "step_index": 3,
+   "case_id": "ACME-1",
+   "source_timestamp": "2026-10-20T06:52:34.891102+00:00",
+   "received_at": "2026-10-20T07:00:30.508350+00:00",
+   "run_key": "e30569cc41104a4ab44edf82d46e7ec8",
+   "run_kind": "audit",
+   "version": 1,
+   "seq": 4
+  },
+  {
+   "event_type": "step",
+   "stage": "data_quality",
+   "label": "Data quality",
+   "agent_name": "data_quality",
+   "verb": "Read",
+   "target": "RC",
+   "detail": "receipt · 1 field · values supplied directly",
+   "facts": [
+    {
+     "label": "Document type",
+     "value": "receipt"
+    },
+    {
+     "label": "Period",
+     "value": "2,026"
+    },
+    {
+     "label": "Supports",
+     "value": "INV"
+    },
+    {
+     "label": "Source",
+     "value": "values supplied directly"
+    },
+    {
+     "label": "Amount",
+     "value": "140,000"
+    }
+   ],
+   "kind": "evidence_read",
+   "status": "ok",
+   "tone": "neutral",
+   "check": false,
+   "duration_ms": null,
+   "step_index": 4,
+   "case_id": "ACME-1",
+   "source_timestamp": "2026-10-20T06:52:34.891102+00:00",
+   "received_at": "2026-10-20T07:00:30.508350+00:00",
+   "run_key": "e30569cc41104a4ab44edf82d46e7ec8",
+   "run_kind": "audit",
+   "version": 1,
+   "seq": 5
+  },
+  {
+   "event_type": "step",
+   "stage": "data_quality",
+   "label": "Data quality",
+   "agent_name": "data_quality",
+   "verb": "Checked",
+   "target": "BS",
+   "detail": "required fields present and readable",
+   "facts": [
+    {
+     "label": "Document type",
+     "value": "balance sheet"
+    }
+   ],
+   "kind": "dq_check",
+   "status": "passed",
+   "tone": "success",
+   "check": true,
+   "duration_ms": null,
+   "step_index": 5,
+   "case_id": "ACME-1",
+   "source_timestamp": "2026-10-20T06:52:34.891102+00:00",
+   "received_at": "2026-10-20T07:00:30.509354+00:00",
+   "run_key": "e30569cc41104a4ab44edf82d46e7ec8",
+   "run_kind": "audit",
+   "version": 1,
+   "seq": 6
+  },
+  {
+   "event_type": "step",
+   "stage": "data_quality",
+   "label": "Data quality",
+   "agent_name": "data_quality",
+   "verb": "Checked",
+   "target": "INV",
+   "detail": "required fields present and readable",
+   "facts": [
+    {
+     "label": "Document type",
+     "value": "invoice"
+    }
+   ],
+   "kind": "dq_check",
+   "status": "passed",
+   "tone": "success",
+   "check": true,
+   "duration_ms": null,
+   "step_index": 6,
+   "case_id": "ACME-1",
+   "source_timestamp": "2026-10-20T06:52:34.891102+00:00",
+   "received_at": "2026-10-20T07:00:30.509354+00:00",
+   "run_key": "e30569cc41104a4ab44edf82d46e7ec8",
+   "run_kind": "audit",
+   "version": 1,
+   "seq": 7
+  },
+  {
+   "event_type": "step",
+   "stage": "data_quality",
+   "label": "Data quality",
+   "agent_name": "data_quality",
+   "verb": "Checked",
+   "target": "RC",
+   "detail": "required fields present and readable",
+   "facts": [
+    {
+     "label": "Document type",
+     "value": "receipt"
+    }
+   ],
+   "kind": "dq_check",
+   "status": "passed",
+   "tone": "success",
+   "check": true,
+   "duration_ms": null,
+   "step_index": 7,
+   "case_id": "ACME-1",
+   "source_timestamp": "2026-10-20T06:52:34.891102+00:00",
+   "received_at": "2026-10-20T07:00:30.509354+00:00",
+   "run_key": "e30569cc41104a4ab44edf82d46e7ec8",
+   "run_kind": "audit",
+   "version": 1,
+   "seq": 8
+  },
+  {
+   "event_type": "agent_done",
+   "stage": "data_quality",
+   "label": "Data quality",
+   "agent_name": "data_quality",
+   "detail": "Data quality: 0 violation(s), 0 review item(s) in 3 document(s).",
+   "details": [
+    "Data quality: 0 violation(s), 0 review item(s) in 3 document(s)."
+   ],
+   "findings_count": null,
+   "duration_ms": 0.48,
+   "step_index": 8,
+   "case_id": "ACME-1",
+   "source_timestamp": "2026-10-20T06:52:34.891102+00:00",
+   "received_at": "2026-10-20T07:00:30.509354+00:00",
+   "run_key": "e30569cc41104a4ab44edf82d46e7ec8",
+   "run_kind": "audit",
+   "version": 1,
+   "seq": 9
+  },
+  {
+   "event_type": "agent_thinking",
+   "step_index": 9,
+   "stage": "anomaly",
+   "label": "Anomaly detection",
+   "agent_name": "anomaly",
+   "case_id": "ACME-1",
+   "source_timestamp": "2026-10-20T06:52:34.892103+00:00",
+   "received_at": "2026-10-20T07:00:30.536462+00:00",
+   "run_key": "e30569cc41104a4ab44edf82d46e7ec8",
+   "run_kind": "audit",
+   "version": 1,
+   "seq": 10
+  },
+  {
+   "event_type": "agent_thinking",
+   "step_index": 10,
+   "stage": "compliance",
+   "label": "Compliance",
+   "agent_name": "compliance",
+   "case_id": "ACME-1",
+   "source_timestamp": "2026-10-20T06:52:34.893103+00:00",
+   "received_at": "2026-10-20T07:00:30.536462+00:00",
+   "run_key": "e30569cc41104a4ab44edf82d46e7ec8",
+   "run_kind": "audit",
+   "version": 1,
+   "seq": 11
+  },
+  {
+   "event_type": "step",
+   "stage": "anomaly",
+   "label": "Anomaly detection",
+   "agent_name": "anomaly",
+   "verb": "Fetched",
+   "target": "7 check rules",
+   "detail": "for balance sheet from the Knowledge Graph",
+   "facts": [
+    {
+     "label": "Source",
+     "value": "Knowledge Graph (C02, offline rule set)"
+    },
+    {
+     "label": "Query",
+     "value": "balance_sheet"
+    },
+    {
+     "label": "Rules",
+     "value": "CHK-001, CHK-004, CHK-006, CHK-007, CHK-009, CHK-010, CHK-011"
+    }
+   ],
+   "kind": "kg_fetch",
+   "status": "ok",
+   "tone": "neutral",
+   "check": false,
+   "duration_ms": 1.26,
+   "step_index": 11,
+   "case_id": "ACME-1",
+   "source_timestamp": "2026-10-20T06:52:34.894104+00:00",
+   "received_at": "2026-10-20T07:00:30.536462+00:00",
+   "run_key": "e30569cc41104a4ab44edf82d46e7ec8",
+   "run_kind": "audit",
+   "version": 1,
+   "seq": 12
+  },
+  {
+   "event_type": "step",
+   "stage": "anomaly",
+   "label": "Anomaly detection",
+   "agent_name": "anomaly",
+   "verb": "Fetched",
+   "target": "3 check rules",
+   "detail": "for invoice from the Knowledge Graph",
+   "facts": [
+    {
+     "label": "Source",
+     "value": "Knowledge Graph (C02, offline rule set)"
+    },
+    {
+     "label": "Query",
+     "value": "invoice"
+    },
+    {
+     "label": "Rules",
+     "value": "CHK-003, CHK-005, CHK-006"
+    }
+   ],
+   "kind": "kg_fetch",
+   "status": "ok",
+   "tone": "neutral",
+   "check": false,
+   "duration_ms": 0.02,
+   "step_index": 12,
+   "case_id": "ACME-1",
+   "source_timestamp": "2026-10-20T06:52:34.894104+00:00",
+   "received_at": "2026-10-20T07:00:30.536462+00:00",
+   "run_key": "e30569cc41104a4ab44edf82d46e7ec8",
+   "run_kind": "audit",
+   "version": 1,
+   "seq": 13
+  },
+  {
+   "event_type": "step",
+   "stage": "anomaly",
+   "label": "Anomaly detection",
+   "agent_name": "anomaly",
+   "verb": "Skipped",
+   "target": "CHK-005 on INV",
+   "detail": "Cash out without asset in: missing cash_out",
+   "facts": [
+    {
+     "label": "Rule",
+     "value": "CHK-005 · Cash out without asset in"
+    },
+    {
+     "label": "Expression",
+     "value": "not (cash_out > 0 and purchase_basis == 'credit' and asset_in == 0)"
+    },
+    {
+     "label": "Document",
+     "value": "INV"
+    },
+    {
+     "label": "Reason",
+     "value": "missing cash_out"
+    }
+   ],
+   "kind": "rule_check",
+   "status": "skipped",
+   "tone": "muted",
+   "check": true,
+   "duration_ms": null,
+   "step_index": 13,
+   "case_id": "ACME-1",
+   "source_timestamp": "2026-10-20T06:52:34.894104+00:00",
+   "received_at": "2026-10-20T07:00:30.536462+00:00",
+   "run_key": "e30569cc41104a4ab44edf82d46e7ec8",
+   "run_kind": "audit",
+   "version": 1,
+   "seq": 14
+  },
+  {
+   "event_type": "step",
+   "stage": "anomaly",
+   "label": "Anomaly detection",
+   "agent_name": "anomaly",
+   "verb": "Fetched",
+   "target": "0 check rules",
+   "detail": "for receipt from the Knowledge Graph",
+   "facts": [
+    {
+     "label": "Source",
+     "value": "Knowledge Graph (C02, offline rule set)"
+    },
+    {
+     "label": "Query",
+     "value": "receipt"
+    }
+   ],
+   "kind": "kg_fetch",
+   "status": "ok",
+   "tone": "neutral",
+   "check": false,
+   "duration_ms": 0.0,
+   "step_index": 14,
+   "case_id": "ACME-1",
+   "source_timestamp": "2026-10-20T06:52:34.894104+00:00",
+   "received_at": "2026-10-20T07:00:30.536462+00:00",
+   "run_key": "e30569cc41104a4ab44edf82d46e7ec8",
+   "run_kind": "audit",
+   "version": 1,
+   "seq": 15
+  },
+  {
+   "event_type": "step",
+   "stage": "anomaly",
+   "label": "Anomaly detection",
+   "agent_name": "anomaly",
+   "verb": "Failed",
+   "target": "CHK-003 on RC",
+   "detail": "Child amount matches parent: Child amount 140,000 ≠ Parent amount 150,000",
+   "facts": [
+    {
+     "label": "Rule",
+     "value": "CHK-003 · Child amount matches parent"
+    },
+    {
+     "label": "Expression",
+     "value": "child.amount == parent.amount"
+    },
+    {
+     "label": "Document",
+     "value": "RC"
+    },
+    {
+     "label": "Parent document",
+     "value": "INV"
+    },
+    {
+     "label": "Child amount",
+     "value": "140,000"
+    },
+    {
+     "label": "Parent amount",
+     "value": "150,000"
+    },
+    {
+     "label": "Difference",
+     "value": "10,000"
+    },
+    {
+     "label": "Severity",
+     "value": "high"
+    }
+   ],
+   "kind": "rule_check",
+   "status": "failed",
+   "tone": "danger",
+   "check": true,
+   "duration_ms": null,
+   "step_index": 15,
+   "case_id": "ACME-1",
+   "source_timestamp": "2026-10-20T06:52:34.894104+00:00",
+   "received_at": "2026-10-20T07:00:30.536462+00:00",
+   "run_key": "e30569cc41104a4ab44edf82d46e7ec8",
+   "run_kind": "audit",
+   "version": 1,
+   "seq": 16
+  },
+  {
+   "event_type": "agent_done",
+   "stage": "anomaly",
+   "label": "Anomaly detection",
+   "agent_name": "anomaly",
+   "detail": "Anomaly scan found 1 issue(s).",
+   "details": [
+    "Anomaly scan found 1 issue(s).",
+    "Not applicable (inputs missing): CHK-005 on INV: missing cash_out."
+   ],
+   "findings_count": 1,
+   "duration_ms": 2.28,
+   "step_index": 16,
+   "case_id": "ACME-1",
+   "source_timestamp": "2026-10-20T06:52:34.895129+00:00",
+   "received_at": "2026-10-20T07:00:30.536462+00:00",
+   "run_key": "e30569cc41104a4ab44edf82d46e7ec8",
+   "run_kind": "audit",
+   "version": 1,
+   "seq": 17
+  },
+  {
+   "event_type": "step",
+   "stage": "compliance",
+   "label": "Compliance",
+   "agent_name": "compliance",
+   "verb": "Fetched",
+   "target": "7 check rules",
+   "detail": "for balance sheet from the Knowledge Graph",
+   "facts": [
+    {
+     "label": "Source",
+     "value": "Knowledge Graph (C02, offline rule set)"
+    },
+    {
+     "label": "Query",
+     "value": "balance_sheet"
+    },
+    {
+     "label": "Rules",
+     "value": "CHK-001, CHK-004, CHK-006, CHK-007, CHK-009, CHK-010, CHK-011"
+    }
+   ],
+   "kind": "kg_fetch",
+   "status": "ok",
+   "tone": "neutral",
+   "check": false,
+   "duration_ms": 2.54,
+   "step_index": 17,
+   "case_id": "ACME-1",
+   "source_timestamp": "2026-10-20T06:52:34.896110+00:00",
+   "received_at": "2026-10-20T07:00:30.569463+00:00",
+   "run_key": "e30569cc41104a4ab44edf82d46e7ec8",
+   "run_kind": "audit",
+   "version": 1,
+   "seq": 18
+  },
+  {
+   "event_type": "step",
+   "stage": "compliance",
+   "label": "Compliance",
+   "agent_name": "compliance",
+   "verb": "Fetched",
+   "target": "0 policy rules",
+   "detail": "for balance sheet from the Knowledge Graph",
+   "facts": [
+    {
+     "label": "Source",
+     "value": "Knowledge Graph (C02, offline rule set)"
+    },
+    {
+     "label": "Query",
+     "value": "balance_sheet"
+    }
+   ],
+   "kind": "kg_fetch",
+   "status": "ok",
+   "tone": "neutral",
+   "check": false,
+   "duration_ms": 0.01,
+   "step_index": 18,
+   "case_id": "ACME-1",
+   "source_timestamp": "2026-10-20T06:52:34.896110+00:00",
+   "received_at": "2026-10-20T07:00:30.569463+00:00",
+   "run_key": "e30569cc41104a4ab44edf82d46e7ec8",
+   "run_kind": "audit",
+   "version": 1,
+   "seq": 19
+  },
+  {
+   "event_type": "step",
+   "stage": "compliance",
+   "label": "Compliance",
+   "agent_name": "compliance",
+   "verb": "Failed",
+   "target": "CHK-001 on BS",
+   "detail": "Accounting equation: Assets 100 ≠ Liabilities + Capital 50",
+   "facts": [
+    {
+     "label": "Rule",
+     "value": "CHK-001 · Accounting equation"
+    },
+    {
+     "label": "Expression",
+     "value": "assets == liabilities + capital"
+    },
+    {
+     "label": "Document",
+     "value": "BS"
+    },
+    {
+     "label": "Assets",
+     "value": "100"
+    },
+    {
+     "label": "Liabilities",
+     "value": "30"
+    },
+    {
+     "label": "Capital",
+     "value": "20"
+    },
+    {
+     "label": "Liabilities + Capital",
+     "value": "50"
+    },
+    {
+     "label": "Difference",
+     "value": "50"
+    },
+    {
+     "label": "Severity",
+     "value": "high"
+    }
+   ],
+   "kind": "rule_check",
+   "status": "failed",
+   "tone": "danger",
+   "check": true,
+   "duration_ms": null,
+   "step_index": 19,
+   "case_id": "ACME-1",
+   "source_timestamp": "2026-10-20T06:52:34.896110+00:00",
+   "received_at": "2026-10-20T07:00:30.569463+00:00",
+   "run_key": "e30569cc41104a4ab44edf82d46e7ec8",
+   "run_kind": "audit",
+   "version": 1,
+   "seq": 20
+  },
+  {
+   "event_type": "step",
+   "stage": "compliance",
+   "label": "Compliance",
+   "agent_name": "compliance",
+   "verb": "Skipped",
+   "target": "CHK-007 on BS",
+   "detail": "Total assets equals current plus non-current: missing total_current_assets",
+   "facts": [
+    {
+     "label": "Rule",
+     "value": "CHK-007 · Total assets equals current plus non-current"
+    },
+    {
+     "label": "Expression",
+     "value": "total_assets == total_current_assets + total_non_current_assets"
+    },
+    {
+     "label": "Document",
+     "value": "BS"
+    },
+    {
+     "label": "Total assets",
+     "value": "100"
+    },
+    {
+     "label": "Reason",
+     "value": "missing total_current_assets"
+    }
+   ],
+   "kind": "rule_check",
+   "status": "skipped",
+   "tone": "muted",
+   "check": true,
+   "duration_ms": null,
+   "step_index": 20,
+   "case_id": "ACME-1",
+   "source_timestamp": "2026-10-20T06:52:34.896110+00:00",
+   "received_at": "2026-10-20T07:00:30.569463+00:00",
+   "run_key": "e30569cc41104a4ab44edf82d46e7ec8",
+   "run_kind": "audit",
+   "version": 1,
+   "seq": 21
+  },
+  {
+   "event_type": "step",
+   "stage": "compliance",
+   "label": "Compliance",
+   "agent_name": "compliance",
+   "verb": "Skipped",
+   "target": "CHK-009 on BS",
+   "detail": "Cash flow closing cash ties to SFP: missing closing_cash",
+   "facts": [
+    {
+     "label": "Rule",
+     "value": "CHK-009 · Cash flow closing cash ties to SFP"
+    },
+    {
+     "label": "Expression",
+     "value": "closing_cash == cash_and_cash_equivalents"
+    },
+    {
+     "label": "Document",
+     "value": "BS"
+    },
+    {
+     "label": "Reason",
+     "value": "missing closing_cash"
+    }
+   ],
+   "kind": "rule_check",
+   "status": "skipped",
+   "tone": "muted",
+   "check": true,
+   "duration_ms": null,
+   "step_index": 21,
+   "case_id": "ACME-1",
+   "source_timestamp": "2026-10-20T06:52:34.896110+00:00",
+   "received_at": "2026-10-20T07:00:30.569463+00:00",
+   "run_key": "e30569cc41104a4ab44edf82d46e7ec8",
+   "run_kind": "audit",
+   "version": 1,
+   "seq": 22
+  },
+  {
+   "event_type": "step",
+   "stage": "compliance",
+   "label": "Compliance",
+   "agent_name": "compliance",
+   "verb": "Skipped",
+   "target": "CHK-010 on BS",
+   "detail": "Closing equity ties to SFP: missing closing_equity",
+   "facts": [
+    {
+     "label": "Rule",
+     "value": "CHK-010 · Closing equity ties to SFP"
+    },
+    {
+     "label": "Expression",
+     "value": "closing_equity == total_equity"
+    },
+    {
+     "label": "Document",
+     "value": "BS"
+    },
+    {
+     "label": "Reason",
+     "value": "missing closing_equity"
+    }
+   ],
+   "kind": "rule_check",
+   "status": "skipped",
+   "tone": "muted",
+   "check": true,
+   "duration_ms": null,
+   "step_index": 22,
+   "case_id": "ACME-1",
+   "source_timestamp": "2026-10-20T06:52:34.896110+00:00",
+   "received_at": "2026-10-20T07:00:30.569463+00:00",
+   "run_key": "e30569cc41104a4ab44edf82d46e7ec8",
+   "run_kind": "audit",
+   "version": 1,
+   "seq": 23
+  },
+  {
+   "event_type": "step",
+   "stage": "compliance",
+   "label": "Compliance",
+   "agent_name": "compliance",
+   "verb": "Skipped",
+   "target": "CHK-011 on BS",
+   "detail": "Inventory not above NRV: missing inventories",
+   "facts": [
+    {
+     "label": "Rule",
+     "value": "CHK-011 · Inventory not above NRV"
+    },
+    {
+     "label": "Expression",
+     "value": "inventories <= inventory_nrv"
+    },
+    {
+     "label": "Document",
+     "value": "BS"
+    },
+    {
+     "label": "Reason",
+     "value": "missing inventories"
+    }
+   ],
+   "kind": "rule_check",
+   "status": "skipped",
+   "tone": "muted",
+   "check": true,
+   "duration_ms": null,
+   "step_index": 23,
+   "case_id": "ACME-1",
+   "source_timestamp": "2026-10-20T06:52:34.896110+00:00",
+   "received_at": "2026-10-20T07:00:30.569463+00:00",
+   "run_key": "e30569cc41104a4ab44edf82d46e7ec8",
+   "run_kind": "audit",
+   "version": 1,
+   "seq": 24
+  },
+  {
+   "event_type": "step",
+   "stage": "compliance",
+   "label": "Compliance",
+   "agent_name": "compliance",
+   "verb": "Fetched",
+   "target": "3 check rules",
+   "detail": "for invoice from the Knowledge Graph",
+   "facts": [
+    {
+     "label": "Source",
+     "value": "Knowledge Graph (C02, offline rule set)"
+    },
+    {
+     "label": "Query",
+     "value": "invoice"
+    },
+    {
+     "label": "Rules",
+     "value": "CHK-003, CHK-005, CHK-006"
+    }
+   ],
+   "kind": "kg_fetch",
+   "status": "ok",
+   "tone": "neutral",
+   "check": false,
+   "duration_ms": 0.0,
+   "step_index": 24,
+   "case_id": "ACME-1",
+   "source_timestamp": "2026-10-20T06:52:34.896110+00:00",
+   "received_at": "2026-10-20T07:00:30.570462+00:00",
+   "run_key": "e30569cc41104a4ab44edf82d46e7ec8",
+   "run_kind": "audit",
+   "version": 1,
+   "seq": 25
+  },
+  {
+   "event_type": "step",
+   "stage": "compliance",
+   "label": "Compliance",
+   "agent_name": "compliance",
+   "verb": "Fetched",
+   "target": "1 policy rule",
+   "detail": "for invoice from the Knowledge Graph",
+   "facts": [
+    {
+     "label": "Source",
+     "value": "Knowledge Graph (C02, offline rule set)"
+    },
+    {
+     "label": "Query",
+     "value": "invoice"
+    },
+    {
+     "label": "Rules",
+     "value": "POL-07"
+    }
+   ],
+   "kind": "kg_fetch",
+   "status": "ok",
+   "tone": "neutral",
+   "check": false,
+   "duration_ms": 0.01,
+   "step_index": 25,
+   "case_id": "ACME-1",
+   "source_timestamp": "2026-10-20T06:52:34.896110+00:00",
+   "received_at": "2026-10-20T07:00:30.570462+00:00",
+   "run_key": "e30569cc41104a4ab44edf82d46e7ec8",
+   "run_kind": "audit",
+   "version": 1,
+   "seq": 26
+  },
+  {
+   "event_type": "step",
+   "stage": "compliance",
+   "label": "Compliance",
+   "agent_name": "compliance",
+   "verb": "Failed",
+   "target": "POL-07 on INV",
+   "detail": "Amount 150,000 > limit 100,000 · required approval must be confirmed",
+   "facts": [
+    {
+     "label": "Policy",
+     "value": "Purchases above Rs. 100,000 need dual approval."
+    },
+    {
+     "label": "Amount",
+     "value": "150,000"
+    },
+    {
+     "label": "Limit",
+     "value": "100,000"
+    },
+    {
+     "label": "Above limit by",
+     "value": "50,000"
+    }
+   ],
+   "kind": "policy_check",
+   "status": "failed",
+   "tone": "danger",
+   "check": true,
+   "duration_ms": null,
+   "step_index": 26,
+   "case_id": "ACME-1",
+   "source_timestamp": "2026-10-20T06:52:34.896110+00:00",
+   "received_at": "2026-10-20T07:00:30.570462+00:00",
+   "run_key": "e30569cc41104a4ab44edf82d46e7ec8",
+   "run_kind": "audit",
+   "version": 1,
+   "seq": 27
+  },
+  {
+   "event_type": "step",
+   "stage": "compliance",
+   "label": "Compliance",
+   "agent_name": "compliance",
+   "verb": "Fetched",
+   "target": "0 check rules",
+   "detail": "for receipt from the Knowledge Graph",
+   "facts": [
+    {
+     "label": "Source",
+     "value": "Knowledge Graph (C02, offline rule set)"
+    },
+    {
+     "label": "Query",
+     "value": "receipt"
+    }
+   ],
+   "kind": "kg_fetch",
+   "status": "ok",
+   "tone": "neutral",
+   "check": false,
+   "duration_ms": 0.0,
+   "step_index": 27,
+   "case_id": "ACME-1",
+   "source_timestamp": "2026-10-20T06:52:34.896110+00:00",
+   "received_at": "2026-10-20T07:00:30.570462+00:00",
+   "run_key": "e30569cc41104a4ab44edf82d46e7ec8",
+   "run_kind": "audit",
+   "version": 1,
+   "seq": 28
+  },
+  {
+   "event_type": "step",
+   "stage": "compliance",
+   "label": "Compliance",
+   "agent_name": "compliance",
+   "verb": "Fetched",
+   "target": "0 policy rules",
+   "detail": "for receipt from the Knowledge Graph",
+   "facts": [
+    {
+     "label": "Source",
+     "value": "Knowledge Graph (C02, offline rule set)"
+    },
+    {
+     "label": "Query",
+     "value": "receipt"
+    }
+   ],
+   "kind": "kg_fetch",
+   "status": "ok",
+   "tone": "neutral",
+   "check": false,
+   "duration_ms": 0.0,
+   "step_index": 28,
+   "case_id": "ACME-1",
+   "source_timestamp": "2026-10-20T06:52:34.896110+00:00",
+   "received_at": "2026-10-20T07:00:30.570462+00:00",
+   "run_key": "e30569cc41104a4ab44edf82d46e7ec8",
+   "run_kind": "audit",
+   "version": 1,
+   "seq": 29
+  },
+  {
+   "event_type": "agent_done",
+   "stage": "compliance",
+   "label": "Compliance",
+   "agent_name": "compliance",
+   "detail": "Compliance ran 5 rule check(s) on 3 document(s): 2 finding(s).",
+   "details": [
+    "Compliance ran 5 rule check(s) on 3 document(s): 2 finding(s).",
+    "Not applicable (inputs missing): CHK-007 on BS: missing total_current_assets; CHK-009 on BS: missing closing_cash; CHK-010 on BS: missing closing_equity; CHK-011 on BS: missing inventories."
+   ],
+   "findings_count": 2,
+   "duration_ms": 3.43,
+   "step_index": 29,
+   "case_id": "ACME-1",
+   "source_timestamp": "2026-10-20T06:52:34.896110+00:00",
+   "received_at": "2026-10-20T07:00:30.570462+00:00",
+   "run_key": "e30569cc41104a4ab44edf82d46e7ec8",
+   "run_kind": "audit",
+   "version": 1,
+   "seq": 30
+  },
+  {
+   "event_type": "agent_thinking",
+   "step_index": 30,
+   "stage": "reasoning",
+   "label": "Reasoning",
+   "agent_name": "reasoning",
+   "case_id": "ACME-1",
+   "source_timestamp": "2026-10-20T06:52:34.898110+00:00",
+   "received_at": "2026-10-20T07:00:30.599461+00:00",
+   "run_key": "e30569cc41104a4ab44edf82d46e7ec8",
+   "run_kind": "audit",
+   "version": 1,
+   "seq": 31
+  },
+  {
+   "event_type": "step",
+   "stage": "reasoning",
+   "label": "Reasoning",
+   "agent_name": "reasoning",
+   "verb": "Looked up",
+   "target": "basis of CHK-001",
+   "detail": "cites CF",
+   "facts": [
+    {
+     "label": "Source",
+     "value": "Knowledge Graph (C02, offline rule set)"
+    },
+    {
+     "label": "Query",
+     "value": "CHK-001"
+    },
+    {
+     "label": "Standards",
+     "value": "CF"
+    },
+    {
+     "label": "Assertions",
+     "value": "Accuracy, Completeness"
+    }
+   ],
+   "kind": "kg_fetch",
+   "status": "ok",
+   "tone": "neutral",
+   "check": false,
+   "duration_ms": 0.04,
+   "step_index": 31,
+   "case_id": "ACME-1",
+   "source_timestamp": "2026-10-20T06:52:34.898110+00:00",
+   "received_at": "2026-10-20T07:00:30.599461+00:00",
+   "run_key": "e30569cc41104a4ab44edf82d46e7ec8",
+   "run_kind": "audit",
+   "version": 1,
+   "seq": 32
+  },
+  {
+   "event_type": "step",
+   "stage": "reasoning",
+   "label": "Reasoning",
+   "agent_name": "reasoning",
+   "verb": "Looked up",
+   "target": "basis of CHK-003",
+   "detail": "no standard cited",
+   "facts": [
+    {
+     "label": "Source",
+     "value": "Knowledge Graph (C02, offline rule set)"
+    },
+    {
+     "label": "Query",
+     "value": "CHK-003"
+    },
+    {
+     "label": "Assertions",
+     "value": "Accuracy, Occurrence"
+    }
+   ],
+   "kind": "kg_fetch",
+   "status": "ok",
+   "tone": "neutral",
+   "check": false,
+   "duration_ms": 0.02,
+   "step_index": 32,
+   "case_id": "ACME-1",
+   "source_timestamp": "2026-10-20T06:52:34.898110+00:00",
+   "received_at": "2026-10-20T07:00:30.599461+00:00",
+   "run_key": "e30569cc41104a4ab44edf82d46e7ec8",
+   "run_kind": "audit",
+   "version": 1,
+   "seq": 33
+  },
+  {
+   "event_type": "step",
+   "stage": "reasoning",
+   "label": "Reasoning",
+   "agent_name": "reasoning",
+   "verb": "Looked up",
+   "target": "basis of POL-07",
+   "detail": "no standard cited",
+   "facts": [
+    {
+     "label": "Source",
+     "value": "Knowledge Graph (C02, offline rule set)"
+    },
+    {
+     "label": "Query",
+     "value": "POL-07"
+    }
+   ],
+   "kind": "kg_fetch",
+   "status": "ok",
+   "tone": "neutral",
+   "check": false,
+   "duration_ms": 0.01,
+   "step_index": 33,
+   "case_id": "ACME-1",
+   "source_timestamp": "2026-10-20T06:52:34.898110+00:00",
+   "received_at": "2026-10-20T07:00:30.599461+00:00",
+   "run_key": "e30569cc41104a4ab44edf82d46e7ec8",
+   "run_kind": "audit",
+   "version": 1,
+   "seq": 34
+  },
+  {
+   "event_type": "step",
+   "stage": "reasoning",
+   "label": "Reasoning",
+   "agent_name": "reasoning",
+   "verb": "Traced",
+   "target": "evidence chain of BS",
+   "detail": "no linked documents",
+   "facts": [
+    {
+     "label": "Source",
+     "value": "Knowledge Graph (C02, offline rule set)"
+    },
+    {
+     "label": "Query",
+     "value": "BS"
+    }
+   ],
+   "kind": "kg_fetch",
+   "status": "ok",
+   "tone": "neutral",
+   "check": false,
+   "duration_ms": 0.01,
+   "step_index": 34,
+   "case_id": "ACME-1",
+   "source_timestamp": "2026-10-20T06:52:34.899110+00:00",
+   "received_at": "2026-10-20T07:00:30.599461+00:00",
+   "run_key": "e30569cc41104a4ab44edf82d46e7ec8",
+   "run_kind": "audit",
+   "version": 1,
+   "seq": 35
+  },
+  {
+   "event_type": "step",
+   "stage": "reasoning",
+   "label": "Reasoning",
+   "agent_name": "reasoning",
+   "verb": "Traced",
+   "target": "evidence chain of INV",
+   "detail": "no linked documents",
+   "facts": [
+    {
+     "label": "Source",
+     "value": "Knowledge Graph (C02, offline rule set)"
+    },
+    {
+     "label": "Query",
+     "value": "INV"
+    }
+   ],
+   "kind": "kg_fetch",
+   "status": "ok",
+   "tone": "neutral",
+   "check": false,
+   "duration_ms": 0.01,
+   "step_index": 35,
+   "case_id": "ACME-1",
+   "source_timestamp": "2026-10-20T06:52:34.899110+00:00",
+   "received_at": "2026-10-20T07:00:30.600466+00:00",
+   "run_key": "e30569cc41104a4ab44edf82d46e7ec8",
+   "run_kind": "audit",
+   "version": 1,
+   "seq": 36
+  },
+  {
+   "event_type": "step",
+   "stage": "reasoning",
+   "label": "Reasoning",
+   "agent_name": "reasoning",
+   "verb": "Traced",
+   "target": "evidence chain of RC",
+   "detail": "no linked documents",
+   "facts": [
+    {
+     "label": "Source",
+     "value": "Knowledge Graph (C02, offline rule set)"
+    },
+    {
+     "label": "Query",
+     "value": "RC"
+    }
+   ],
+   "kind": "kg_fetch",
+   "status": "ok",
+   "tone": "neutral",
+   "check": false,
+   "duration_ms": 0.0,
+   "step_index": 36,
+   "case_id": "ACME-1",
+   "source_timestamp": "2026-10-20T06:52:34.899110+00:00",
+   "received_at": "2026-10-20T07:00:30.600466+00:00",
+   "run_key": "e30569cc41104a4ab44edf82d46e7ec8",
+   "run_kind": "audit",
+   "version": 1,
+   "seq": 37
+  },
+  {
+   "event_type": "step",
+   "stage": "reasoning",
+   "label": "Reasoning",
+   "agent_name": "reasoning",
+   "verb": "Looked up",
+   "target": "standard CF",
+   "detail": "Conceptual Framework for Financial Reporting · active",
+   "facts": [
+    {
+     "label": "Source",
+     "value": "Knowledge Graph (C02, offline rule set)"
+    },
+    {
+     "label": "Query",
+     "value": "CF"
+    },
+    {
+     "label": "Title",
+     "value": "Conceptual Framework for Financial Reporting"
+    },
+    {
+     "label": "Status",
+     "value": "active"
+    }
+   ],
+   "kind": "kg_fetch",
+   "status": "ok",
+   "tone": "neutral",
+   "check": false,
+   "duration_ms": 0.03,
+   "step_index": 37,
+   "case_id": "ACME-1",
+   "source_timestamp": "2026-10-20T06:52:34.900113+00:00",
+   "received_at": "2026-10-20T07:00:30.600466+00:00",
+   "run_key": "e30569cc41104a4ab44edf82d46e7ec8",
+   "run_kind": "audit",
+   "version": 1,
+   "seq": 38
+  },
+  {
+   "event_type": "step",
+   "stage": "reasoning",
+   "label": "Reasoning",
+   "agent_name": "reasoning",
+   "verb": "Compared with",
+   "target": "standard CF",
+   "detail": "Conceptual Framework for Financial Reporting · current",
+   "facts": [
+    {
+     "label": "Title",
+     "value": "Conceptual Framework for Financial Reporting"
+    },
+    {
+     "label": "Status",
+     "value": "active"
+    },
+    {
+     "label": "Cited by",
+     "value": "CHK-001"
+    }
+   ],
+   "kind": "standard_check",
+   "status": "passed",
+   "tone": "success",
+   "check": true,
+   "duration_ms": null,
+   "step_index": 38,
+   "case_id": "ACME-1",
+   "source_timestamp": "2026-10-20T06:52:34.900113+00:00",
+   "received_at": "2026-10-20T07:00:30.600466+00:00",
+   "run_key": "e30569cc41104a4ab44edf82d46e7ec8",
+   "run_kind": "audit",
+   "version": 1,
+   "seq": 39
+  },
+  {
+   "event_type": "step",
+   "stage": "reasoning",
+   "label": "Reasoning",
+   "agent_name": "reasoning",
+   "verb": "Traced",
+   "target": "evidence of BS",
+   "detail": "no linked documents",
+   "facts": [],
+   "kind": "evidence_link",
+   "status": "passed",
+   "tone": "success",
+   "check": true,
+   "duration_ms": null,
+   "step_index": 39,
+   "case_id": "ACME-1",
+   "source_timestamp": "2026-10-20T06:52:34.900113+00:00",
+   "received_at": "2026-10-20T07:00:30.600466+00:00",
+   "run_key": "e30569cc41104a4ab44edf82d46e7ec8",
+   "run_kind": "audit",
+   "version": 1,
+   "seq": 40
+  },
+  {
+   "event_type": "step",
+   "stage": "reasoning",
+   "label": "Reasoning",
+   "agent_name": "reasoning",
+   "verb": "Traced",
+   "target": "evidence of INV",
+   "detail": "no linked documents",
+   "facts": [],
+   "kind": "evidence_link",
+   "status": "passed",
+   "tone": "success",
+   "check": true,
+   "duration_ms": null,
+   "step_index": 40,
+   "case_id": "ACME-1",
+   "source_timestamp": "2026-10-20T06:52:34.900113+00:00",
+   "received_at": "2026-10-20T07:00:30.600466+00:00",
+   "run_key": "e30569cc41104a4ab44edf82d46e7ec8",
+   "run_kind": "audit",
+   "version": 1,
+   "seq": 41
+  },
+  {
+   "event_type": "step",
+   "stage": "reasoning",
+   "label": "Reasoning",
+   "agent_name": "reasoning",
+   "verb": "Traced",
+   "target": "evidence of RC",
+   "detail": "no linked documents",
+   "facts": [],
+   "kind": "evidence_link",
+   "status": "passed",
+   "tone": "success",
+   "check": true,
+   "duration_ms": null,
+   "step_index": 41,
+   "case_id": "ACME-1",
+   "source_timestamp": "2026-10-20T06:52:34.900113+00:00",
+   "received_at": "2026-10-20T07:00:30.600466+00:00",
+   "run_key": "e30569cc41104a4ab44edf82d46e7ec8",
+   "run_kind": "audit",
+   "version": 1,
+   "seq": 42
+  },
+  {
+   "event_type": "step",
+   "stage": "reasoning",
+   "label": "Reasoning",
+   "agent_name": "reasoning",
+   "verb": "Skipped",
+   "target": "language model",
+   "detail": "language model is turned off; rule-based fallback used",
+   "facts": [
+    {
+     "label": "Purpose",
+     "value": "summary line"
+    },
+    {
+     "label": "Reason",
+     "value": "language model is turned off; rule-based fallback used"
+    }
+   ],
+   "kind": "llm_call",
+   "status": "skipped",
+   "tone": "muted",
+   "check": false,
+   "duration_ms": null,
+   "step_index": 42,
+   "case_id": "ACME-1",
+   "source_timestamp": "2026-10-20T06:52:34.900113+00:00",
+   "received_at": "2026-10-20T07:00:30.600466+00:00",
+   "run_key": "e30569cc41104a4ab44edf82d46e7ec8",
+   "run_kind": "audit",
+   "version": 1,
+   "seq": 43
+  },
+  {
+   "event_type": "agent_done",
+   "stage": "reasoning",
+   "label": "Reasoning",
+   "agent_name": "reasoning",
+   "detail": "Case ACME-1: 3 finding(s), 0 need review, all pending auditor review.",
+   "details": [
+    "Case ACME-1: 3 finding(s), 0 need review, all pending auditor review."
+   ],
+   "findings_count": null,
+   "duration_ms": 2.49,
+   "step_index": 43,
+   "case_id": "ACME-1",
+   "source_timestamp": "2026-10-20T06:52:34.900113+00:00",
+   "received_at": "2026-10-20T07:00:30.600466+00:00",
+   "run_key": "e30569cc41104a4ab44edf82d46e7ec8",
+   "run_kind": "audit",
+   "version": 1,
+   "seq": 44
+  },
+  {
+   "event_type": "agent_thinking",
+   "step_index": 44,
+   "stage": "evidence_validation",
+   "label": "Evidence validation",
+   "agent_name": "evidence_validation",
+   "case_id": "ACME-1",
+   "source_timestamp": "2026-10-20T06:52:34.901139+00:00",
+   "received_at": "2026-10-20T07:00:30.635462+00:00",
+   "run_key": "e30569cc41104a4ab44edf82d46e7ec8",
+   "run_kind": "audit",
+   "version": 1,
+   "seq": 45
+  },
+  {
+   "event_type": "step",
+   "stage": "evidence_validation",
+   "label": "Evidence validation",
+   "agent_name": "evidence_validation",
+   "verb": "Verified",
+   "target": "citations of RC-CHK-003",
+   "detail": "claimed values match the documents",
+   "facts": [
+    {
+     "label": "Rule",
+     "value": "CHK-003"
+    },
+    {
+     "label": "Cited",
+     "value": "RC, INV"
+    },
+    {
+     "label": "RC.amount",
+     "value": "claimed 140,000 · document holds 140,000"
+    },
+    {
+     "label": "INV.amount",
+     "value": "claimed 150,000 · document holds 150,000"
+    }
+   ],
+   "kind": "citation_check",
+   "status": "passed",
+   "tone": "success",
+   "check": true,
+   "duration_ms": null,
+   "step_index": 45,
+   "case_id": "ACME-1",
+   "source_timestamp": "2026-10-20T06:52:34.901139+00:00",
+   "received_at": "2026-10-20T07:00:30.635462+00:00",
+   "run_key": "e30569cc41104a4ab44edf82d46e7ec8",
+   "run_kind": "audit",
+   "version": 1,
+   "seq": 46
+  },
+  {
+   "event_type": "step",
+   "stage": "evidence_validation",
+   "label": "Evidence validation",
+   "agent_name": "evidence_validation",
+   "verb": "Verified",
+   "target": "citations of BS-CHK-001",
+   "detail": "claimed values match the documents",
+   "facts": [
+    {
+     "label": "Rule",
+     "value": "CHK-001"
+    },
+    {
+     "label": "Cited",
+     "value": "BS"
+    },
+    {
+     "label": "BS.assets",
+     "value": "claimed 100 · document holds 100"
+    },
+    {
+     "label": "BS.liabilities",
+     "value": "claimed 30 · document holds 30"
+    },
+    {
+     "label": "BS.capital",
+     "value": "claimed 20 · document holds 20"
+    }
+   ],
+   "kind": "citation_check",
+   "status": "passed",
+   "tone": "success",
+   "check": true,
+   "duration_ms": null,
+   "step_index": 46,
+   "case_id": "ACME-1",
+   "source_timestamp": "2026-10-20T06:52:34.901139+00:00",
+   "received_at": "2026-10-20T07:00:30.635462+00:00",
+   "run_key": "e30569cc41104a4ab44edf82d46e7ec8",
+   "run_kind": "audit",
+   "version": 1,
+   "seq": 47
+  },
+  {
+   "event_type": "step",
+   "stage": "evidence_validation",
+   "label": "Evidence validation",
+   "agent_name": "evidence_validation",
+   "verb": "Verified",
+   "target": "citations of INV-POL-07",
+   "detail": "claimed values match the documents",
+   "facts": [
+    {
+     "label": "Rule",
+     "value": "POL-07"
+    },
+    {
+     "label": "Cited",
+     "value": "INV"
+    },
+    {
+     "label": "INV.amount",
+     "value": "claimed 150,000 · document holds 150,000"
+    }
+   ],
+   "kind": "citation_check",
+   "status": "passed",
+   "tone": "success",
+   "check": true,
+   "duration_ms": null,
+   "step_index": 47,
+   "case_id": "ACME-1",
+   "source_timestamp": "2026-10-20T06:52:34.901139+00:00",
+   "received_at": "2026-10-20T07:00:30.635462+00:00",
+   "run_key": "e30569cc41104a4ab44edf82d46e7ec8",
+   "run_kind": "audit",
+   "version": 1,
+   "seq": 48
+  },
+  {
+   "event_type": "agent_done",
+   "stage": "evidence_validation",
+   "label": "Evidence validation",
+   "agent_name": "evidence_validation",
+   "detail": "Checked 3 finding(s): 3 values verified, 0 citations exist (no values to check), 0 flagged, 0 with no evidence.",
+   "details": [
+    "Checked 3 finding(s): 3 values verified, 0 citations exist (no values to check), 0 flagged, 0 with no evidence."
+   ],
+   "findings_count": 3,
+   "duration_ms": 0.31,
+   "step_index": 48,
+   "case_id": "ACME-1",
+   "source_timestamp": "2026-10-20T06:52:34.901139+00:00",
+   "received_at": "2026-10-20T07:00:30.635462+00:00",
+   "run_key": "e30569cc41104a4ab44edf82d46e7ec8",
+   "run_kind": "audit",
+   "version": 1,
+   "seq": 49
+  },
+  {
+   "event_type": "pipeline_end",
+   "total_findings": 3,
+   "status": "pending_auditor_review",
+   "step_index": 49,
+   "detail": "Pipeline completed with 3 finding(s).",
+   "case_id": "ACME-1",
+   "source_timestamp": "2026-10-20T06:52:34.902129+00:00",
+   "received_at": "2026-10-20T07:00:30.664419+00:00",
+   "run_key": "e30569cc41104a4ab44edf82d46e7ec8",
+   "run_kind": "audit",
+   "version": 1,
+   "seq": 50
+  },
+  {
+   "event_type": "run_start",
+   "detail": "why did CHK-001 fail on case ACME-1?",
+   "step_index": 1,
+   "case_id": "ACME-1",
+   "source_timestamp": "2026-10-20T06:52:34.902129+00:00",
+   "received_at": "2026-10-20T07:00:30.765240+00:00",
+   "run_key": "5163fe70280d4f04914ed33e5b5d11c5",
+   "run_kind": "copilot",
+   "version": 0,
+   "seq": 1
+  },
+  {
+   "event_type": "agent_thinking",
+   "step_index": 1,
+   "stage": "copilot_nlu",
+   "label": "Understanding the request",
+   "agent_name": "copilot_nlu",
+   "case_id": "ACME-1",
+   "source_timestamp": "2026-10-20T06:52:34.902129+00:00",
+   "received_at": "2026-10-20T07:00:30.765240+00:00",
+   "run_key": "5163fe70280d4f04914ed33e5b5d11c5",
+   "run_kind": "copilot",
+   "version": 0,
+   "seq": 1
+  },
+  {
+   "event_type": "step",
+   "stage": "copilot_nlu",
+   "label": "Understanding the request",
+   "agent_name": "copilot_nlu",
+   "verb": "Recognised",
+   "target": "case ACME-1, rule CHK-001",
+   "detail": "from the question",
+   "facts": [
+    {
+     "label": "Case ids",
+     "value": "ACME-1"
+    },
+    {
+     "label": "Rule ids",
+     "value": "CHK-001"
+    }
+   ],
+   "kind": "entities",
+   "status": "ok",
+   "tone": "neutral",
+   "check": false,
+   "duration_ms": null,
+   "step_index": 2,
+   "case_id": "ACME-1",
+   "source_timestamp": "2026-10-20T06:52:34.910622+00:00",
+   "received_at": "2026-10-20T07:00:30.774239+00:00",
+   "run_key": "5163fe70280d4f04914ed33e5b5d11c5",
+   "run_kind": "copilot",
+   "version": 0,
+   "seq": 2
+  },
+  {
+   "event_type": "step",
+   "stage": "copilot_nlu",
+   "label": "Understanding the request",
+   "agent_name": "copilot_nlu",
+   "verb": "Understood",
+   "target": "explain finding",
+   "detail": "read by keyword rules",
+   "facts": [
+    {
+     "label": "Intent",
+     "value": "explain_finding"
+    },
+    {
+     "label": "Method",
+     "value": "keyword rules"
+    }
+   ],
+   "kind": "intent",
+   "status": "ok",
+   "tone": "neutral",
+   "check": false,
+   "step_index": 3,
+   "case_id": "ACME-1",
+   "source_timestamp": "2026-10-20T06:52:34.914619+00:00",
+   "received_at": "2026-10-20T07:00:30.775242+00:00",
+   "run_key": "5163fe70280d4f04914ed33e5b5d11c5",
+   "run_kind": "copilot",
+   "version": 0,
+   "seq": 3
+  },
+  {
+   "event_type": "agent_done",
+   "stage": "copilot_nlu",
+   "label": "Understanding the request",
+   "agent_name": "copilot_nlu",
+   "detail": "Intent: explain_finding (method: rules)",
+   "step_index": 3,
+   "case_id": "ACME-1",
+   "source_timestamp": "2026-10-20T06:52:34.914619+00:00",
+   "received_at": "2026-10-20T07:00:30.775242+00:00",
+   "run_key": "5163fe70280d4f04914ed33e5b5d11c5",
+   "run_kind": "copilot",
+   "version": 0,
+   "seq": 3
+  },
+  {
+   "event_type": "agent_thinking",
+   "step_index": 3,
+   "stage": "copilot",
+   "label": "Preparing the answer",
+   "agent_name": "copilot",
+   "case_id": "ACME-1",
+   "source_timestamp": "2026-10-20T06:52:34.914619+00:00",
+   "received_at": "2026-10-20T07:00:30.775242+00:00",
+   "run_key": "5163fe70280d4f04914ed33e5b5d11c5",
+   "run_kind": "copilot",
+   "version": 0,
+   "seq": 3
+  },
+  {
+   "event_type": "agent_done",
+   "stage": "copilot",
+   "label": "Preparing the answer",
+   "agent_name": "copilot",
+   "detail": "CHK-001 on BS: Accounting equation failed for BS: assets == liabilities + capital is false (assets=100.00, liabilities=30.00, capital=20.00).\n  - rule CHK-001 (ledger, high)\n  - basis: CHK-001 Accounting equation checks assets == liabilities + capital. Source: Conceptual Framework para 4.4.\n  - test",
+   "duration_ms": 11.9,
+   "step_index": 4,
+   "case_id": "ACME-1",
+   "source_timestamp": "2026-10-20T06:52:34.914619+00:00",
+   "received_at": "2026-10-20T07:00:30.796040+00:00",
+   "run_key": "5163fe70280d4f04914ed33e5b5d11c5",
+   "run_kind": "copilot",
+   "version": 0,
+   "seq": 4
+  },
+  {
+   "event_type": "run_end",
+   "detail": "CHK-001 on BS: Accounting equation failed for BS: assets == liabilities + capital is false (assets=100.00, liabilities=30.00, capital=20.00).\n  - rule CHK-001 (ledger, high)\n  - basis: CHK-001 Accounting equation checks assets == liabilities + capital. Source: Conceptual Framework para 4.4.\n  - test",
+   "intent": "explain_finding",
+   "status": "done",
+   "duration_ms": 11.9,
+   "step_index": 4,
+   "case_id": "ACME-1",
+   "source_timestamp": "2026-10-20T06:52:34.914619+00:00",
+   "received_at": "2026-10-20T07:00:30.796040+00:00",
+   "run_key": "5163fe70280d4f04914ed33e5b5d11c5",
+   "run_kind": "copilot",
+   "version": 0,
+   "seq": 4
+  },
+  {
+   "event_type": "insight_summary",
+   "case_id": "ACME-1",
+   "summary": "Two high-severity failures: the balance sheet does not balance and the receipt does not match its invoice.",
+   "generated_at": "2026-10-20T06:51:25+00:00"
+  }
+ ],
+ "GEN-20261020-AB12": [
+  {
+   "event_type": "run_start",
+   "detail": "audit these documents",
+   "step_index": 1,
+   "case_id": "GEN-20261020-AB12",
+   "source_timestamp": "2026-10-20T06:52:34.914619+00:00",
+   "received_at": "2026-10-20T07:00:30.805880+00:00",
+   "run_key": "93781a6af858404680e8aaf488f3079a",
+   "run_kind": "copilot",
+   "version": 0,
+   "seq": 1
+  },
+  {
+   "event_type": "agent_thinking",
+   "step_index": 1,
+   "stage": "copilot_nlu",
+   "label": "Understanding the request",
+   "agent_name": "copilot_nlu",
+   "case_id": "GEN-20261020-AB12",
+   "source_timestamp": "2026-10-20T06:52:34.914619+00:00",
+   "received_at": "2026-10-20T07:00:30.806883+00:00",
+   "run_key": "93781a6af858404680e8aaf488f3079a",
+   "run_kind": "copilot",
+   "version": 0,
+   "seq": 1
+  },
+  {
+   "event_type": "step",
+   "stage": "copilot_nlu",
+   "label": "Understanding the request",
+   "agent_name": "copilot_nlu",
+   "verb": "Recognised",
+   "target": "case NEW-1",
+   "detail": "from the question",
+   "facts": [],
+   "kind": "entities",
+   "status": "ok",
+   "tone": "neutral",
+   "check": false,
+   "duration_ms": null,
+   "step_index": 2,
+   "case_id": "GEN-20261020-AB12",
+   "source_timestamp": "2026-10-20T06:52:34.914619+00:00",
+   "received_at": "2026-10-20T07:00:30.814884+00:00",
+   "run_key": "93781a6af858404680e8aaf488f3079a",
+   "run_kind": "copilot",
+   "version": 0,
+   "seq": 2
+  },
+  {
+   "event_type": "step",
+   "stage": "copilot_nlu",
+   "label": "Understanding the request",
+   "agent_name": "copilot_nlu",
+   "verb": "Understood",
+   "target": "fresh audit",
+   "detail": "read by keyword rules",
+   "facts": [
+    {
+     "label": "Intent",
+     "value": "fresh_audit"
+    },
+    {
+     "label": "Method",
+     "value": "keyword rules"
+    }
+   ],
+   "kind": "intent",
+   "status": "ok",
+   "tone": "neutral",
+   "check": false,
+   "step_index": 3,
+   "case_id": "GEN-20261020-AB12",
+   "source_timestamp": "2026-10-20T06:52:34.914619+00:00",
+   "received_at": "2026-10-20T07:00:30.814884+00:00",
+   "run_key": "93781a6af858404680e8aaf488f3079a",
+   "run_kind": "copilot",
+   "version": 0,
+   "seq": 3
+  },
+  {
+   "event_type": "agent_done",
+   "stage": "copilot_nlu",
+   "label": "Understanding the request",
+   "agent_name": "copilot_nlu",
+   "detail": "Intent: fresh_audit (method: rules)",
+   "step_index": 3,
+   "case_id": "GEN-20261020-AB12",
+   "source_timestamp": "2026-10-20T06:52:34.914619+00:00",
+   "received_at": "2026-10-20T07:00:30.814884+00:00",
+   "run_key": "93781a6af858404680e8aaf488f3079a",
+   "run_kind": "copilot",
+   "version": 0,
+   "seq": 3
+  },
+  {
+   "event_type": "agent_thinking",
+   "step_index": 3,
+   "stage": "copilot",
+   "label": "Preparing the answer",
+   "agent_name": "copilot",
+   "case_id": "GEN-20261020-AB12",
+   "source_timestamp": "2026-10-20T06:52:34.914619+00:00",
+   "received_at": "2026-10-20T07:00:30.814884+00:00",
+   "run_key": "93781a6af858404680e8aaf488f3079a",
+   "run_kind": "copilot",
+   "version": 0,
+   "seq": 3
+  },
+  {
+   "event_type": "pipeline_start",
+   "step_index": 0,
+   "doc_count": 1,
+   "detail": "Pipeline started with 1 document(s).",
+   "case_id": "NEW-1",
+   "source_timestamp": "2026-10-20T06:52:34.915621+00:00",
+   "received_at": "2026-10-20T07:00:30.827059+00:00",
+   "run_key": "0925081642ac4fcba2d92fc4cd48cfd9",
+   "run_kind": "audit",
+   "version": 1,
+   "seq": 1
+  },
+  {
+   "event_type": "agent_thinking",
+   "step_index": 1,
+   "stage": "data_quality",
+   "label": "Data quality",
+   "agent_name": "data_quality",
+   "case_id": "NEW-1",
+   "source_timestamp": "2026-10-20T06:52:34.916621+00:00",
+   "received_at": "2026-10-20T07:00:30.844846+00:00",
+   "run_key": "0925081642ac4fcba2d92fc4cd48cfd9",
+   "run_kind": "audit",
+   "version": 1,
+   "seq": 2
+  },
+  {
+   "event_type": "step",
+   "stage": "data_quality",
+   "label": "Data quality",
+   "agent_name": "data_quality",
+   "verb": "Read",
+   "target": "INV-9",
+   "detail": "invoice · 1 field · values supplied directly",
+   "facts": [
+    {
+     "label": "Document type",
+     "value": "invoice"
+    },
+    {
+     "label": "Period",
+     "value": "2,026"
+    },
+    {
+     "label": "Source",
+     "value": "values supplied directly"
+    },
+    {
+     "label": "Amount",
+     "value": "150,000"
+    }
+   ],
+   "kind": "evidence_read",
+   "status": "ok",
+   "tone": "neutral",
+   "check": false,
+   "duration_ms": null,
+   "step_index": 2,
+   "case_id": "NEW-1",
+   "source_timestamp": "2026-10-20T06:52:34.916621+00:00",
+   "received_at": "2026-10-20T07:00:30.844846+00:00",
+   "run_key": "0925081642ac4fcba2d92fc4cd48cfd9",
+   "run_kind": "audit",
+   "version": 1,
+   "seq": 3
+  },
+  {
+   "event_type": "step",
+   "stage": "data_quality",
+   "label": "Data quality",
+   "agent_name": "data_quality",
+   "verb": "Checked",
+   "target": "INV-9",
+   "detail": "required fields present and readable",
+   "facts": [
+    {
+     "label": "Document type",
+     "value": "invoice"
+    }
+   ],
+   "kind": "dq_check",
+   "status": "passed",
+   "tone": "success",
+   "check": true,
+   "duration_ms": null,
+   "step_index": 3,
+   "case_id": "NEW-1",
+   "source_timestamp": "2026-10-20T06:52:34.916621+00:00",
+   "received_at": "2026-10-20T07:00:30.844846+00:00",
+   "run_key": "0925081642ac4fcba2d92fc4cd48cfd9",
+   "run_kind": "audit",
+   "version": 1,
+   "seq": 4
+  },
+  {
+   "event_type": "agent_done",
+   "stage": "data_quality",
+   "label": "Data quality",
+   "agent_name": "data_quality",
+   "detail": "Data quality: 0 violation(s), 0 review item(s) in 1 document(s).",
+   "details": [
+    "Data quality: 0 violation(s), 0 review item(s) in 1 document(s)."
+   ],
+   "findings_count": null,
+   "duration_ms": 0.26,
+   "step_index": 4,
+   "case_id": "NEW-1",
+   "source_timestamp": "2026-10-20T06:52:34.916621+00:00",
+   "received_at": "2026-10-20T07:00:30.844846+00:00",
+   "run_key": "0925081642ac4fcba2d92fc4cd48cfd9",
+   "run_kind": "audit",
+   "version": 1,
+   "seq": 5
+  },
+  {
+   "event_type": "agent_thinking",
+   "step_index": 5,
+   "stage": "anomaly",
+   "label": "Anomaly detection",
+   "agent_name": "anomaly",
+   "case_id": "NEW-1",
+   "source_timestamp": "2026-10-20T06:52:34.917621+00:00",
+   "received_at": "2026-10-20T07:00:30.866876+00:00",
+   "run_key": "0925081642ac4fcba2d92fc4cd48cfd9",
+   "run_kind": "audit",
+   "version": 1,
+   "seq": 6
+  },
+  {
+   "event_type": "step",
+   "stage": "anomaly",
+   "label": "Anomaly detection",
+   "agent_name": "anomaly",
+   "verb": "Fetched",
+   "target": "3 check rules",
+   "detail": "for invoice from the Knowledge Graph",
+   "facts": [
+    {
+     "label": "Source",
+     "value": "Knowledge Graph (C02, offline rule set)"
+    },
+    {
+     "label": "Query",
+     "value": "invoice"
+    },
+    {
+     "label": "Rules",
+     "value": "CHK-003, CHK-005, CHK-006"
+    }
+   ],
+   "kind": "kg_fetch",
+   "status": "ok",
+   "tone": "neutral",
+   "check": false,
+   "duration_ms": 0.01,
+   "step_index": 6,
+   "case_id": "NEW-1",
+   "source_timestamp": "2026-10-20T06:52:34.917621+00:00",
+   "received_at": "2026-10-20T07:00:30.866876+00:00",
+   "run_key": "0925081642ac4fcba2d92fc4cd48cfd9",
+   "run_kind": "audit",
+   "version": 1,
+   "seq": 7
+  },
+  {
+   "event_type": "step",
+   "stage": "anomaly",
+   "label": "Anomaly detection",
+   "agent_name": "anomaly",
+   "verb": "Skipped",
+   "target": "CHK-005 on INV-9",
+   "detail": "Cash out without asset in: missing cash_out",
+   "facts": [
+    {
+     "label": "Rule",
+     "value": "CHK-005 · Cash out without asset in"
+    },
+    {
+     "label": "Expression",
+     "value": "not (cash_out > 0 and purchase_basis == 'credit' and asset_in == 0)"
+    },
+    {
+     "label": "Document",
+     "value": "INV-9"
+    },
+    {
+     "label": "Reason",
+     "value": "missing cash_out"
+    }
+   ],
+   "kind": "rule_check",
+   "status": "skipped",
+   "tone": "muted",
+   "check": true,
+   "duration_ms": null,
+   "step_index": 7,
+   "case_id": "NEW-1",
+   "source_timestamp": "2026-10-20T06:52:34.917621+00:00",
+   "received_at": "2026-10-20T07:00:30.866876+00:00",
+   "run_key": "0925081642ac4fcba2d92fc4cd48cfd9",
+   "run_kind": "audit",
+   "version": 1,
+   "seq": 8
+  },
+  {
+   "event_type": "agent_done",
+   "stage": "anomaly",
+   "label": "Anomaly detection",
+   "agent_name": "anomaly",
+   "detail": "Anomaly scan found 0 issue(s).",
+   "details": [
+    "Anomaly scan found 0 issue(s).",
+    "Not applicable (inputs missing): CHK-005 on INV-9: missing cash_out."
+   ],
+   "findings_count": null,
+   "duration_ms": 0.45,
+   "step_index": 8,
+   "case_id": "NEW-1",
+   "source_timestamp": "2026-10-20T06:52:34.917621+00:00",
+   "received_at": "2026-10-20T07:00:30.866876+00:00",
+   "run_key": "0925081642ac4fcba2d92fc4cd48cfd9",
+   "run_kind": "audit",
+   "version": 1,
+   "seq": 9
+  },
+  {
+   "event_type": "agent_thinking",
+   "step_index": 9,
+   "stage": "compliance",
+   "label": "Compliance",
+   "agent_name": "compliance",
+   "case_id": "NEW-1",
+   "source_timestamp": "2026-10-20T06:52:34.918655+00:00",
+   "received_at": "2026-10-20T07:00:30.885940+00:00",
+   "run_key": "0925081642ac4fcba2d92fc4cd48cfd9",
+   "run_kind": "audit",
+   "version": 1,
+   "seq": 10
+  },
+  {
+   "event_type": "step",
+   "stage": "compliance",
+   "label": "Compliance",
+   "agent_name": "compliance",
+   "verb": "Fetched",
+   "target": "3 check rules",
+   "detail": "for invoice from the Knowledge Graph",
+   "facts": [
+    {
+     "label": "Source",
+     "value": "Knowledge Graph (C02, offline rule set)"
+    },
+    {
+     "label": "Query",
+     "value": "invoice"
+    },
+    {
+     "label": "Rules",
+     "value": "CHK-003, CHK-005, CHK-006"
+    }
+   ],
+   "kind": "kg_fetch",
+   "status": "ok",
+   "tone": "neutral",
+   "check": false,
+   "duration_ms": 0.01,
+   "step_index": 10,
+   "case_id": "NEW-1",
+   "source_timestamp": "2026-10-20T06:52:34.918655+00:00",
+   "received_at": "2026-10-20T07:00:30.886942+00:00",
+   "run_key": "0925081642ac4fcba2d92fc4cd48cfd9",
+   "run_kind": "audit",
+   "version": 1,
+   "seq": 11
+  },
+  {
+   "event_type": "step",
+   "stage": "compliance",
+   "label": "Compliance",
+   "agent_name": "compliance",
+   "verb": "Fetched",
+   "target": "1 policy rule",
+   "detail": "for invoice from the Knowledge Graph",
+   "facts": [
+    {
+     "label": "Source",
+     "value": "Knowledge Graph (C02, offline rule set)"
+    },
+    {
+     "label": "Query",
+     "value": "invoice"
+    },
+    {
+     "label": "Rules",
+     "value": "POL-07"
+    }
+   ],
+   "kind": "kg_fetch",
+   "status": "ok",
+   "tone": "neutral",
+   "check": false,
+   "duration_ms": 0.0,
+   "step_index": 11,
+   "case_id": "NEW-1",
+   "source_timestamp": "2026-10-20T06:52:34.918655+00:00",
+   "received_at": "2026-10-20T07:00:30.886942+00:00",
+   "run_key": "0925081642ac4fcba2d92fc4cd48cfd9",
+   "run_kind": "audit",
+   "version": 1,
+   "seq": 12
+  },
+  {
+   "event_type": "step",
+   "stage": "compliance",
+   "label": "Compliance",
+   "agent_name": "compliance",
+   "verb": "Failed",
+   "target": "POL-07 on INV-9",
+   "detail": "Amount 150,000 > limit 100,000 · required approval must be confirmed",
+   "facts": [
+    {
+     "label": "Policy",
+     "value": "Purchases above Rs. 100,000 need dual approval."
+    },
+    {
+     "label": "Amount",
+     "value": "150,000"
+    },
+    {
+     "label": "Limit",
+     "value": "100,000"
+    },
+    {
+     "label": "Above limit by",
+     "value": "50,000"
+    }
+   ],
+   "kind": "policy_check",
+   "status": "failed",
+   "tone": "danger",
+   "check": true,
+   "duration_ms": null,
+   "step_index": 12,
+   "case_id": "NEW-1",
+   "source_timestamp": "2026-10-20T06:52:34.918655+00:00",
+   "received_at": "2026-10-20T07:00:30.886942+00:00",
+   "run_key": "0925081642ac4fcba2d92fc4cd48cfd9",
+   "run_kind": "audit",
+   "version": 1,
+   "seq": 13
+  },
+  {
+   "event_type": "agent_done",
+   "stage": "compliance",
+   "label": "Compliance",
+   "agent_name": "compliance",
+   "detail": "Compliance ran 0 rule check(s) on 1 document(s): 1 finding(s).",
+   "details": [
+    "Compliance ran 0 rule check(s) on 1 document(s): 1 finding(s)."
+   ],
+   "findings_count": 1,
+   "duration_ms": 0.34,
+   "step_index": 13,
+   "case_id": "NEW-1",
+   "source_timestamp": "2026-10-20T06:52:34.919622+00:00",
+   "received_at": "2026-10-20T07:00:30.886942+00:00",
+   "run_key": "0925081642ac4fcba2d92fc4cd48cfd9",
+   "run_kind": "audit",
+   "version": 1,
+   "seq": 14
+  },
+  {
+   "event_type": "agent_thinking",
+   "step_index": 14,
+   "stage": "reasoning",
+   "label": "Reasoning",
+   "agent_name": "reasoning",
+   "case_id": "NEW-1",
+   "source_timestamp": "2026-10-20T06:52:34.919622+00:00",
+   "received_at": "2026-10-20T07:00:30.907440+00:00",
+   "run_key": "0925081642ac4fcba2d92fc4cd48cfd9",
+   "run_kind": "audit",
+   "version": 1,
+   "seq": 15
+  },
+  {
+   "event_type": "step",
+   "stage": "reasoning",
+   "label": "Reasoning",
+   "agent_name": "reasoning",
+   "verb": "Looked up",
+   "target": "basis of POL-07",
+   "detail": "no standard cited",
+   "facts": [
+    {
+     "label": "Source",
+     "value": "Knowledge Graph (C02, offline rule set)"
+    },
+    {
+     "label": "Query",
+     "value": "POL-07"
+    }
+   ],
+   "kind": "kg_fetch",
+   "status": "ok",
+   "tone": "neutral",
+   "check": false,
+   "duration_ms": 0.01,
+   "step_index": 15,
+   "case_id": "NEW-1",
+   "source_timestamp": "2026-10-20T06:52:34.920619+00:00",
+   "received_at": "2026-10-20T07:00:30.907440+00:00",
+   "run_key": "0925081642ac4fcba2d92fc4cd48cfd9",
+   "run_kind": "audit",
+   "version": 1,
+   "seq": 16
+  },
+  {
+   "event_type": "step",
+   "stage": "reasoning",
+   "label": "Reasoning",
+   "agent_name": "reasoning",
+   "verb": "Traced",
+   "target": "evidence chain of INV-9",
+   "detail": "no linked documents",
+   "facts": [
+    {
+     "label": "Source",
+     "value": "Knowledge Graph (C02, offline rule set)"
+    },
+    {
+     "label": "Query",
+     "value": "INV-9"
+    }
+   ],
+   "kind": "kg_fetch",
+   "status": "ok",
+   "tone": "neutral",
+   "check": false,
+   "duration_ms": 0.01,
+   "step_index": 16,
+   "case_id": "NEW-1",
+   "source_timestamp": "2026-10-20T06:52:34.920619+00:00",
+   "received_at": "2026-10-20T07:00:30.907440+00:00",
+   "run_key": "0925081642ac4fcba2d92fc4cd48cfd9",
+   "run_kind": "audit",
+   "version": 1,
+   "seq": 17
+  },
+  {
+   "event_type": "step",
+   "stage": "reasoning",
+   "label": "Reasoning",
+   "agent_name": "reasoning",
+   "verb": "Traced",
+   "target": "evidence of INV-9",
+   "detail": "no linked documents",
+   "facts": [],
+   "kind": "evidence_link",
+   "status": "passed",
+   "tone": "success",
+   "check": true,
+   "duration_ms": null,
+   "step_index": 17,
+   "case_id": "NEW-1",
+   "source_timestamp": "2026-10-20T06:52:34.921622+00:00",
+   "received_at": "2026-10-20T07:00:30.907440+00:00",
+   "run_key": "0925081642ac4fcba2d92fc4cd48cfd9",
+   "run_kind": "audit",
+   "version": 1,
+   "seq": 18
+  },
+  {
+   "event_type": "step",
+   "stage": "reasoning",
+   "label": "Reasoning",
+   "agent_name": "reasoning",
+   "verb": "Skipped",
+   "target": "language model",
+   "detail": "language model is turned off; rule-based fallback used",
+   "facts": [
+    {
+     "label": "Purpose",
+     "value": "summary line"
+    },
+    {
+     "label": "Reason",
+     "value": "language model is turned off; rule-based fallback used"
+    }
+   ],
+   "kind": "llm_call",
+   "status": "skipped",
+   "tone": "muted",
+   "check": false,
+   "duration_ms": null,
+   "step_index": 18,
+   "case_id": "NEW-1",
+   "source_timestamp": "2026-10-20T06:52:34.921622+00:00",
+   "received_at": "2026-10-20T07:00:30.908440+00:00",
+   "run_key": "0925081642ac4fcba2d92fc4cd48cfd9",
+   "run_kind": "audit",
+   "version": 1,
+   "seq": 19
+  },
+  {
+   "event_type": "agent_done",
+   "stage": "reasoning",
+   "label": "Reasoning",
+   "agent_name": "reasoning",
+   "detail": "Case NEW-1: 1 finding(s), 0 need review, all pending auditor review.",
+   "details": [
+    "Case NEW-1: 1 finding(s), 0 need review, all pending auditor review."
+   ],
+   "findings_count": null,
+   "duration_ms": 1.56,
+   "step_index": 19,
+   "case_id": "NEW-1",
+   "source_timestamp": "2026-10-20T06:52:34.921622+00:00",
+   "received_at": "2026-10-20T07:00:30.908440+00:00",
+   "run_key": "0925081642ac4fcba2d92fc4cd48cfd9",
+   "run_kind": "audit",
+   "version": 1,
+   "seq": 20
+  },
+  {
+   "event_type": "agent_thinking",
+   "step_index": 20,
+   "stage": "evidence_validation",
+   "label": "Evidence validation",
+   "agent_name": "evidence_validation",
+   "case_id": "NEW-1",
+   "source_timestamp": "2026-10-20T06:52:34.921622+00:00",
+   "received_at": "2026-10-20T07:00:30.931351+00:00",
+   "run_key": "0925081642ac4fcba2d92fc4cd48cfd9",
+   "run_kind": "audit",
+   "version": 1,
+   "seq": 21
+  },
+  {
+   "event_type": "step",
+   "stage": "evidence_validation",
+   "label": "Evidence validation",
+   "agent_name": "evidence_validation",
+   "verb": "Verified",
+   "target": "citations of INV-9-POL-07",
+   "detail": "claimed values match the documents",
+   "facts": [
+    {
+     "label": "Rule",
+     "value": "POL-07"
+    },
+    {
+     "label": "Cited",
+     "value": "INV-9"
+    },
+    {
+     "label": "INV-9.amount",
+     "value": "claimed 150,000 · document holds 150,000"
+    }
+   ],
+   "kind": "citation_check",
+   "status": "passed",
+   "tone": "success",
+   "check": true,
+   "duration_ms": null,
+   "step_index": 21,
+   "case_id": "NEW-1",
+   "source_timestamp": "2026-10-20T06:52:34.921622+00:00",
+   "received_at": "2026-10-20T07:00:30.931351+00:00",
+   "run_key": "0925081642ac4fcba2d92fc4cd48cfd9",
+   "run_kind": "audit",
+   "version": 1,
+   "seq": 22
+  },
+  {
+   "event_type": "agent_done",
+   "stage": "evidence_validation",
+   "label": "Evidence validation",
+   "agent_name": "evidence_validation",
+   "detail": "Checked 1 finding(s): 1 values verified, 0 citations exist (no values to check), 0 flagged, 0 with no evidence.",
+   "details": [
+    "Checked 1 finding(s): 1 values verified, 0 citations exist (no values to check), 0 flagged, 0 with no evidence."
+   ],
+   "findings_count": 1,
+   "duration_ms": 0.16,
+   "step_index": 22,
+   "case_id": "NEW-1",
+   "source_timestamp": "2026-10-20T06:52:34.922623+00:00",
+   "received_at": "2026-10-20T07:00:30.931351+00:00",
+   "run_key": "0925081642ac4fcba2d92fc4cd48cfd9",
+   "run_kind": "audit",
+   "version": 1,
+   "seq": 23
+  },
+  {
+   "event_type": "pipeline_end",
+   "total_findings": 1,
+   "status": "pending_auditor_review",
+   "step_index": 23,
+   "detail": "Pipeline completed with 1 finding(s).",
+   "case_id": "NEW-1",
+   "source_timestamp": "2026-10-20T06:52:34.922623+00:00",
+   "received_at": "2026-10-20T07:00:30.955035+00:00",
+   "run_key": "0925081642ac4fcba2d92fc4cd48cfd9",
+   "run_kind": "audit",
+   "version": 1,
+   "seq": 24
+  },
+  {
+   "event_type": "agent_done",
+   "stage": "copilot",
+   "label": "Preparing the answer",
+   "agent_name": "copilot",
+   "detail": "Case NEW-1 version 1 saved (pending_auditor_review): 1 rule finding(s) (high 0, medium 1, low 0), 0 need review.\n- POL-07 (medium, pending_review): Purchases above Rs. 100,000 need dual approval. INV-9 has amount 150,000.00 above the limit 100,000.00; confirm the required approval.",
+   "duration_ms": 8.7,
+   "step_index": 4,
+   "case_id": "GEN-20261020-AB12",
+   "source_timestamp": "2026-10-20T06:52:34.923621+00:00",
+   "received_at": "2026-10-20T07:00:30.982402+00:00",
+   "run_key": "93781a6af858404680e8aaf488f3079a",
+   "run_kind": "copilot",
+   "version": 0,
+   "seq": 4
+  },
+  {
+   "event_type": "run_end",
+   "detail": "Case NEW-1 version 1 saved (pending_auditor_review): 1 rule finding(s) (high 0, medium 1, low 0), 0 need review.\n- POL-07 (medium, pending_review): Purchases above Rs. 100,000 need dual approval. INV-9 has amount 150,000.00 above the limit 100,000.00; confirm the required approval.",
+   "intent": "fresh_audit",
+   "status": "done",
+   "duration_ms": 8.7,
+   "step_index": 4,
+   "case_id": "GEN-20261020-AB12",
+   "source_timestamp": "2026-10-20T06:52:34.923621+00:00",
+   "received_at": "2026-10-20T07:00:30.982402+00:00",
+   "run_key": "93781a6af858404680e8aaf488f3079a",
+   "run_kind": "copilot",
+   "version": 0,
+   "seq": 4
+  }
+ ]
+}

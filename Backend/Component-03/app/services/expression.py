@@ -179,3 +179,26 @@ def amount_difference(expression: str, values: dict[str, Value]) -> float | None
     if isinstance(op, (ast.Lt, ast.LtE)):
         return max(left - right, 0.0)
     return max(right - left, 0.0)
+
+
+_SYMBOLS = {ast.Eq: "==", ast.NotEq: "!=", ast.Lt: "<", ast.LtE: "<=", ast.Gt: ">", ast.GtE: ">="}
+
+
+def sides(expression: str, values: dict[str, Value]) -> dict | None:
+    """Both sides of a single comparison, computed, for showing what was compared,
+    e.g. `assets == liabilities + capital` -> left "assets" 100, right
+    "liabilities + capital" 50. None for anything that is not one comparison
+    (and/or/not patterns) or cannot be computed."""
+    try:
+        node = _parse(expression)
+        if not isinstance(node, ast.Compare) or len(node.ops) != 1:
+            return None
+        symbol = _SYMBOLS.get(type(node.ops[0]))
+        if symbol is None:
+            return None
+        return {"left": ast.unparse(node.left), "op": symbol,
+                "right": ast.unparse(node.comparators[0]),
+                "left_value": _value(node.left, values),
+                "right_value": _value(node.comparators[0], values)}
+    except (ExpressionError, ArithmeticError, TypeError):
+        return None

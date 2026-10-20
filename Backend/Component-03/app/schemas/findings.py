@@ -66,5 +66,4 @@ class AuditResult(BaseModel):
     rejected_records: list[str] = Field(default_factory=list)  # doc_ids DQ rejected
     rejected_citations: list[str] = Field(default_factory=list)  # only the failing IDs
     rejected_findings: list[RejectedFinding] = Field(default_factory=list)
-    events_published: bool = False  # True when C4 received every trace event
     created_at: str = Field(default_factory=now_iso)

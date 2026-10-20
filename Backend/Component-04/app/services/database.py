@@ -1,8 +1,8 @@
 """Async SQLite database for persisting audit runs and individual traces.
 
 This is the 'Middle DB' — Component 04 owns it exclusively.  C03 never
-touches this database; C04 writes here after independently capturing and
-verifying trace events from the Redis event bus.
+touches this database; C04 writes here after independently reading
+callback trace events from the shared MongoDB collection.
 
 Two tables:
   audit_runs — one row per audit pipeline execution (case-level metadata)
@@ -48,6 +48,7 @@ CREATE TABLE IF NOT EXISTS traces (
     detail           TEXT,
     findings_count   INTEGER,
     step_index       INTEGER NOT NULL DEFAULT 0,
+    duration_ms      REAL,
     source_timestamp TEXT    NOT NULL,
     received_at      TEXT    NOT NULL,
     raw_payload      TEXT    NOT NULL
@@ -73,11 +74,11 @@ async def _connect() -> AsyncGenerator[aiosqlite.Connection, None]:
 
 async def init_db() -> None:
     """Create tables if they do not exist.  Safe to call on every startup."""
-    async with _connect() as db:
-        await db.execute(_CREATE_AUDIT_RUNS)
-        await db.execute(_CREATE_TRACES)
-        await db.execute(_CREATE_INDEX)
-        await db.commit()
+    async with _connect() as conn:
+        await conn.execute(_CREATE_AUDIT_RUNS)
+        await conn.execute(_CREATE_TRACES)
+        await conn.execute(_CREATE_INDEX)
+        await conn.commit()
     logger.info("Database initialised at %s", config.DATABASE_PATH)
 
 
@@ -89,12 +90,12 @@ async def insert_audit_run(
     started_at: str,
 ) -> int:
     """Create a new audit_run row and return its id."""
-    async with _connect() as db:
-        cursor = await db.execute(
+    async with _connect() as conn:
+        cursor = await conn.execute(
             "INSERT INTO audit_runs (case_id, doc_count, started_at) VALUES (?, ?, ?)",
             (case_id, doc_count, started_at),
         )
-        await db.commit()
+        await conn.commit()
         run_id = cursor.lastrowid
     logger.info("Created audit_run id=%s for case=%s", run_id, case_id)
     return run_id  # type: ignore[return-value]
@@ -106,14 +107,14 @@ async def complete_audit_run(
 ) -> None:
     """Mark the most recent 'running' audit_run for this case as completed."""
     ended_at = datetime.now(timezone.utc).isoformat()
-    async with _connect() as db:
-        await db.execute(
+    async with _connect() as conn:
+        await conn.execute(
             """UPDATE audit_runs
                SET status = 'completed', ended_at = ?, total_findings = ?
                WHERE case_id = ? AND status = 'running'""",
             (ended_at, total_findings, case_id),
         )
-        await db.commit()
+        await conn.commit()
     logger.info("Completed audit_run for case=%s  findings=%s", case_id, total_findings)
 
 
@@ -127,34 +128,61 @@ async def insert_trace(
     detail: str | None,
     findings_count: int | None,
     step_index: int,
+    duration_ms: float | None,
     source_timestamp: str,
     received_at: str,
     raw_payload: dict,
 ) -> int:
     """Persist a single trace row and return its id."""
-    async with _connect() as db:
-        cursor = await db.execute(
+    async with _connect() as conn:
+        cursor = await conn.execute(
             """INSERT INTO traces
                (run_id, case_id, event_type, agent_name, decision_type,
-                detail, findings_count, step_index, source_timestamp,
-                received_at, raw_payload)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                detail, findings_count, step_index, duration_ms,
+                source_timestamp, received_at, raw_payload)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 run_id, case_id, event_type, agent_name, decision_type,
-                detail, findings_count, step_index, source_timestamp,
-                received_at, json.dumps(raw_payload, default=str),
+                detail, findings_count, step_index, duration_ms,
+                source_timestamp, received_at,
+                json.dumps(raw_payload, default=str),
             ),
         )
-        await db.commit()
+        await conn.commit()
         return cursor.lastrowid  # type: ignore[return-value]
 
 
-# ── Read operations (for future API endpoints) ────────────────────────
+async def insert_traces(rows: list[dict]) -> int:
+    """Persist many trace rows in one transaction (same keys as insert_trace).
+
+    Used for granular steps: one commit per poll instead of one per step, so
+    a burst of a few hundred steps never delays the live stream."""
+    if not rows:
+        return 0
+    async with _connect() as conn:
+        await conn.executemany(
+            """INSERT INTO traces
+               (run_id, case_id, event_type, agent_name, decision_type,
+                detail, findings_count, step_index, duration_ms,
+                source_timestamp, received_at, raw_payload)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            [(
+                r["run_id"], r["case_id"], r["event_type"], r.get("agent_name"),
+                r.get("decision_type"), r.get("detail"), r.get("findings_count"),
+                r["step_index"], r.get("duration_ms"), r["source_timestamp"],
+                r["received_at"], json.dumps(r["raw_payload"], default=str),
+            ) for r in rows],
+        )
+        await conn.commit()
+    return len(rows)
+
+
+# ── Read operations ───────────────────────────────────────────────────
 
 async def get_runs(limit: int = 50) -> list[dict]:
     """Return the most recent audit runs."""
-    async with _connect() as db:
-        cursor = await db.execute(
+    async with _connect() as conn:
+        cursor = await conn.execute(
             "SELECT * FROM audit_runs ORDER BY id DESC LIMIT ?", (limit,),
         )
         rows = await cursor.fetchall()
@@ -163,10 +191,21 @@ async def get_runs(limit: int = 50) -> list[dict]:
 
 async def get_traces_for_case(case_id: str) -> list[dict]:
     """Return all traces for a given case, ordered by step index."""
-    async with _connect() as db:
-        cursor = await db.execute(
+    async with _connect() as conn:
+        cursor = await conn.execute(
             "SELECT * FROM traces WHERE case_id = ? ORDER BY step_index ASC",
             (case_id,),
         )
         rows = await cursor.fetchall()
         return [dict(r) for r in rows]
+
+
+async def get_latest_run(case_id: str) -> dict | None:
+    """Return the most recent audit_run for a case, or None."""
+    async with _connect() as conn:
+        cursor = await conn.execute(
+            "SELECT * FROM audit_runs WHERE case_id = ? ORDER BY id DESC LIMIT 1",
+            (case_id,),
+        )
+        row = await cursor.fetchone()
+        return dict(row) if row else None
