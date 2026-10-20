@@ -112,6 +112,9 @@ class MongoChatStore(ChatStore):
     def delete_session(self, session_id):
         self._run(lambda db: db[MESSAGES].delete_many({"session_id": session_id}))
         self._run(lambda db: db[COUNTERS].delete_one({"_id": session_id}))
+        # the chat's Copilot-turn XAI traces go with it (audit traces stay with their audit)
+        self._run(lambda db: db[config.CALLBACK_TRACES_COLLECTION].delete_many(
+            {"case_id": session_id, "run_kind": "copilot"}))
         return self._run(lambda db: db[SESSIONS].delete_one({"_id": session_id})).deleted_count > 0
 
 

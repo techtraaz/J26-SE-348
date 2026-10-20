@@ -175,8 +175,8 @@ COUNTERS_COLLECTION: str = "c03_version_counters"
 STORE_MODE: str = os.getenv("C03_STORE_MODE", "mongo" if MONGODB_URI else "memory")
 
 # --- XAI callback traces (MongoDB, fire-and-forget for Component-04) --------
+# Kept permanently (no expiry); a chat's Copilot-turn traces are deleted with the chat.
 CALLBACK_TRACES_COLLECTION: str = "c03_callback_traces"
-CALLBACK_TRACES_TTL_DAYS: int = int(os.getenv("C03_CALLBACK_TTL_DAYS", "7"))
 
 # --- API ---------------------------------------------------------------------
 CORS_ORIGINS: list[str] = [o.strip() for o in os.getenv(
