@@ -1,37 +1,16 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Download, ExternalLink, FileText, RefreshCw } from "lucide-react";
+import { Download, Eye, FileText, RefreshCw } from "lucide-react";
 import { env } from "@/config/env";
+import { CoverThumb } from "@/components/ui/report/ReportFileCard";
+import { ReportViewer } from "@/components/ui/report/ReportViewer";
+import { fetchReports, VERDICT, type ReportItem } from "@/components/ui/report/reports";
 
 // The Report tab: reports already generated for the case, to view or download.
 // Reports are made by asking the Copilot to "generate the report" (C3 -> C4);
 // this tab never generates one itself.
 
-export interface ReportItem {
-  report_id: string;
-  filename: string;
-  audit_id: string;
-  version: number;
-  verdict: "clean" | "issues_found" | "needs_review" | "not_auditable" | string;
-  score: number | null;
-  generated_at: string;
-  size_bytes: number;
-  download_url: string;
-}
-
 const font: React.CSSProperties = { fontFamily: "'Inter Variable', system-ui, -apple-system, sans-serif" };
-
-const VERDICT: Record<string, { label: string; color: string }> = {
-  clean: { label: "Clean", color: "var(--success)" },
-  issues_found: { label: "Issues found", color: "var(--danger)" },
-  needs_review: { label: "Needs review", color: "var(--warning)" },
-  not_auditable: { label: "Not auditable", color: "var(--text-muted)" },
-};
-
-async function fetchReports(caseId: string): Promise<ReportItem[]> {
-  const res = await fetch(`${env.c4Base}/report/list/${encodeURIComponent(caseId)}`);
-  if (!res.ok) throw new Error(`Component-04 answered ${res.status}`);
-  return (await res.json()).reports as ReportItem[];
-}
 
 function when(iso: string): string {
   const d = new Date(iso);
@@ -81,16 +60,14 @@ export function ReportsList({ caseId }: { caseId: string | null }) {
 }
 
 function ReportRow({ report: r }: { report: ReportItem }) {
+  const [viewing, setViewing] = useState(false);
   const v = VERDICT[r.verdict] ?? { label: r.verdict, color: "var(--text-muted)" };
   const url = `${env.c4Base}${r.download_url}`;
   return (
     <div style={{ border: "1px solid var(--border-strong)", borderRadius: "var(--radius)", background: "var(--surface)",
                   padding: "12px 14px" }}>
-      <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
-        <span style={{ width: 30, height: 30, borderRadius: 8, flexShrink: 0, display: "flex", alignItems: "center",
-                       justifyContent: "center", background: "var(--surface-muted)", color: "var(--text-muted)" }}>
-          <FileText size={15} strokeWidth={1.7} />
-        </span>
+      <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+        <CoverThumb verdictColor={v.color} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-h)" }}>Audit v{r.version}</span>
@@ -105,13 +82,17 @@ function ReportRow({ report: r }: { report: ReportItem }) {
         </div>
       </div>
       <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-        <a href={url} target="_blank" rel="noreferrer" className="report-btn" style={btn(false)}>
-          <ExternalLink size={13} /> View
-        </a>
+        <button type="button" onClick={() => setViewing(true)} className="report-btn" style={btn(false)}>
+          <Eye size={13} /> View
+        </button>
         <a href={`${url}?download=1`} className="report-btn" style={btn(true)}>
           <Download size={13} /> Download
         </a>
       </div>
+      {viewing && (
+        <ReportViewer url={url} title={`Audit report · ${r.audit_id.replace(":v", " v")}`}
+                      subtitle={`${r.filename} · PDF`} onClose={() => setViewing(false)} />
+      )}
     </div>
   );
 }

@@ -307,3 +307,21 @@ code, .id { font-family: 'JetBrains Mono Variable', monospace; }
 #xai-panel .report-btn:hover {
   opacity: 0.88;
 }
+
+/* ── Report file card (chat) and in-app viewer ── */
+.report-card {
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.report-card:hover {
+  border-color: var(--text-soft) !important;
+  box-shadow: var(--shadow-md) !important;
+}
+.report-split:hover,
+.report-menu-item:hover {
+  background: var(--sidebar-hover) !important;
+}
+.viewer-btn:hover {
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: #f5f0ea !important;
+}
+
