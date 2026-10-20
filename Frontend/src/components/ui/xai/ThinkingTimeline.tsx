@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
-import { Check, ChevronDown, ChevronRight, LoaderCircle, Sparkles, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ArrowRight, Check, ChevronDown, ChevronRight, CircleAlert, CircleCheck, CircleX, ClipboardCheck,
+         LoaderCircle, MessageSquareText, Sparkles, X } from "lucide-react";
 import {
   buildRuns,
   currentActivity,
@@ -9,11 +10,13 @@ import {
   runHeadline,
   runTitle,
   stageSummary,
+  type Review,
   type Run,
   type Stage,
   type Status,
   type Step,
   type Tone,
+  type Verdict,
   type XaiEvent,
 } from "./timeline";
 
@@ -33,12 +36,23 @@ const toneColor: Record<Tone, string> = {
   neutral: "var(--text-muted)",
 };
 
-export function ThinkingTimeline({ events, connected, streamId }: {
+export function ThinkingTimeline({ events, connected, streamId, focus = null }: {
   events: XaiEvent[];
   connected: boolean;
   streamId: string;
+  focus?: { runKey: string; at: number } | null; // a chat reply's "Explain"
 }) {
   const runs = useMemo(() => buildRuns(events), [events]);
+  const focusFound = focus ? runs.some((r) => r.key === focus.runKey) : true;
+
+  // A reply older than the live history (or from before C04 restarted) has no trace to show.
+  const [gaveUpOn, setGaveUpOn] = useState<number | null>(null);
+  useEffect(() => {
+    if (!focus || focusFound) return;
+    const timer = setTimeout(() => setGaveUpOn(focus.at), 2500);
+    return () => clearTimeout(timer);
+  }, [focus, focusFound]);
+  const missing = focus !== null && !focusFound && gaveUpOn === focus.at;
 
   if (runs.length === 0) {
     return (
@@ -53,98 +67,224 @@ export function ThinkingTimeline({ events, connected, streamId }: {
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-      {runs.map((run, i) => (
-        <RunBlock key={run.key} run={run} latest={i === runs.length - 1} />
-      ))}
+    <div className="xai-runs" style={{ display: "flex", flexDirection: "column" }}>
+      {missing && (
+        <p role="status" style={{
+          fontSize: 12.5, lineHeight: 1.5, color: "var(--text-muted)", padding: "10px 12px", margin: "4px 0 10px", ...font,
+          borderRadius: "var(--radius)", border: "1px dashed var(--border-strong)",
+        }}>
+          The trace of that reply is no longer available. Traces are kept for recent replies only.
+        </p>
+      )}
+      {runs.map((run, i) => {
+        const focused = focus?.runKey === run.key;
+        // remounting a focused run resets it to open, also when it was collapsed before
+        return (
+          <RunBlock key={focused ? `${run.key}:${focus!.at}` : run.key} run={run}
+                    latest={i === runs.length - 1} focused={focused} />
+        );
+      })}
     </div>
   );
 }
 
 /* ── Run: the dropdown ─────────────────────────────────────────────── */
 
-function RunBlock({ run, latest }: { run: Run; latest: boolean }) {
+function RunBlock({ run, latest, focused = false }: { run: Run; latest: boolean; focused?: boolean }) {
   const [open, setOpen] = useState<boolean | null>(null);
-  const expanded = open ?? (latest || run.status === "running");
+  const expanded = open ?? (focused || latest || run.status === "running");
+  const ref = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (focused) ref.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+  }, [focused]);
   const failed = run.stages.reduce((n, s) => n + s.steps.filter(isFailure).length, 0);
   const running = run.status === "running";
 
   return (
-    <section aria-label={runTitle(run)} style={font}>
-      <div style={{ fontSize: 11, color: "var(--text-soft)", marginBottom: 4, display: "flex", gap: 6 }}>
-        <span style={{ textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 600 }}>
-          {run.kind === "copilot" ? "Copilot" : "Audit"}
-        </span>
-        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{runTitle(run)}</span>
-      </div>
-
+    <section ref={ref} aria-label={runTitle(run)} className={`xai-run${focused ? " xai-focused" : ""}`}
+             style={{ ...font, scrollMarginTop: 14 }}>
       <button
         type="button"
-        className="xai-headline"
+        className="xai-run-head"
         aria-expanded={expanded}
         onClick={() => setOpen(!expanded)}
         style={{
-          ...font, display: "flex", alignItems: "center", gap: 6, width: "100%", textAlign: "left",
-          background: "none", border: "none", padding: "2px 0", cursor: "pointer",
-          fontSize: 13.5, color: "var(--text)",
+          ...font, display: "flex", alignItems: "flex-start", gap: 10, width: "100%", textAlign: "left",
+          background: "none", border: "none", padding: "10px 8px", cursor: "pointer", borderRadius: 10,
         }}
       >
-        {running && <LoaderCircle size={14} className="xai-spin" color="var(--text-muted)" />}
-        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>
-          {running ? currentActivity(run) : runHeadline(run)}
+        <span style={{
+          width: 26, height: 26, borderRadius: 8, flexShrink: 0, display: "flex", alignItems: "center",
+          justifyContent: "center", background: "var(--surface-muted)", color: "var(--text-muted)", marginTop: 1,
+        }}>
+          {running
+            ? <LoaderCircle size={14} className="xai-spin" />
+            : run.kind === "copilot" ? <MessageSquareText size={14} strokeWidth={1.7} /> : <ClipboardCheck size={14} strokeWidth={1.7} />}
         </span>
-        {failed > 0 && (
-          <span style={{ color: "var(--danger)", fontSize: 12, whiteSpace: "nowrap" }}>· {failed} failed</span>
-        )}
-        {expanded ? <ChevronDown size={14} style={{ flexShrink: 0 }} /> : <ChevronRight size={14} style={{ flexShrink: 0 }} />}
+        <span style={{ flex: 1, minWidth: 0 }}>
+          <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ flex: 1, minWidth: 0, fontSize: 13.5, fontWeight: 500, color: "var(--text-h)",
+                           overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {runTitle(run)}
+            </span>
+            {run.review?.verdict && <VerdictChip verdict={run.review.verdict} kind={run.kind} small />}
+          </span>
+          <span style={{ display: "flex", gap: 6, marginTop: 2, fontSize: 12.5, color: "var(--text-muted)" }}>
+            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>
+              {running ? currentActivity(run) : runHeadline(run)}
+            </span>
+            {failed > 0 && <span style={{ color: "var(--danger)", whiteSpace: "nowrap" }}>· {failed} failed</span>}
+            {!running && run.durationMs != null && (
+              <span style={{ marginLeft: "auto", whiteSpace: "nowrap", color: "var(--text-soft)", ...mono, fontSize: 11 }}>
+                {formatDuration(run.durationMs)}
+              </span>
+            )}
+          </span>
+        </span>
+        {expanded
+          ? <ChevronDown size={15} color="var(--text-soft)" style={{ flexShrink: 0, marginTop: 6 }} />
+          : <ChevronRight size={15} color="var(--text-soft)" style={{ flexShrink: 0, marginTop: 6 }} />}
       </button>
 
       {expanded && (
         <div style={{
-          marginTop: 8, border: "1px solid var(--border-strong)", borderRadius: "var(--radius)",
+          margin: "2px 0 14px", border: "1px solid var(--border-strong)", borderRadius: "var(--radius)",
           background: "var(--surface)", overflow: "hidden",
         }}>
           {run.stages.length === 0 && <Row muted>Starting…</Row>}
           {run.stages.map((stage) => <StageRow key={stage.id} stage={stage} />)}
+          {run.review && <ReviewCard review={run.review} kind={run.kind} />}
           <RunFooter run={run} />
         </div>
       )}
 
-      {run.insight && (
-        <div style={{
-          marginTop: 10, padding: "12px 14px", borderRadius: "var(--radius)",
-          border: "1px solid var(--border-strong)", background: "var(--surface)",
-        }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 600,
-                        textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--text-soft)", marginBottom: 6 }}>
-            <Sparkles size={12} /> AI summary
-          </div>
-          <p style={{ fontSize: 13, lineHeight: 1.55, color: "var(--text)" }}>{run.insight}</p>
-        </div>
-      )}
     </section>
   );
 }
 
 function RunFooter({ run }: { run: Run }) {
+  const [more, setMore] = useState(false);
   if (run.status === "running") return null;
-  const parts: string[] = [];
-  if (run.kind === "audit") {
-    parts.push(run.status === "error" ? "Stopped with an error" : "Audit complete");
-    if (run.totalFindings != null) parts.push(`${run.totalFindings} finding${run.totalFindings === 1 ? "" : "s"}`);
+
+  let status: string;
+  if (run.status === "error") status = "Stopped with an error";
+  else if (run.kind === "audit") {
+    status = "Audit complete";
+    if (run.totalFindings != null) status += ` · ${run.totalFindings} finding${run.totalFindings === 1 ? "" : "s"}`;
   } else {
-    parts.push(run.status === "error" ? "Stopped with an error" : "Answered");
-    if (run.durationMs != null) parts.push(formatDuration(run.durationMs));
+    status = run.needsInput ? "Asked for more details" : "Answered";
+    if (run.durationMs != null) status += ` in ${formatDuration(run.durationMs)}`;
   }
+  // Just the status; the reply itself is in the chat, shown here only on request.
   return (
-    <div style={{ padding: "8px 14px", fontSize: 12, color: "var(--text-muted)", background: "var(--surface-muted)",
-                  borderTop: "1px solid var(--border-light)" }}>
-      {parts.join(" · ")}
-      {run.answer && (
-        <div style={{ marginTop: 3, color: "var(--text-soft)", overflow: "hidden", textOverflow: "ellipsis",
-                      whiteSpace: "nowrap" }}>
+    <div style={{ padding: "10px 14px", background: "var(--surface-muted)", borderTop: "1px solid var(--border-light)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 500,
+                    color: run.status === "error" ? "var(--danger)" : "var(--text-h)" }}>
+        {run.status === "error" ? <X size={13} /> : <Check size={13} color="var(--success)" />}
+        <span style={{ flex: 1 }}>{status}</span>
+        {run.answer && (
+          <button type="button" className="xai-more" onClick={() => setMore(!more)} aria-expanded={more}
+                  style={{ ...font, display: "inline-flex", alignItems: "center", gap: 2, padding: "2px 6px",
+                           border: "none", borderRadius: 6, background: "none", cursor: "pointer",
+                           fontSize: 12, fontWeight: 500, color: "var(--text-muted)" }}>
+            {more ? "Hide reply" : "Show reply"}
+            {more ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+          </button>
+        )}
+      </div>
+      {more && run.answer && (
+        <p style={{ margin: "8px 0 0", fontSize: 12.5, lineHeight: 1.5, color: "var(--text-muted)",
+                    whiteSpace: "pre-line", overflowWrap: "anywhere" }}>
           {run.answer}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/* ── Review Agent: verdict, summary, next steps ────────────────────── */
+
+const VERDICTS: Record<Verdict, { label: string; color: string; Icon: typeof CircleCheck }> = {
+  clear: { label: "All clear", color: "var(--success)", Icon: CircleCheck },
+  review: { label: "Needs confirmation", color: "var(--warning)", Icon: CircleAlert },
+  action_required: { label: "Action needed", color: "var(--danger)", Icon: CircleX },
+};
+
+// A chat turn is "answered" rather than "all clear".
+const CHAT_LABELS: Partial<Record<Verdict, string>> = { clear: "Answered", review: "Needs attention" };
+
+function verdictLabel(verdict: Verdict, kind: Run["kind"]): string {
+  return (kind === "copilot" && CHAT_LABELS[verdict]) || VERDICTS[verdict].label;
+}
+
+function VerdictChip({ verdict, kind, small }: { verdict: Verdict; kind: Run["kind"]; small?: boolean }) {
+  const { color, Icon } = VERDICTS[verdict];
+  const label = verdictLabel(verdict, kind);
+  return (
+    <span style={{
+      display: "inline-flex", alignItems: "center", gap: 4, flexShrink: 0, whiteSpace: "nowrap",
+      fontSize: small ? 11 : 11.5, fontWeight: 600, color, padding: small ? "1px 7px" : "2px 8px",
+      borderRadius: "var(--radius-pill)", background: `color-mix(in srgb, ${color} 12%, transparent)`,
+    }}>
+      <Icon size={small ? 11 : 12} strokeWidth={2} /> {label}
+    </span>
+  );
+}
+
+function ReviewCard({ review, kind }: { review: Review; kind: Run["kind"] }) {
+  const chat = kind === "copilot";
+  // the headline only adds something when it says more than the chip
+  const showHeadline = review.verdict ? review.headline !== verdictLabel(review.verdict, kind) : true;
+  return (
+    <div aria-label="Review agent" style={{
+      borderTop: "1px solid var(--border-light)", padding: "12px 14px 12px",
+      background: "color-mix(in srgb, var(--surface-muted) 45%, var(--surface))",
+    }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: review.pending ? 0 : 8 }}>
+        <Sparkles size={13} color="var(--text-muted)" />
+        <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.05em", textTransform: "uppercase",
+                       color: "var(--text-soft)", flex: 1 }}>
+          Review agent
+        </span>
+        {review.verdict && <VerdictChip verdict={review.verdict} kind={kind} />}
+      </div>
+
+      {review.pending ? (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, fontSize: 12.5,
+                      color: "var(--text-muted)" }}>
+          <LoaderCircle size={13} className="xai-spin" />
+          {chat ? "Reading the trace and writing a wrap-up…" : "Reading the trace and writing a summary…"}
         </div>
+      ) : (
+        <>
+          {review.headline && showHeadline && (
+            <p style={{ fontSize: 13.5, fontWeight: 600, color: "var(--text-h)", marginBottom: 4 }}>{review.headline}</p>
+          )}
+          {review.summary && (
+            <p style={{ fontSize: 13, lineHeight: 1.55, color: "var(--text)" }}>{review.summary}</p>
+          )}
+          {review.nextSteps.length > 0 && (
+            <>
+              <p style={{ fontSize: 11.5, fontWeight: 600, color: "var(--text-muted)", margin: "10px 0 4px" }}>
+                Next steps
+              </p>
+              <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 4 }}>
+                {review.nextSteps.map((step, i) => (
+                  <li key={i} style={{ display: "flex", gap: 6, fontSize: 12.5, lineHeight: 1.45, color: "var(--text)" }}>
+                    <ArrowRight size={12} style={{ marginTop: 3, flexShrink: 0 }} color="var(--text-soft)" />
+                    <span>{step}</span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+          <p style={{ fontSize: 11, color: "var(--text-soft)", marginTop: 10 }}>
+            {review.source === "rules"
+              ? "Written from this trace (AI unavailable)."
+              : "AI summary of this trace."}
+            {" "}{chat ? "Verdict from the steps above." : "Verdict and next steps from the checks."}
+          </p>
+        </>
       )}
     </div>
   );

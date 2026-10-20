@@ -54,6 +54,47 @@ describe("ThinkingTimeline", () => {
     expect(stageRow.getAttribute("aria-expanded")).toBe("true");
   });
 
+  it("shows the review agent's verdict, summary and next steps inside the run", async () => {
+    renderStream(caseStream);
+    const audit = screen.getByRole("region", { name: /Audit of ACME-1/ });
+    expect(within(audit).getByText(/Action needed/)).toBeTruthy(); // verdict chip while collapsed
+    await userEvent.click(within(audit).getByRole("button", { name: /Read 3 documents/ }));
+    const review = within(audit).getByLabelText("Review agent");
+    expect(review.textContent).toContain("Action needed");
+    expect(review.textContent).toContain("balance sheet does not balance");
+    expect(review.textContent).toContain("Re-run the audit after the fixes.");
+  });
+
+  it("shows the review as in progress until it arrives", async () => {
+    const pendingOnly = caseStream.filter((e) => e.event_type !== "insight_summary");
+    renderStream(pendingOnly);
+    const audit = screen.getByRole("region", { name: /Audit of ACME-1/ });
+    await userEvent.click(within(audit).getByRole("button", { name: /Read 3 documents/ }));
+    expect(within(audit).getByLabelText("Review agent").textContent).toContain("Reading the trace");
+  });
+
+  it("wraps up a Copilot chat turn with its own review card", () => {
+    renderStream(caseStream);
+    const chat = screen.getByRole("region", { name: /why did CHK-001 fail/ }); // latest run: open
+    const review = within(chat).getByLabelText("Review agent");
+    expect(review.textContent).toContain("Answered");
+    expect(review.textContent).toContain("assistant explained the finding");
+    expect(review.textContent).toContain("AI summary of this trace.");
+    expect(review.textContent).not.toContain("phi4"); // no model name in the card
+    expect(review.textContent).not.toContain("Next steps");
+  });
+
+  it("keeps the footer to a status line, with the reply only on request", async () => {
+    renderStream(caseStream);
+    const chat = screen.getByRole("region", { name: /why did CHK-001 fail/ }); // latest run: open
+    expect(within(chat).getByText(/^Answered in /)).toBeTruthy();
+    const toggle = within(chat).getByRole("button", { name: /Show reply/ });
+    expect(chat.textContent).not.toContain("Accounting equation failed for BS");
+    await userEvent.click(toggle);
+    expect(chat.textContent).toContain("Accounting equation failed for BS");
+    expect(within(chat).getByRole("button", { name: /Hide reply/ })).toBeTruthy();
+  });
+
   it("never uses placeholder wording", async () => {
     const { container } = renderStream(caseStream);
     for (const button of screen.getAllByRole("button")) {

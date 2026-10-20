@@ -50,7 +50,7 @@ def test_skipped_rule_says_why():
         "rule_id": "CHK-007", "rule_name": "Current ratio", "doc_id": "BS",
         "reason": "missing current_liabilities"})
     assert row["verb"] == "Skipped" and row["tone"] == "muted"
-    assert "missing current_liabilities" in row["detail"]
+    assert "missing current liabilities" in row["detail"]  # field names in plain words
 
 
 def test_policy_limit_breach():

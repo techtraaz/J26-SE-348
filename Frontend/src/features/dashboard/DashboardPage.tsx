@@ -4,7 +4,7 @@ import { c3, chat } from "@/lib/apiClient";
 import { VerifiedDocumentPicker } from "@/features/documents/VerifiedDocumentPicker";
 import { useUI } from "@/store/ui";
 import { FindingCard } from "@/components/audit/FindingCard";
-import { Plus } from "lucide-react";
+import { Plus, Sparkles } from "lucide-react";
 import { IconButton } from "@/components/ui/IconButton";
 import type { ChatMessage, Finding } from "@/types/audit";
 
@@ -231,6 +231,7 @@ function Message({ m, showSuggestions, busy, onPick }: {
           {m.data.attached_docs ? <div style={{ fontSize: "12px", opacity: 0.75, marginTop: "4px" }}>+ {m.data.attached_docs} document(s)</div> : null}
         </Bubble>
       )}
+      {!user && typeof m.data.trace_id === "string" && <ExplainButton runKey={m.data.trace_id} />}
       {m.findings.length > 0 && (
         <div style={{ width: "85%", display: "flex", flexDirection: "column", gap: "6px" }}>
           {shown.map((f) => <FindingCard key={f.finding_id} f={f} />)}
@@ -245,6 +246,29 @@ function Message({ m, showSuggestions, busy, onPick }: {
       {m.data.refs_missing ? <span style={{ fontSize: "12px", color: "var(--text-soft)" }}>The audit version this message refers to is no longer available.</span> : null}
       {showSuggestions && !user && m.suggestions.length ? <Chips items={m.suggestions} onPick={onPick} disabled={busy} /> : null}
     </div>
+  );
+}
+
+/** Opens the Explainability panel on the trace of this reply. */
+function ExplainButton({ runKey }: { runKey: string }) {
+  const explainRun = useUI((s) => s.explainRun);
+  return (
+    <button
+      type="button"
+      className="icon-btn"
+      onClick={() => explainRun(runKey)}
+      aria-label="Explain this reply"
+      data-tip="Show how this reply was reached"
+      data-tip-side="right"
+      style={{
+        display: "inline-flex", alignItems: "center", gap: "6px", height: "28px", padding: "0 10px",
+        marginTop: "-2px", borderRadius: "8px", border: "none", background: "transparent",
+        color: "var(--text-muted)", cursor: "pointer", fontFamily: "inherit", fontSize: "12.5px", fontWeight: 500,
+      }}
+    >
+      <Sparkles size={14} strokeWidth={1.6} />
+      Explain
+    </button>
   );
 }
 
