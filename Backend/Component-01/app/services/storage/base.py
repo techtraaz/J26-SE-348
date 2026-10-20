@@ -19,3 +19,8 @@ class Storage(ABC):
     @abstractmethod
     def exists(self, key: str) -> bool:
         ...
+
+    @abstractmethod
+    def delete_prefix(self, prefix: str) -> None:
+        """Remove every file under `prefix` (e.g. "documents/<id>"). No error
+        if nothing is there."""

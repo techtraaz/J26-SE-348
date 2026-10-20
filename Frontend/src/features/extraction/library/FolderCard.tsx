@@ -1,4 +1,4 @@
-import { Folder, Pencil, Trash2 } from 'lucide-react'
+import { Folder, Inbox, Pencil, Trash2 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
 import { extractionPaths } from '@/features/extraction/paths'
@@ -41,5 +41,24 @@ export function FolderCard({ folder, onRename, onDelete }: FolderCardProps) {
         </button>
       </div>
     </div>
+  )
+}
+
+/** The Unfiled view as a card: documents in no folder. Not a real folder, so
+ * it cannot be renamed or deleted. */
+export function UnfiledCard({ count }: { count: number | undefined }) {
+  return (
+    <Link
+      to={extractionPaths.unfiled}
+      className="flex items-center gap-3 rounded-(--radius) border border-dashed border-line bg-surface/60 p-3.5 transition hover:border-ink-soft hover:bg-surface hover:shadow-(--shadow-md) focus-visible:outline-2 focus-visible:outline-primary"
+    >
+      <Inbox size={22} strokeWidth={1.5} className="shrink-0 text-ink-muted" aria-hidden />
+      <span className="min-w-0">
+        <span className="block text-sm font-medium text-ink-h">Unfiled</span>
+        <span className="block text-xs text-ink-muted">
+          {count === undefined ? 'Documents in no folder' : `${pluralize(count, 'document')} in no folder`}
+        </span>
+      </span>
+    </Link>
   )
 }

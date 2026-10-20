@@ -1,6 +1,6 @@
 import { ArrowLeft, CircleAlert, RotateCw } from 'lucide-react'
 import { useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import { extractionPaths } from '@/features/extraction/paths'
 import { useDocument, useRetryDocument, useReviewDraft } from '@/features/extraction/api/hooks'
@@ -8,8 +8,11 @@ import { errorMessage } from '@/features/extraction/api/errors'
 import { Button } from '@/features/extraction/components/Button'
 import { EmptyState } from '@/features/extraction/components/EmptyState'
 import { formatDuration, pluralize } from '@/features/extraction/format'
+import { DocumentMenu } from '../library/DocumentActions'
+import { FolderLink } from '../library/DocumentList'
 import { DocumentProgress } from '../library/DocumentProgress'
 import { StatusChip } from '../library/StatusChip'
+import { useDocumentActions } from '../library/useDocumentActions'
 import { ReviewWorkspace } from './ReviewWorkspace'
 import { VerifiedBanner } from './VerifiedBanner'
 
@@ -20,6 +23,11 @@ export function DocumentPage() {
   const ready = document.data?.status === 'needs_review' || document.data?.status === 'verified'
   const draft = useReviewDraft(documentId, ready)
   const retry = useRetryDocument()
+  const navigate = useNavigate()
+  // Deleted: back to where it was filed (the document page no longer exists).
+  const actions = useDocumentActions({
+    onDeleted: (d) => navigate(d.folder_id ? extractionPaths.folder(d.folder_id) : extractionPaths.unfiled),
+  })
   const [reloads, setReloads] = useState(0)
   // After a conflict, a confirmation or a reopen: fetch the document and its
   // draft again, then rebuild the workspace from them (fresh draft version).
@@ -65,6 +73,8 @@ export function DocumentPage() {
       <div className="mb-5 flex flex-wrap items-center gap-x-3 gap-y-1">
         <h2 className="min-w-0 truncate text-xl font-medium text-ink-h">{doc.filename}</h2>
         <StatusChip status={doc.status} />
+        <DocumentMenu document={doc} onAction={(action) => actions.open(action, doc)} />
+        <span className="text-[13px]"><FolderLink document={doc} /></span>
         <p className="w-full text-[13px] text-ink-muted">
           {details.join(' · ')}
           {run?.engine === 'replay' && (
@@ -74,6 +84,7 @@ export function DocumentPage() {
         </p>
       </div>
 
+      {actions.dialog}
       <DocumentProgress document={doc} />
 
       {doc.status === 'failed' && (
