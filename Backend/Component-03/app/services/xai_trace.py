@@ -144,14 +144,16 @@ class RunTracer:
     """Stamps one run's events and hands them to the exporter.
 
     `trace_id` is unique per run, so Component-04 can tell runs of the same
-    case apart (and Copilot turns from audits). With no exporter (memory
-    store, tests) every call is a no-op."""
+    case apart (and Copilot turns from audits). `stream_id` names a second
+    live stream to show the run on, e.g. the chat that started an audit of
+    another case. With no exporter (memory store, tests) every call is a no-op."""
 
     def __init__(self, case_id: str, version: int, exporter: TraceExporter | None,
-                 kind: str = "audit") -> None:
+                 kind: str = "audit", stream_id: str | None = None) -> None:
         self.case_id = case_id
         self.version = version
         self.kind = kind
+        self.stream_id = stream_id if stream_id != case_id else None
         self.trace_id = uuid.uuid4().hex
         self._exporter = exporter
         self._seq = itertools.count(1)
@@ -170,6 +172,8 @@ class RunTracer:
                 event.update(case_id=self.case_id, version=self.version,
                              trace_id=self.trace_id, run_kind=self.kind,
                              schema=SCHEMA_VERSION, seq=next(self._seq))
+                if self.stream_id:
+                    event["stream_id"] = self.stream_id
                 self._exporter.submit(event)
         except Exception:
             logger.debug("XAI event skipped (non-fatal)", exc_info=True)
@@ -179,6 +183,13 @@ class RunTracer:
 
 _scope: contextvars.ContextVar[tuple[RunTracer, str] | None] = contextvars.ContextVar(
     "xai_scope", default=None)
+
+
+def current_tracer() -> RunTracer | None:
+    """The tracer of the enclosing scope, if any (e.g. the Copilot turn that
+    started an audit)."""
+    current = _scope.get()
+    return current[0] if current else None
 
 
 @contextmanager
@@ -293,8 +304,12 @@ class TracedKG:
 
 
 def traced_kg(kg: Any, tracer: RunTracer | None, agent: str) -> Any:
-    if tracer is None or not tracer.enabled or isinstance(kg, TracedKG):
+    """`kg` traced for `agent`. An already traced client (a Copilot turn's) is
+    re-pointed at this run when this run is traced, else kept as it is."""
+    if tracer is None or not tracer.enabled:
         return kg
+    if isinstance(kg, TracedKG):
+        kg = kg._kg
     return TracedKG(kg, tracer, agent)
 
 

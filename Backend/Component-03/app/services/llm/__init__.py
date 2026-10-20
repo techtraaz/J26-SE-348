@@ -17,6 +17,7 @@ import time
 from pydantic import BaseModel, ValidationError
 
 from app import config
+from app.services import xai_trace
 from app.services.llm.providers import PROVIDERS, LLMError, LLMProvider
 
 __all__ = ["LLMError", "LLMProvider", "available", "complete_json", "is_safe", "narrate",
@@ -65,26 +66,39 @@ def available() -> bool:
     return _get() is not None and time.monotonic() >= _blocked_until
 
 
-def _chat(system: str, user: str, schema: dict | None, timeout: float) -> str:
+def _chat(system: str, user: str, schema: dict | None, timeout: float,
+          purpose: str = "") -> str:
+    """One LLM call. Each call is also an XAI llm_call step (when traced)."""
     global _blocked_until
     provider = _get()
     if provider is None:
+        xai_trace.step("llm_call", "skipped", purpose=purpose,
+                       reason="language model is turned off; rule-based fallback used")
         raise LLMError("LLM is turned off")
     if time.monotonic() < _blocked_until:
+        xai_trace.step("llm_call", "skipped", purpose=purpose, model=provider.model,
+                       reason="language model skipped after a recent failure")
         raise LLMError("LLM skipped after a recent failure")
+    start = time.perf_counter()
     try:
-        return provider.chat(system, user, schema, timeout)
-    except LLMError:
+        reply = provider.chat(system, user, schema, timeout)
+    except LLMError as exc:
+        xai_trace.step("llm_call", "error", round((time.perf_counter() - start) * 1000, 2),
+                       purpose=purpose, model=provider.model, reason=str(exc))
         if provider is not _override:
             _blocked_until = time.monotonic() + config.LLM_RETRY_COOLDOWN
         raise
+    xai_trace.step("llm_call", "ok", round((time.perf_counter() - start) * 1000, 2),
+                   purpose=purpose, model=provider.model, prompt=user[:300], reply=reply[:300])
+    return reply
 
 
 def complete_json[T: BaseModel](system: str, user: str, model: type[T], timeout: float | None = None) -> T:
     """Ask for JSON matching `model`. Servers that ignore the schema still work:
     the first JSON object in the reply is taken and validated."""
     raw = _chat(system, user, model.model_json_schema(),
-                config.COPILOT_LLM_TIMEOUT if timeout is None else timeout)
+                config.COPILOT_LLM_TIMEOUT if timeout is None else timeout,
+                purpose=f"structured {model.__name__}")
     match = _JSON_OBJECT.search(raw)
     if not match:
         raise LLMError("LLM reply had no JSON object")
@@ -110,7 +124,8 @@ def narrate(prompt: str, fallback: str) -> str:
     try:
         text = _chat("You write one short audit trace line. Only repeat the numbers "
                      "given. Never add laws, names or facts.",
-                     f"{prompt} Max 20 words.", None, config.LLM_TIMEOUT)
+                     f"{prompt} Max 20 words.", None, config.LLM_TIMEOUT,
+                     purpose="summary line")
     except LLMError as exc:
         logger.info("Narration fallback: %s", exc)
         return fallback

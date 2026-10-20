@@ -125,3 +125,56 @@ def test_audit_reports_agent_nodes_only(kg):
     assert events[0]["event_type"] == "pipeline_start"
     assert events[-1]["event_type"] == "pipeline_end"
     assert [e["seq"] for e in events] == list(range(1, len(events) + 1))
+
+
+# --- granular steps ---------------------------------------------------------------
+
+def _mongo_store():
+    return MongoStore(uri="mongodb://fake", db_name="xai", client=mongomock.MongoClient())
+
+
+def _events(store):
+    assert store.trace_exporter().flush(timeout=5)
+    return list(store.traces_collection().find({}, {"_id": 0}, sort=[("seq", 1)]))
+
+
+def test_audit_steps_explain_what_each_agent_did(kg):
+    from tests.test_orchestrator import DOCS
+    store = _mongo_store()
+    orchestrator.run_case(orchestrator.intake.normalize_case({"case_id": "S", "docs": DOCS}),
+                          kg, store=store)
+    steps = [e for e in _events(store) if e["event_type"] == "step"]
+    by = {(s["agent"], s["kind"]) for s in steps}
+    assert {("data_quality", "evidence_read"), ("compliance", "kg_fetch"),
+            ("compliance", "rule_check"), ("compliance", "policy_check"),
+            ("anomaly", "rule_check"), ("reasoning", "standard_check"),
+            ("reasoning", "evidence_link"), ("evidence_validation", "citation_check")} <= by
+    reads = [s["facts"]["doc_id"] for s in steps if s["kind"] == "evidence_read"]
+    assert reads == [d["doc_id"] for d in DOCS]
+    chk1 = next(s for s in steps if s["kind"] == "rule_check" and s["facts"]["rule_id"] == "CHK-001")
+    assert chk1["status"] == "failed"
+    assert chk1["facts"]["sides"] == {"left": "assets", "op": "==", "right": "liabilities + capital",
+                                      "left_value": 100.0, "right_value": 50.0}
+    policy = next(s for s in steps if s["kind"] == "policy_check")
+    assert (policy["status"], policy["facts"]["amount"], policy["facts"]["limit"]) == (
+        "failed", 150000.0, 100000.0)
+
+
+def test_copilot_turn_streams_on_its_chat_session(kg):
+    from app.schemas.copilot import CopilotQuery
+    from app.services import copilot
+    store = _mongo_store()
+    docs = [doc("INV", "invoice", {"amount": 5})]
+    copilot.answer(CopilotQuery(text="audit these documents", case_id="NEW-1",
+                                session_id="GEN-20261020-AB12", docs=docs), kg, store)
+    events = _events(store)
+    turn = [e for e in events if e["run_kind"] == "copilot"]
+    audit = [e for e in events if e["run_kind"] == "audit"]
+    assert [e["event_type"] for e in turn if e["event_type"] != "step"] == [
+        "copilot_start", "copilot_nlu", "copilot_end"]
+    assert {e["case_id"] for e in turn} == {"GEN-20261020-AB12"}
+    assert any(e["kind"] == "entities" for e in turn if e["event_type"] == "step")
+    # the audit it started is its own run of case NEW-1, also shown on the chat's stream
+    assert {(e["case_id"], e.get("stream_id")) for e in audit} == {("NEW-1", "GEN-20261020-AB12")}
+    assert any(e.get("kind") == "rule_check" or e.get("kind") == "evidence_read" for e in audit)
+    assert all(e["agent"] != "copilot" for e in audit if e["event_type"] == "step")

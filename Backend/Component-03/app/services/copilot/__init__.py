@@ -78,7 +78,9 @@ def answer(q: CopilotQuery, kg: KGClient | None = None, store: ResultStore | Non
     ts = datetime.now(UTC).isoformat()
 
     entities, case_id = _entities(q, store, memory)
-    tracer = xai_trace.RunTracer(case_id or q.session_id or "general", 0,
+    # Keyed by the chat session the user is looking at (a case chat's session is
+    # its case id), so a general chat that names a case still sees its own steps.
+    tracer = xai_trace.RunTracer(q.session_id or case_id or "general", 0,
                                  store.trace_exporter(), kind="copilot")
 
     # ── XAI: copilot_start ──
@@ -89,11 +91,15 @@ def answer(q: CopilotQuery, kg: KGClient | None = None, store: ResultStore | Non
         "ts": ts,
     })
 
-    turn = Turn(query=q, entities=entities, kg=kg, store=store, case_id=case_id)
+    xai_trace.record(tracer, "copilot_nlu", "entities", "ok", case_id=case_id,
+                     found=entities.as_dict(), from_memory=bool(memory and memory.case_id == case_id))
+    turn = Turn(query=q, entities=entities, store=store, case_id=case_id,
+                kg=xai_trace.traced_kg(kg, tracer, "copilot"))
     ctx = RequestContext(has_docs=bool(q.docs), case_id=case_id,
                          case_audited=bool(case_id) and turn.record() is not None,
                          memory=memory.summary() if memory else "")
-    nlu = understand(q.text, entities, ctx)
+    with xai_trace.scope(tracer, "copilot_nlu"):
+        nlu = understand(q.text, entities, ctx)
     spec = REGISTRY[nlu.intent]
     meta = {"nlu": nlu.as_dict(), "entities": entities.as_dict(), "case_id": case_id}
 
@@ -126,9 +132,12 @@ def answer(q: CopilotQuery, kg: KGClient | None = None, store: ResultStore | Non
     for need in spec.needs:
         missing = _missing(need, turn)
         if missing:
+            xai_trace.record(tracer, "copilot", "decision", "skipped",
+                             decision=f"{spec.name} needs more information", reason=missing)
             return respond(missing, needs=need)
     try:
-        out = spec.handler(turn)
+        with xai_trace.scope(tracer, "copilot"):
+            out = spec.handler(turn)
     except intake.IntakeError as exc:
         return respond(f"The documents could not be read: {exc}")
     except LookupError as exc:

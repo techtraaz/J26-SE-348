@@ -8,7 +8,7 @@ rejected_citations holds only the failing IDs.
 from app import config
 from app.schemas.case import AuditCase
 from app.schemas.findings import Finding, RejectedFinding, TraceEntry
-from app.services import rules
+from app.services import rules, xai_trace
 
 
 def _matches(actual: object, claimed: float | str) -> bool:
@@ -43,6 +43,13 @@ def run(case: AuditCase, findings: list[Finding]
                                 f"{rules.fmt(c.claimed_value)} but holds {actual!r}")
                 if c.evidence_id not in bad:
                     bad.append(c.evidence_id)
+        xai_trace.step(
+            "citation_check", "failed" if problems else "passed" if f.claims else "info",
+            finding_id=f.finding_id, rule_id=f.rule_id, evidence_ids=cited,
+            claims=[{"doc_id": c.evidence_id, "field": c.field, "claimed": c.claimed_value,
+                     "actual": by_id[c.evidence_id].fields.get(c.field)
+                     if c.evidence_id in by_id else None} for c in f.claims],
+            problems=problems)
         if problems:
             f.evidence_validation = "failed"
             f.citation_unverified = True

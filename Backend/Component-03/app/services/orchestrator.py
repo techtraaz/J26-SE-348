@@ -189,7 +189,9 @@ def _execute(case: AuditCase, kg: KGClient | None,
     previous = store.latest(case.case_id)
     version = store.next_version(case.case_id)
     # Fire-and-forget XAI tracing — queued for MongoDB for C04 to observe.
-    tracer = RunTracer(case.case_id, version, store.trace_exporter(), kind="audit")
+    parent = xai_trace.current_tracer()  # a Copilot turn that started this audit
+    tracer = RunTracer(case.case_id, version, store.trace_exporter(), kind="audit",
+                       stream_id=parent.case_id if parent else None)
     ctx = RunContext(case_id=case.case_id, kg=kg, narrate=narrate, tracer=tracer)
     xai_cb = XAITracerCallback(tracer)
     tracer.emit({"event_type": "pipeline_start",
