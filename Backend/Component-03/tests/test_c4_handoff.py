@@ -114,7 +114,7 @@ def test_bad_document_name_is_rejected():
 @pytest.mark.parametrize("text,intent", [
     ("hey", "greeting"), ("Good morning!", "greeting"), ("hello copilot", "greeting"),
     ("thanks", "thanks"), ("ok great, thank you", "thanks"),
-    ("what's the weather today?", "out_of_scope"), ("tell me a joke", "out_of_scope"),
+    ("write me a poem about cats", "out_of_scope"), ("tell me a joke", "out_of_scope"),
     ("what can you do?", "help"),
     ("hi, list the high findings for case ACME-1", "list_findings"),  # a greeting inside a request
 ])
@@ -318,7 +318,13 @@ def test_audit_reply_for_a_case_that_cannot_be_audited(kg, store):
 @pytest.mark.parametrize("text", ["audit it again", "audit this", "check it again please"])
 def test_audit_again_on_an_audited_case_reruns_it(kg, store, text):
     _audit(kg, store, INV_CASE, case_id="AGAIN-1")
-    r = copilot.answer(CopilotQuery(text=text, case_id="AGAIN-1"), kg, store)
+    asked = copilot.answer(CopilotQuery(text=text, case_id="AGAIN-1"), kg, store)
+    assert asked.intent == "rerun_audit" and asked.blocks[0].choices == ["Yes, re-run the audit",
+                                                                       "No, keep the current version"]
+    assert store.latest("AGAIN-1")["version"] == 1  # nothing saved until confirmed
+    no = copilot.answer(CopilotQuery(text=asked.blocks[0].choices[1], case_id="AGAIN-1"), kg, store)
+    assert no.intent == "cancel" and store.latest("AGAIN-1")["version"] == 1
+    r = copilot.answer(CopilotQuery(text=asked.blocks[0].choices[0], case_id="AGAIN-1"), kg, store)
     assert r.intent == "rerun_audit" and store.latest("AGAIN-1")["version"] == 2
     assert r.blocks[0].type == "verdict" and r.blocks[0].version == 2
     assert "case AGAIN-1, version 2" in r.reply

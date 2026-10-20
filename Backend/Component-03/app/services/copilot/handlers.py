@@ -21,6 +21,7 @@ from app.schemas.copilot import (
     VerdictBlock,
 )
 from app.services import audit_reply, c4_report, intake, orchestrator
+from app.services import field_mapper as fm
 from app.services import rules as rules_mod
 from app.services.copilot import whatif
 from app.services.copilot.entities import Entities
@@ -218,7 +219,7 @@ def evidence_append(turn: Turn) -> Reply:
         description="Run a new audit on the documents attached to the request.",
         examples=("audit these documents", "run a fresh audit on this year's books"),
         patterns={r"\b(fresh|new) audit\b": 2.5, r"\bfrom scratch\b": 2.0,
-                  r"\b(audit|check|review|analy[sz]e|examine|verify)\b": 1.0,
+                  r"\b(audit|analy[sz]e|examine)\b": 1.0,
                   r"\b(these|this|attached) (documents?|docs|files|books|records)\b": 1.5},
         signals={"docs": 2.0, "docs_for_audited_case": -1.5}, needs=("case", "docs"),
         instead={"docs": "rerun_audit"},
@@ -238,9 +239,19 @@ def fresh_audit(turn: Turn) -> Reply:
         signals={"case_ids": 0.5, "docs": -1.0}, needs=("saved_case",),
         follow_ups=("What changed since the last audit?", "Show the high severity findings"))
 def rerun_audit(turn: Turn) -> Reply:
-    case = intake.normalize_case(turn.record()["case"])
-    result = orchestrator.run_case(case, turn.kg, store=turn.store)
+    """Saving a new version is a write: it is confirmed first ("Yes, re-run the audit")."""
+    rec = turn.record()
+    if not _CONFIRM_RERUN.match(turn.query.text):
+        return Reply(blocks=[QuestionBlock(
+            text=f"Re-run case {turn.case_id} on its saved documents as version {rec['version'] + 1}? "
+                 f"Version {rec['version']} stays saved.",
+            choices=[RERUN_YES, KEEP_VERSION])], data={"version": rec["version"]})
+    result = orchestrator.run_case(intake.normalize_case(rec["case"]), turn.kg, store=turn.store)
     return _audit_reply(result, turn.store)
+
+
+RERUN_YES = "Yes, re-run the audit"
+_CONFIRM_RERUN = re.compile(r"^\W*yes,?\s+re-?run\b", re.IGNORECASE)
 
 
 # --- questions about saved audits (case_query) ---------------------------------------
@@ -391,6 +402,7 @@ def list_versions(turn: Turn) -> Reply:
         examples=("what is the status of case CASE-12?", "summarise the audit of ACME-1"),
         patterns={r"\b(status|summary|summari[sz]e|overview|results?|outcome|auditable|"
                   r"how (is|did|was))\b": 1.5,
+                  r"\b(check|review|look at|open)\b.*\bcase\b": 1.5,
                   r"\b(latest|current)\b": 0.5},
         signals={"case_ids": 1.0}, needs=("saved_case",),
         follow_ups=("Show the high severity findings", "What evidence is missing?", "What changed since the last audit?"))
@@ -633,6 +645,340 @@ def generate_report(turn: Turn) -> Reply:
     return Reply(blocks=[TextBlock(text=f"The audit report for case {turn.case_id} (version "
                                         f"{rec['version']}) is ready."),
                          LinkBlock(label="Open the PDF report", url=out["report_url"])], data=data)
+
+
+# --- coverage, verdict and follow-up (case_query) ------------------------------------
+# What the audit could and could not check, answered from the saved result. The
+# auditor is told when a verdict is limited and asked for the missing values.
+
+OUTCOME_WORDS = {"passed": "passed", "failed": "failed", "review": "needs confirmation",
+                 "skipped": "not checked", "error": "could not be checked"}
+_CONFIRM_SET = re.compile(r"^\W*yes,?\s+set\s+(?P<field>.+?)\s+on\s+(?P<doc>.+?)\s+to\s+(?P<value>.+?)\W*$",
+                          re.IGNORECASE)
+KEEP_VERSION = "No, keep the current version"
+
+
+def _open_questions_block(rec: dict) -> list:
+    questions = rec.get("open_questions") or []
+    if not questions:
+        return []
+    items = [ListItem(label=q["doc_name"], text=q["question"]) for q in questions[:MAX]]
+    q0 = questions[0]
+    example = f"“{q0['missing'][0].replace('_', ' ')} on {q0['doc_name']} is …”"
+    return [ListBlock(title="To complete the audit, tell me", items=items,
+                      more=max(0, len(questions) - MAX)),
+            TextBlock(text=f"Reply with the value, for example {example}.")]
+
+
+def _coverage_items(rec: dict) -> list[ListItem]:
+    cov = rec.get("coverage") or {}
+    run, not_run = cov.get("rules_run", 0), cov.get("not_run", 0)
+    items = [ListItem(label="Rules checked", text=f"{run} of {run + not_run}"
+                      + (f" ({cov.get('passed', 0)} passed, {cov.get('failed', 0)} failed"
+                         f"{', ' + str(cov['review']) + ' need confirmation' if cov.get('review') else ''})"
+                         if run else ""))]
+    if not_run:
+        items.append(ListItem(label="Could not run", text=f"{not_run} rule(s): values are missing", tone="skipped"))
+    failed = sum(f["evidence_validation"] == "failed" for f in rec["findings"])
+    items.append(ListItem(label="Evidence check", text="every cited value matched its document" if not failed
+                          else f"{failed} finding(s) cite values that did not match",
+                          tone="failed" if failed else "passed"))
+    low = [f for f in rec["findings"] if f["review_status"] == "needs_more_evidence"]
+    if low:
+        items.append(ListItem(label="Low confidence", text=f"{len(low)} finding(s) need more evidence", tone="review"))
+    return items
+
+
+@intent("case_verdict", group="case_query",
+        description="The overall verdict of a case, how complete the check was, and how far it can be trusted.",
+        examples=("can you give a verdict for this case?", "how confident are you in this audit?"),
+        patterns={r"\bverdict\b": 3.0, r"\b(conclusion|overall|confiden(t|ce)|trust|reliable|sure)\b": 1.5,
+                  r"\bhow (reliable|confident|sure|trustworthy|accurate)\b": 1.5,
+                  r"\b(is|was) (it|the case|this case) clean\b": 2.5, r"\bpass(ed)? the audit\b": 2.5},
+        signals={"case_ids": 0.5}, needs=("saved_case",),
+        follow_ups=("Which rules were not checked?", "What should I do next?"))
+def case_verdict(turn: Turn) -> Reply:
+    rec = turn.record()
+    cov = rec.get("coverage") or {}
+    blocks = [VerdictBlock(case_id=turn.case_id, version=rec["version"],
+                           verdict=rec.get("verdict") or rec["status"], score=rec.get("score"),
+                           summary=rec.get("summary") or ""),
+              ListBlock(title="How far this verdict goes", items=_coverage_items(rec))]
+    if cov and not cov.get("complete", True):
+        blocks.append(TextBlock(text="This verdict is **limited**: some rules could not run, so a problem they "
+                                     "check for could still be there."))
+    blocks += _open_questions_block(rec)
+    return Reply(blocks=blocks, data={"version": rec["version"], "coverage": cov})
+
+
+def _rule_rows(applied: list[dict], names: dict[str, str]) -> list[list[str]]:
+    return [[f"{a['rule_id']} {a.get('rule_name', '')}".strip(), names.get(a["doc_id"], a["doc_id"]),
+             OUTCOME_WORDS.get(a["outcome"], a["outcome"]),
+             a.get("detail") or a.get("reason") or ""] for a in applied]
+
+
+@intent("rule_results", group="case_query",
+        description="Which rules ran on a case and what each found: passed, failed or not checked, and why.",
+        examples=("which rules passed?", "why wasn't the gross profit checked?"),
+        patterns={r"\brules?\b.*\b(passed|failed|checked|ran|run|skipped|applied|tested)\b": 3.0,
+                  r"\bwhy\b.*(\bnot|n't)\b.*\b(checked|run|tested|evaluated)\b": 3.0,
+                  r"\b(not checked|not run|skipped)\b": 2.0},
+        signals={"case_ids": 0.5}, needs=("saved_case",),
+        follow_ups=("Can you give a verdict for this case?", "What should I do next?"))
+def rule_results(turn: Turn) -> Reply:
+    rec = turn.record()
+    names = _names(rec)
+    applied = rec.get("rules_applied") or []
+    low = turn.query.text.lower()
+    wanted = {o for o, words in (("passed", ("passed", "pass ")), ("failed", ("failed", "fail ")),
+                                 ("skipped", ("not checked", "not run", "skipped", "n't checked", "not tested",
+                                              "wasn't", "weren't", "didn't")))
+              if any(w in low for w in words)}
+    named = [a for a in applied if a["rule_id"] in turn.entities.rule_ids
+             or (a.get("rule_name") and a["rule_name"].lower().rstrip(".") in low)]
+    if turn.entities.doc_ids:
+        applied = [a for a in applied if a["doc_id"] in turn.entities.doc_ids]
+    if named:  # a question about one rule: say exactly what happened
+        blocks = []
+        for a in named[:3]:
+            doc = names.get(a["doc_id"], a["doc_id"])
+            rule = f"{a['rule_id']} {a.get('rule_name', '')}".strip()
+            if a["outcome"] == "skipped":
+                need = ", ".join(m.replace("_", " ") for m in a.get("missing_inputs") or []) or a.get("reason")
+                text = f"**{rule}** did not run on {doc}: it needs the {need}."
+            else:
+                text = f"**{rule}** on {doc}: {OUTCOME_WORDS[a['outcome']]}" + (f" ({a['detail']})" if a.get("detail") else ".")
+            blocks.append(TextBlock(text=text))
+        blocks += _open_questions_block({"open_questions": [q for q in rec.get("open_questions") or []
+                                                            if q["rule_id"] in {a["rule_id"] for a in named}]})
+        return Reply(blocks=blocks, data={"version": rec["version"], "rules_applied": named})
+    shown = [a for a in applied if not wanted or a["outcome"] in wanted]
+    if not shown:
+        counts = Counter(OUTCOME_WORDS[a["outcome"]] for a in applied)
+        so_far = ", ".join(f"{n} {o}" for o, n in counts.items()) or "no rules applied"
+        asked = " or ".join(OUTCOME_WORDS[o] for o in sorted(wanted)) or "matching"
+        return Reply(f"No rule {asked} in case {turn.case_id} (version {rec['version']}). Of its rules: {so_far}.")
+    title = " and ".join(OUTCOME_WORDS[o] for o in sorted(wanted)) or "every rule"
+    blocks = [TextBlock(text=f"Case {turn.case_id}, version {rec['version']}: {title} ({len(shown)})."),
+              TableBlock(columns=["Rule", "Document", "Result", "Detail"], rows=_rule_rows(shown[:MAX * 2], names))]
+    if "skipped" in wanted or not wanted:
+        blocks += _open_questions_block(rec)
+    return Reply(blocks=blocks, data={"version": rec["version"], "rules_applied": shown})
+
+
+@intent("document_status", group="case_query",
+        description="How one document of a case did: its rules, findings and review items.",
+        examples=("is this invoice ok?", "what about the balance sheet?"),
+        patterns={r"\b(ok|okay|fine|correct|valid|alright|in order|good)\b": 1.5,
+                  r"\bwhat about\b": 1.5, r"\b(this|the|that) (invoice|statement|document|receipt|voucher|po|grn)\b": 1.0},
+        signals={"doc_types": 1.0, "doc_ids": 1.5}, needs=("saved_case",),
+        follow_ups=("What should I do next?", "Which rules were not checked?"))
+def document_status(turn: Turn) -> Reply:
+    rec = turn.record()
+    names = _names(rec)
+    docs = rec["case"]["docs"]
+    picked = [d for d in docs if d["doc_id"] in turn.entities.doc_ids
+              or d["doc_type"] in turn.entities.doc_types]
+    if not picked:
+        return Reply(blocks=[QuestionBlock(text=f"Which document of case {turn.case_id}?",
+                                           choices=[f"Is {names[d['doc_id']]} ok?" for d in docs[:6]])])
+    if len(picked) > 1 and not turn.entities.doc_ids:
+        return Reply(blocks=[QuestionBlock(text=f"Case {turn.case_id} has {len(picked)} of those. Which one?",
+                                           choices=[f"Is {names[d['doc_id']]} ok?" for d in picked[:6]])])
+    blocks = []
+    for d in picked[:3]:
+        applied = [a for a in rec.get("rules_applied") or [] if a["doc_id"] == d["doc_id"]]
+        findings = [f for f in rec["findings"] if d["doc_id"] in f["evidence_ids"]]
+        rule_findings = [f for f in findings if not f["rule_id"].startswith("REV-")]
+        not_run = [a for a in applied if a["outcome"] == "skipped"]
+        if rule_findings:
+            state = f"{len(rule_findings)} rule finding(s)"
+        elif not applied:
+            state = "no audit rules for this document type; only the data checks ran"
+        elif not_run and not any(a["outcome"] != "skipped" for a in applied):
+            state = "no rule could run on it (values are missing)"
+        else:
+            state = "no rule broken" + (f", but {len(not_run)} rule(s) could not run" if not_run else "")
+        items = [ListItem(label=f"{a['rule_id']} {a.get('rule_name', '')}".strip().rstrip("."),
+                          text=a.get("detail") or a.get("reason") or "", tone=a["outcome"]) for a in applied]
+        items += [ListItem(label=f"Needs review ({f['rule_id']})", text=f["message"], tone="review")
+                  for f in findings if f["rule_id"].startswith("REV-")]
+        blocks.append(TextBlock(text=f"**{names[d['doc_id']]}** ({_doc_words(d['doc_type'])}): {state}."))
+        if items:
+            blocks.append(ListBlock(items=items))
+    blocks += _open_questions_block({"open_questions": [q for q in rec.get("open_questions") or []
+                                                        if q["doc_id"] in {d["doc_id"] for d in picked}]})
+    return Reply(blocks=blocks, data={"version": rec["version"],
+                                      "findings": [f for f in rec["findings"]
+                                                   if set(f["evidence_ids"]) & {d["doc_id"] for d in picked}]})
+
+
+@intent("next_steps", group="case_query",
+        description="What the auditor should do next on a case: the recommendations and the values still needed.",
+        examples=("what should I do next?", "how do I fix these issues?"),
+        patterns={r"\b(what (should|do|can) (i|we) do|next steps?|what now|recommend(ation)?s?|action items?|"
+                  r"how (do|can|should) (i|we) (fix|resolve|correct))\b": 3.0},
+        signals={"case_ids": 0.5}, needs=("saved_case",),
+        follow_ups=("Can you give a verdict for this case?", "Generate the report"))
+def next_steps(turn: Turn) -> Reply:
+    rec = turn.record()
+    recs = rec.get("recommendations") or []
+    blocks = []
+    if recs:
+        blocks.append(ListBlock(title="What to do next", items=[
+            ListItem(label=r["rule_id"], text=r["text"], tone=r["severity"]) for r in recs[:MAX]],
+            more=max(0, len(recs) - MAX)))
+    blocks += _open_questions_block(rec)
+    if not blocks:
+        blocks = [TextBlock(text=f"Nothing is open on case {turn.case_id}: no findings and every rule could run. "
+                                 f"You can generate the report.")]
+    return Reply(blocks=blocks, data={"version": rec["version"]})
+
+
+@intent("fraud_check", group="case_query",
+        description="Whether the audit found signs of fraud, and which fraud checks could run.",
+        examples=("is the company committing fraud?", "any signs of fraud in this case?"),
+        patterns={r"\b(is|are|was|were|any|committing|commit|sign|signs|evidence|indication)\b.*"
+                  r"\b(fraud\w*|embezzl\w*|misappropriat\w*|manipulat\w*|collusion)\b": 3.0},
+        signals={"case_ids": 0.5}, needs=("saved_case",),
+        follow_ups=("What should I do next?", "Which rules were not checked?"))
+def fraud_check(turn: Turn) -> Reply:
+    rec = turn.record()
+    names = _names(rec)
+    fraud_rules = {r for r, c in config.RULE_CATEGORY.items() if c == "possible_fraud"}
+    applied = [a for a in rec.get("rules_applied") or [] if a["rule_id"] in fraud_rules]
+    findings = [f for f in rec["findings"] if f["category"] == "possible_fraud"]
+    ran = [a for a in applied if a["outcome"] != "skipped"]
+    blocks = []
+    if findings:
+        blocks.append(_findings_block("Fraud patterns found", findings))
+    elif ran:
+        blocks.append(TextBlock(text=f"No fraud pattern was found in the {len(ran)} fraud check(s) that ran. "
+                                     "That is not proof there is no fraud: the audit checks known patterns only."))
+    else:
+        blocks.append(TextBlock(text="**I can't conclude.** No fraud check could run on this case, so the "
+                                     "absence of a finding says nothing about fraud."))
+    if applied:
+        blocks.append(TableBlock(columns=["Fraud check", "Document", "Result", "Detail"],
+                                 rows=_rule_rows(applied, names)))
+    blocks += _open_questions_block({"open_questions": [q for q in rec.get("open_questions") or []
+                                                        if q["rule_id"] in fraud_rules]})
+    return Reply(blocks=blocks, data={"version": rec["version"], "findings": findings})
+
+
+@intent("provide_value", group="evidence_append",
+        description="The auditor gives a missing value for a document (e.g. cash out is 636,256) so the rules "
+                    "that need it can run; the case is re-run as a new version after confirmation.",
+        examples=("cash out on 04_Tax_Invoice.pdf is 636,256", "the cost of sales is 600,000"),
+        patterns={r"^\W*yes,?\s+set\b": 4.0,
+                  r"(\b(is|was|are|were|equals?)\b|=)\s*(rs\.?\s*|lkr\s*)?\(?-?\d": 2.0,
+                  r"\b(credit|cash|cheque|card|bank transfer)\b": 0.5},
+        signals={"amounts": 0.5, "docs": -3.0}, needs=("saved_case",),
+        follow_ups=("Can you give a verdict for this case?", "What should I do next?"))
+def provide_value(turn: Turn) -> Reply:
+    rec = turn.record()
+    names = _names(rec)
+    questions = rec.get("open_questions") or []
+    text = turn.query.text
+    confirmed = _CONFIRM_SET.match(text)
+    low = (confirmed.group("field") if confirmed else text).lower()
+    asked = [(q, f) for q in questions for f in q["missing"] if f.replace("_", " ") in low or f in low]
+    if confirmed:
+        asked = [(q, f) for q, f in asked if q["doc_name"].lower() == confirmed.group("doc").strip().lower()]
+    elif turn.entities.doc_ids:
+        asked = [(q, f) for q, f in asked if q["doc_id"] in turn.entities.doc_ids] or asked
+    if not asked:
+        if not questions:
+            return Reply(f"Case {turn.case_id} has no missing values: every rule that applies could run.")
+        return Reply(blocks=[TextBlock(text="I couldn't tell which missing value that is.")]
+                     + _open_questions_block(rec))
+    field_targets = {(q["doc_id"], f) for q, f in asked}
+    if len(field_targets) > 1:
+        options = sorted({(q["doc_name"], f) for q, f in asked})
+        value_text = turn.entities.amounts[0].text if turn.entities.amounts else "…"
+        return Reply(blocks=[QuestionBlock(text="Which document is that value for?", choices=[
+            f"{f.replace('_', ' ')} on {doc} is {value_text}" for doc, f in options])])
+    question, field = asked[0]
+    value = _parse_value(field, confirmed.group("value") if confirmed else text, turn.entities)
+    if value is None:
+        kind = " or ".join(fm.TEXT_FIELDS[field]) if field in fm.TEXT_FIELDS else "an amount"
+        return Reply(f"What is the {field.replace('_', ' ')} on {question['doc_name']}? Give {kind}.")
+    shown = fmt(value) if isinstance(value, float) else value
+    words = field.replace("_", " ")
+    if not confirmed:
+        return Reply(blocks=[QuestionBlock(
+            text=f"Set the **{words}** on {question['doc_name']} to **{shown}** and re-run case {turn.case_id} "
+                 f"as version {rec['version'] + 1}? The value is recorded as entered by you.",
+            choices=[f"Yes, set {words} on {question['doc_name']} to {shown}", KEEP_VERSION])])
+    case = rec["case"]
+    for d in case["docs"]:
+        if d["doc_id"] == question["doc_id"]:
+            d["fields"][field] = value
+            d.setdefault("confidences", {})[field] = 1.0  # entered by the auditor
+            d.setdefault("methods", {})[field] = "c3:entered-by-auditor-in-chat"
+    result = orchestrator.run_case(intake.normalize_case(case), turn.kg, store=turn.store)
+    blocks = [TextBlock(text=f"Set the {words} on {names[question['doc_id']]} to {shown}, as entered by you.")]
+    blocks += audit_reply.describe_saved_blocks(result, turn.store)
+    return Reply(blocks=blocks, data=result.model_dump())
+
+
+def _parse_value(field: str, text: str, entities: Entities) -> float | str | None:
+    if field in fm.TEXT_FIELDS:
+        return fm.text_value(field, text)
+    amounts = entities.amounts if entities.amounts else []
+    if not amounts:
+        parsed = intake.parse_number(text.strip())
+        return parsed if isinstance(parsed, float) else None
+    return amounts[-1].value
+
+
+@intent("cancel", group="other",
+        description="The user declines a proposed action (no, cancel, keep it).",
+        examples=("no, keep the current version", "cancel"),
+        patterns={r"^\W*(no|nope|cancel|never mind|don't|do not|stop)\b": 3.0})
+def cancel(turn: Turn) -> Reply:
+    return Reply("OK, nothing was changed.")
+
+
+@intent("concept", group="rule_query",
+        description="What an audit or accounting term means (e.g. dual approval, materiality, accounting equation).",
+        examples=("what is dual approval?", "what is materiality?"),
+        # "define …" and "meaning of …" stay with standard_search; "explain …" with rule_explain
+        # never a question about the case itself ("what's the current result for this case")
+        patterns={r"^\W*what('s| is| are)\s+(?!.*\b(case|cases|findings?|results?|status|versions?|"
+                  r"rules?|documents?|score|verdict)\b)(a |an |the )?[a-z][a-z \-]{2,40}\??\W*$": 2.5},
+        signals={"rule_ids": -2.0, "case_ids": -2.0, "doc_types": -1.5, "standards": -2.0, "sections": -2.0},
+        follow_ups=("Which rules apply to invoices?", "What does LKAS 2 say about inventories?"))
+def concept(turn: Turn) -> Reply:
+    m = re.search(r"what(?:'s| is| are)\s+(?:a |an |the )?([a-z][a-z \-]{2,40}?)\??\W*$",
+                  turn.query.text.strip(), re.IGNORECASE)
+    term = (m.group(1) if m else turn.query.text).strip().lower()
+    defs = turn.kg.get_definitions(term)
+    if defs:
+        return Reply(blocks=[ListBlock(items=[ListItem(label=d.term, text=d.text, details=(
+            [f"Defined in {', '.join(d.defined_in)}"] if d.defined_in else [])) for d in defs[:3]])],
+            data={"definitions": [d.model_dump() for d in defs]})
+    # The audit rules that use the term say what it means in practice.
+    rules = []
+    for doc_type in sorted(config.ALLOWED_DOC_TYPES - {"unknown"}):
+        for r in [*turn.kg.get_check_rules(doc_type), *turn.kg.get_rules(doc_type)]:
+            words = f"{getattr(r, 'name', '')} {getattr(r, 'text', '')}".lower()
+            if term in words and r.rule_id not in {x.rule_id for x in rules}:
+                rules.append(r)
+    if rules:
+        return Reply(blocks=[TextBlock(text=f"The knowledge graph has no definition of “{term}”, but these audit "
+                                            f"rules use it:"),
+                             ListBlock(items=[_rule_item(r) for r in rules])])
+    # Semantic search always returns something; keep only passages that use the term's words.
+    words = [w for w in re.findall(r"[a-z]{4,}", term) if w not in {"what", "today", "that", "this"}]
+    hits = [h for h in turn.kg.search(term)
+            if words and all(w in str(h.get("text", "")).lower() for w in words)]
+    if hits:
+        return Reply(blocks=[ListBlock(title=f"What the standards say about “{term}”", items=[
+            ListItem(label=h.get("section") or h.get("standard") or "Source", text=h.get("text", ""))
+            for h in hits[:3]])], data={"search": hits})
+    return Reply(f"I don't know “{term}”: it is not in the knowledge graph or the standards. I answer "
+                 f"questions about this audit, its rules and the accounting standards.")
 
 
 # --- conversation ------------------------------------------------------------------

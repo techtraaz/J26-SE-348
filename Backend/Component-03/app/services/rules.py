@@ -162,7 +162,8 @@ def check_rule(rule: CheckRuleResponse, doc: AuditDocument,
     Every check is also sent as an XAI rule_check step with the same facts."""
     values: dict[str, Value] = {}
 
-    def done(outcome, finding: Finding | None = None, skip: str | None = None, reason: str | None = None):
+    def done(outcome, finding: Finding | None = None, skip: str | None = None, reason: str | None = None,
+             missing_inputs: list[str] | None = None):
         sides = expression.sides(rule.expression, values) if values else None
         applied = RuleApplication(
             rule_id=rule.rule_id, rule_name=rule.name, doc_id=doc.doc_id, doc_type=doc.doc_type,
@@ -170,13 +171,14 @@ def check_rule(rule: CheckRuleResponse, doc: AuditDocument,
             sides=sides, compared_with={k: v.doc_id for k, v in (scopes or {}).items()},
             severity=finding.severity if finding is not None else rule.severity,
             below_materiality=bool(finding and "below the case materiality" in finding.message),
-            reason=reason, detail=calculation(sides),
+            reason=reason, detail=calculation(sides), missing_inputs=missing_inputs or [],
             finding_id=finding.finding_id if finding is not None else None)
         emit(applied)
         return finding, skip, applied
 
-    def skipped(why: str):
-        return done("skipped", skip=f"{rule.rule_id} on {doc.doc_id}: {why}", reason=why)
+    def skipped(why: str, missing_inputs: list[str] | None = None):
+        return done("skipped", skip=f"{rule.rule_id} on {doc.doc_id}: {why}", reason=why,
+                    missing_inputs=missing_inputs)
 
     def broken(why: str):
         finding = _rule_error(rule, doc, why)  # REV-006: check it by hand
@@ -186,6 +188,7 @@ def check_rule(rule: CheckRuleResponse, doc: AuditDocument,
     if names is None:
         return broken("expression cannot be parsed")
     sources: dict[str, tuple[AuditDocument, str]] = {}
+    missing: list[str] = []  # every absent input, so the auditor can be asked for all of them
     for name in names:
         scope, _, field = name.rpartition(".")
         target = (scopes or {}).get(scope) if scope else doc
@@ -193,7 +196,8 @@ def check_rule(rule: CheckRuleResponse, doc: AuditDocument,
             return skipped(f"no {scope} document")
         hit = resolve(target, field, rule)
         if hit is None:
-            return skipped(f"missing {name}")
+            missing.append(name)
+            continue
         key, value = hit
         if key in config.NUMERIC_FIELDS and not _is_number(value):
             return skipped(f"{name} is not a number")
@@ -201,6 +205,8 @@ def check_rule(rule: CheckRuleResponse, doc: AuditDocument,
             return skipped(f"{name} is not a value")
         values[name] = float(value) if _is_number(value) else value
         sources[name] = (target, key)
+    if missing:
+        return skipped(f"missing {', '.join(missing)}", missing)
     try:
         ok = expression.evaluate(rule.expression, values, config.AMOUNT_TOLERANCE)
     except ExpressionError as exc:

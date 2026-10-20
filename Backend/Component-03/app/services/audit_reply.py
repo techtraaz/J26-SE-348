@@ -45,6 +45,11 @@ def describe_blocks(result: AuditResult, docs: list[AuditDocument]) -> list[Bloc
         return [verdict, ListBlock(title="Nothing could be checked", items=[
             ListItem(label=f.rule_id, text=f.message, tone="failed") for f in result.findings])]
     blocks: list[Block] = [verdict]
+    cov = result.coverage
+    if not cov.complete and cov.not_run:
+        blocks.append(TextBlock(text=f"**Limited check:** {cov.not_run} of {cov.rules_run + cov.not_run} "
+                                     f"rules could not run because values are missing, so this verdict may "
+                                     f"miss a problem those rules look for."))
     for d in docs:
         about = f"{d.doc_type.replace('_', ' ')}, {d.period_year}"
         if d.parent_doc_id:
@@ -73,9 +78,22 @@ def describe_blocks(result: AuditResult, docs: list[AuditDocument]) -> list[Bloc
     if result.recommendations:
         blocks.append(ListBlock(title="What to do next", items=[
             ListItem(label=r.rule_id, text=r.text, tone=r.severity) for r in result.recommendations]))
+    blocks += open_questions_blocks(result)
     if result.narrative:
         blocks.append(TextBlock(text=f"**Summary**\n\n{result.narrative}"))
     return blocks
+
+
+def open_questions_blocks(result: AuditResult) -> list[Block]:
+    """Ask for the values that would let the skipped rules run."""
+    if not result.open_questions:
+        return []
+    first = result.open_questions[0]
+    example = f"“{first.missing[0].replace('_', ' ')} on {first.doc_name} is …”"
+    return [ListBlock(title="To complete the audit, tell me", items=[
+                ListItem(label=q.doc_name, text=q.question) for q in result.open_questions[:10]],
+                more=max(0, len(result.open_questions) - 10)),
+            TextBlock(text=f"Reply with the value, for example {example}.")]
 
 
 def describe(result: AuditResult, docs: list[AuditDocument]) -> str:

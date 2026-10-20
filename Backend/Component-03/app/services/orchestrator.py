@@ -216,7 +216,7 @@ def _execute(case: AuditCase, kg: KGClient | None,
         raise OrchestratorConfigError("Graph produced no final state.")
     result = _result(case, final, version, previous,
                      kg, round((time.perf_counter() - start) * 1000, 3))
-    verdict.fill(result, len(case.docs))  # verdict, score, summary, recommendations
+    verdict.fill(result, case.docs)  # verdict, score, coverage, open questions, summary, recommendations
     store.save(case, result)
 
     tracer.emit({"event_type": "pipeline_end",
