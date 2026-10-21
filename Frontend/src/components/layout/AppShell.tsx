@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useMatch } from "react-router-dom";
-import { Sparkles } from "lucide-react";
+import { Network, Sparkles } from "lucide-react";
 import { useUI } from "@/store/ui";
 import { routes } from "@/config/routes";
 import { XaiPanel } from "@/components/ui/XaiPanel";
@@ -36,14 +36,24 @@ export function AppShell() {
           </div>
         </div>
 
-        <nav className="slaf-tabs" aria-label="Main">
-          {tabs.map((t) => (
-            <NavLink key={t.to} to={t.to}
-                     className={({ isActive }) => "slaf-tab" + (isActive ? " slaf-tab-active" : "")}>
-              {t.label}
+        {/* Library / Chat toggle, and Policies on its own beside it */}
+        <div className="slaf-nav">
+          <nav className="slaf-tabs" aria-label="Main">
+            {tabs.map((t) => (
+              <NavLink key={t.to} to={t.to}
+                       className={({ isActive }) => "slaf-tab" + (isActive ? " slaf-tab-active" : "")}>
+                {t.label}
+              </NavLink>
+            ))}
+          </nav>
+          <nav className="slaf-tabs" aria-label="Knowledge graph">
+            <NavLink to={routes.policies}
+                     className={({ isActive }) => "slaf-tab slaf-tab-icon" + (isActive ? " slaf-tab-active" : "")}>
+              <Network size={16} strokeWidth={1.9} aria-hidden />
+              Policies
             </NavLink>
-          ))}
-        </nav>
+          </nav>
+        </div>
 
         {/* Right-side action: the Explainability panel (Chat only) */}
         <div className="slaf-header-actions">
