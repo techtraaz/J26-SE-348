@@ -1,10 +1,24 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { BRAND } from "./brand";
 
-// Sri Lanka Air Force artwork for the app's chrome and page background:
-// the crest (an image file), the national flag (an image file) and the jet and
-// mountain silhouettes (drawn here as vectors, so they recolour with the theme).
+// Sri Lanka Air Force artwork for the app's chrome and page background.
+// Each piece is an image file in public/brand/ when one is there; otherwise the
+// jets and mountains are drawn here as vectors, so they recolour with the theme.
 
+
+/** True once the image at `src` has loaded; false while loading or if the file is missing. */
+function useImageAvailable(src: string) {
+  const [state, setState] = useState<{ src: string; ok: boolean }>({ src, ok: false });
+  useEffect(() => {
+    let live = true;
+    const img = new Image();
+    img.onload = () => { if (live) setState({ src, ok: true }); };
+    img.onerror = () => { if (live) setState({ src, ok: false }); };
+    img.src = src;
+    return () => { live = false; };
+  }, [src]);
+  return state.src === src && state.ok;
+}
 
 /** An image that simply disappears if its file is not there yet. */
 export function BrandImage({ src, alt, className, style }: {
@@ -39,6 +53,14 @@ export function Jet({ className, style }: { className?: string; style?: React.CS
   );
 }
 
+/** The jet image if one was provided, else the drawn jet. */
+function JetArt({ className }: { className: string }) {
+  const hasImage = useImageAvailable(BRAND.jet);
+  return hasImage
+    ? <img src={BRAND.jet} alt="" className={className + " slaf-jet-img"} draggable={false} />
+    : <Jet className={className} />;
+}
+
 /** Layered mountain ridges along the bottom of the page. */
 export function Mountains({ className }: { className?: string }) {
   return (
@@ -53,14 +75,48 @@ export function Mountains({ className }: { className?: string }) {
   );
 }
 
-/** The page background: clear sky, mountains, two jets and the crest as a watermark. */
+/** Header art: a full header image if provided, else the jet (image or drawn) and the flag. */
+export function HeaderArt() {
+  const hasBackground = useImageAvailable(BRAND.headerBackground);
+  const hasJet = useImageAvailable(BRAND.headerJet);
+  if (hasBackground) {
+    return <div className="slaf-header-art" aria-hidden>
+      <img src={BRAND.headerBackground} alt="" className="slaf-cover-img" draggable={false} />
+    </div>;
+  }
+  return (
+    <div className="slaf-header-art" aria-hidden>
+      {hasJet
+        ? <img src={BRAND.headerJet} alt="" className="slaf-header-jet slaf-jet-img" draggable={false} />
+        : <Jet className="slaf-header-jet" />}
+      <BrandImage src={BRAND.flag} alt="" className="slaf-header-flag" />
+    </div>
+  );
+}
+
+/** Sidebar art: a full sidebar image if provided, else the crest as a watermark. */
+export function SidebarArt() {
+  const hasBackground = useImageAvailable(BRAND.sidebarBackground);
+  return hasBackground
+    ? <img src={BRAND.sidebarBackground} alt="" aria-hidden className="slaf-cover-img" draggable={false} />
+    : <BrandImage src={BRAND.crest} alt="" className="slaf-sidebar-crest" />;
+}
+
+/** The page background: a full image if provided, else sky, mountains, two jets and the crest. */
 export function SkyBackdrop() {
+  const hasBackground = useImageAvailable(BRAND.pageBackground);
   return (
     <div className="slaf-sky" aria-hidden>
-      <BrandImage src={BRAND.crest} alt="" className="slaf-sky-crest" />
-      <Jet className="slaf-sky-jet slaf-sky-jet-a" />
-      <Jet className="slaf-sky-jet slaf-sky-jet-b" />
-      <Mountains className="slaf-sky-mountains" />
+      {hasBackground ? (
+        <img src={BRAND.pageBackground} alt="" className="slaf-cover-img" draggable={false} />
+      ) : (
+        <>
+          <BrandImage src={BRAND.crest} alt="" className="slaf-sky-crest" />
+          <JetArt className="slaf-sky-jet slaf-sky-jet-a" />
+          <JetArt className="slaf-sky-jet slaf-sky-jet-b" />
+          <Mountains className="slaf-sky-mountains" />
+        </>
+      )}
     </div>
   );
 }

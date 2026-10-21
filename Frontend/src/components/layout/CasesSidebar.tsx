@@ -7,8 +7,7 @@ import { env } from "@/config/env";
 import { useUI } from "@/store/ui";
 import { IconButton } from "@/components/ui/IconButton";
 import { VERDICT } from "@/lib/verdict";
-import { BrandImage } from "@/components/layout/BrandArt";
-import { BRAND } from "@/components/layout/brand";
+import { SidebarArt } from "@/components/layout/BrandArt";
 import type { Tone } from "@/types/audit";
 
 // The Chat page's sidebar, below the navy top bar: hide button and "New case" on
@@ -71,7 +70,7 @@ export function CasesSidebar() {
       display: "flex", flexDirection: "column", overflow: open ? "hidden" : "visible",
       transition: "width 0.2s ease", position: "relative",
     }}>
-      <BrandImage src={BRAND.crest} alt="" className="slaf-sidebar-crest" />
+      <SidebarArt />
 
       {/* ── Hide / show and New case (opens a blank case, listed once it holds something) ── */}
       <div style={{ padding: "16px 12px 8px", display: "flex", alignItems: "center", gap: "6px",

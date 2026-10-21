@@ -4,7 +4,7 @@ import { useUI } from "@/store/ui";
 import { routes } from "@/config/routes";
 import { XaiPanel } from "@/components/ui/XaiPanel";
 import { CasesSidebar } from "@/components/layout/CasesSidebar";
-import { BrandImage, Jet, SkyBackdrop } from "@/components/layout/BrandArt";
+import { BrandImage, HeaderArt, SkyBackdrop } from "@/components/layout/BrandArt";
 import { BRAND } from "@/components/layout/brand";
 
 const tabs = [
@@ -22,10 +22,7 @@ export function AppShell() {
                                      display: "flex", flexDirection: "column" }}>
       {/* ── Top bar: crest and name, Library / Chat, Explain ── */}
       <header className="slaf-chrome slaf-header">
-        <div className="slaf-header-art" aria-hidden>
-          <Jet className="slaf-header-jet" />
-          <BrandImage src={BRAND.flag} alt="" className="slaf-header-flag" />
-        </div>
+        <HeaderArt />
 
         <div className="slaf-brand">
           <BrandImage src={BRAND.crest} alt="Sri Lanka Air Force crest" className="slaf-brand-crest" />
