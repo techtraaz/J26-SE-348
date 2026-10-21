@@ -81,7 +81,7 @@ export function HeaderArt() {
   const hasJet = useImageAvailable(BRAND.headerJet);
   if (hasBackground) {
     return <div className="slaf-header-art" aria-hidden>
-      <img src={BRAND.headerBackground} alt="" className="slaf-cover-img" draggable={false} />
+      <img src={BRAND.headerBackground} alt="" className="slaf-header-img" draggable={false} />
     </div>;
   }
   return (
@@ -102,16 +102,15 @@ export function SidebarArt() {
     : <BrandImage src={BRAND.crest} alt="" className="slaf-sidebar-crest" />;
 }
 
-/** The page background: a full image if provided, else sky, mountains, two jets and the crest. */
+/** The page background: a full image if provided, else sky, mountains and two jets; the crest watermark either way. */
 export function SkyBackdrop() {
   const hasBackground = useImageAvailable(BRAND.pageBackground);
   return (
     <div className="slaf-sky" aria-hidden>
-      {hasBackground ? (
-        <img src={BRAND.pageBackground} alt="" className="slaf-cover-img" draggable={false} />
-      ) : (
+      {hasBackground && <img src={BRAND.pageBackground} alt="" className="slaf-cover-img slaf-sky-img" draggable={false} />}
+      <BrandImage src={BRAND.crest} alt="" className="slaf-sky-crest" />
+      {!hasBackground && (
         <>
-          <BrandImage src={BRAND.crest} alt="" className="slaf-sky-crest" />
           <JetArt className="slaf-sky-jet slaf-sky-jet-a" />
           <JetArt className="slaf-sky-jet slaf-sky-jet-b" />
           <Mountains className="slaf-sky-mountains" />

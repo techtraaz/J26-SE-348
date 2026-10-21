@@ -118,7 +118,8 @@ export function XaiPanel() {
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
           <span style={{
-            fontSize: "15px", fontWeight: 600, color: "var(--text-h)",
+            fontFamily: "Georgia, 'Times New Roman', serif",
+            fontSize: "18px", fontWeight: 700, color: "var(--text-h)",
             letterSpacing: "-0.01em",
           }}>Explainability</span>
           <span

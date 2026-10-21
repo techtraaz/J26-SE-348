@@ -498,16 +498,16 @@ code, .id { font-family: 'JetBrains Mono Variable', monospace; }
           mask-image: linear-gradient(90deg, transparent 0%, #000 45%);
 }
 .slaf-brand { position: relative; display: flex; align-items: center; gap: 14px; min-width: 0; }
-.slaf-brand-crest { height: 64px; width: auto; flex-shrink: 0; filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.35)); }
+.slaf-brand-crest { height: 70px; width: auto; flex-shrink: 0; filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.35)); }
 .slaf-brand-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.15; }
 .slaf-brand-name {
-  font-family: Georgia, 'Times New Roman', serif; font-weight: 700; font-size: 22px;
-  letter-spacing: 0.04em; text-transform: uppercase; color: #ffffff; white-space: nowrap;
+  font-family: Georgia, 'Times New Roman', serif; font-weight: 400; font-size: 24px;
+  letter-spacing: 0.03em; text-transform: uppercase; color: #ffffff; white-space: nowrap;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 .slaf-brand-product {
-  font-size: 12.5px; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase;
-  color: #b9d3f3; white-space: nowrap; margin-top: 3px;
+  font-size: 14px; font-weight: 400; letter-spacing: 0.06em; text-transform: uppercase;
+  color: #a9c8ee; white-space: nowrap; margin-top: 4px;
 }
 
 /* Library / Chat */
@@ -547,7 +547,7 @@ code, .id { font-family: 'JetBrains Mono Variable', monospace; }
 }
 .slaf-sidebar-crest {
   position: absolute; left: 50%; bottom: 70px; transform: translateX(-50%);
-  width: 220px; max-width: 80%; opacity: 0.07; pointer-events: none; filter: grayscale(1) brightness(2);
+  width: 230px; max-width: 82%; opacity: 0.085; pointer-events: none; filter: grayscale(1) brightness(1.6);
 }
 .slaf-sidebar .side-row-active { box-shadow: inset 0 0 0 1px rgba(140, 192, 255, 0.25); }
 .slaf-sidebar .side-group { color: #c9daf2; }
@@ -560,8 +560,8 @@ code, .id { font-family: 'JetBrains Mono Variable', monospace; }
   background: linear-gradient(180deg, var(--sky-top) 0%, var(--sky-mid) 55%, var(--sky-low) 100%);
 }
 .slaf-sky-crest {
-  position: absolute; left: 50%; top: 14%; transform: translateX(-50%);
-  width: min(360px, 40%); opacity: 0.06; filter: grayscale(1);
+  position: absolute; left: 50%; top: 13%; transform: translateX(-50%);
+  width: min(250px, 30%); opacity: 0.055; filter: grayscale(1);
 }
 .slaf-sky-jet { position: absolute; color: var(--sky-art); }
 .slaf-sky-jet-a { left: 4%; bottom: 16%; width: min(300px, 26%); opacity: var(--sky-art-opacity); transform: rotate(-10deg); }
@@ -591,6 +591,15 @@ code, .id { font-family: 'JetBrains Mono Variable', monospace; }
   object-fit: cover; pointer-events: none; user-select: none;
 }
 .slaf-sidebar > .slaf-cover-img { z-index: 0; }
+/* header art: anchored right at full header height, fading into the navy on the left */
+.slaf-header-img {
+  position: absolute; right: 0; top: 0; height: 100%; width: auto; max-width: 75%;
+  object-fit: cover; object-position: right center; pointer-events: none; user-select: none;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 22%);
+          mask-image: linear-gradient(90deg, transparent 0%, #000 22%);
+}
+.slaf-sky-img { object-position: center bottom; }
+[data-theme="dark"] .slaf-sky-img { opacity: 0.14; filter: saturate(0.6); }
 .slaf-jet-img { height: auto; object-fit: contain; }
 .slaf-sky-jet.slaf-jet-img { opacity: 0.9; }
 .slaf-header-jet.slaf-jet-img { height: auto; opacity: 0.9; }
