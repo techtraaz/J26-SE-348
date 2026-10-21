@@ -13,3 +13,9 @@ def build_pipeline(write: bool = True, max_chunks: int | None = None,
         get_llm(), Neo4jReader(neo4j_client.run_read),
         run_write=neo4j_client.run_write if write else None, max_chunks=max_chunks,
         embed=embed and s.llm_provider != "fake", workers=workers or s.llm_workers)
+
+
+def graph_totals() -> dict:
+    nodes = neo4j_client.run_read("MATCH (n) RETURN count(n) AS n")[0]["n"]
+    rels = neo4j_client.run_read("MATCH ()-[r]->() RETURN count(r) AS n")[0]["n"]
+    return {"nodes": nodes, "relationships": rels}

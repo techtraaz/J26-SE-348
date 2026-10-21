@@ -9,6 +9,7 @@ import type {
   CopilotRequest,
   CopilotResponse,
 } from "@/types/audit";
+import type { Policy, PolicyRun } from "@/types/policies";
 import type { C1Record, DocumentPreview, FieldDecision } from "@/types/review";
 
 export class ApiError extends Error {
@@ -84,6 +85,36 @@ export const chat = {
     request<ChatSession>(env.c3Base, `/chat/${encodeURIComponent(sessionId)}`, {
       method: "PATCH", headers: { "content-type": "application/json" },
       body: JSON.stringify({ title, case_id: caseId }),
+    }),
+};
+
+// Component-02: policy PDFs in object storage, added to the knowledge graph.
+const policyPath = (name: string) => `/policies/${encodeURIComponent(name)}`;
+
+export const c2 = {
+  policies: () => request<{ policies: Policy[] }>(env.c2Base, "/policies").then((r) => r.policies),
+  run: (name: string) => request<PolicyRun>(env.c2Base, `${policyPath(name)}/run`),
+  // code (e.g. "LKAS 18") when the file name and title page do not give it
+  reingest: (name: string, code?: string) =>
+    request<PolicyRun>(env.c2Base, `${policyPath(name)}/ingest${code ? `?code=${encodeURIComponent(code)}` : ""}`,
+      { method: "POST" }),
+  fileUrl: (name: string) => `${env.c2Base}${policyPath(name)}/file`,
+  // XHR rather than fetch, for upload progress (0..1).
+  upload: (file: File, code: string, onProgress: (share: number) => void) =>
+    new Promise<{ policy: { name: string }; job: PolicyRun }>((resolve, reject) => {
+      const form = new FormData();
+      form.append("file", file);
+      if (code.trim()) form.append("code", code.trim());
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", `${env.c2Base}/policies`);
+      xhr.upload.onprogress = (e) => e.lengthComputable && onProgress(e.loaded / e.total);
+      xhr.onerror = () => reject(new ApiError(0, `Cannot reach ${env.c2Base}. Is the server running?`));
+      xhr.onload = () => {
+        const body = (() => { try { return JSON.parse(xhr.responseText); } catch { return null; } })();
+        if (xhr.status >= 200 && xhr.status < 300) resolve(body);
+        else reject(new ApiError(xhr.status, typeof body?.detail === "string" ? body.detail : `Upload failed: ${xhr.status}`));
+      };
+      xhr.send(form);
     }),
 };
 
