@@ -15,7 +15,7 @@ const font: React.CSSProperties = { fontFamily: "'Inter Variable', system-ui, -a
 function when(iso: string): string {
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? iso
-    : d.toLocaleString(undefined, { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+    : d.toLocaleString(undefined, { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
 export function ReportsList({ caseId }: { caseId: string | null }) {
@@ -43,18 +43,21 @@ export function ReportsList({ caseId }: { caseId: string | null }) {
   }
 
   return (
-    <div style={{ ...font, display: "flex", flexDirection: "column", gap: 10 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+    <div style={font}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: "0 2px 8px" }}>
         <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
-          {items.length} report{items.length === 1 ? "" : "s"} for <strong style={{ color: "var(--text-h)" }}>{caseId}</strong>
+          {items.length} report{items.length === 1 ? "" : "s"}
         </span>
-        <button type="button" className="xai-more" onClick={() => void reports.refetch()} aria-label="Refresh reports"
-                style={{ ...font, display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 8px", border: "none",
-                         borderRadius: 6, background: "none", cursor: "pointer", fontSize: 12, color: "var(--text-muted)" }}>
-          <RefreshCw size={12} /> Refresh
+        <button type="button" className="report-icon-btn" onClick={() => void reports.refetch()}
+                aria-label="Refresh reports" title="Refresh" style={iconBtn(false)}>
+          <RefreshCw size={13} />
         </button>
       </div>
-      {items.map((r) => <ReportRow key={r.report_id} report={r} />)}
+      {/* one card, rows split by hairlines */}
+      <div style={{ border: "1px solid var(--border)", borderRadius: "var(--radius)", background: "var(--surface)",
+                    overflow: "hidden" }}>
+        {items.map((r) => <ReportRow key={r.report_id} report={r} />)}
+      </div>
     </div>
   );
 }
@@ -64,31 +67,26 @@ function ReportRow({ report: r }: { report: ReportItem }) {
   const v = VERDICT[r.verdict] ?? { label: r.verdict, color: "var(--text-muted)" };
   const url = `${env.c4Base}${r.download_url}`;
   return (
-    <div style={{ border: "1px solid var(--border-strong)", borderRadius: "var(--radius)", background: "var(--surface)",
-                  padding: "12px 14px" }}>
-      <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
-        <CoverThumb verdictColor={v.color} />
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-h)" }}>Audit v{r.version}</span>
-            <span style={{ fontSize: 11, fontWeight: 600, color: v.color, padding: "1px 7px", borderRadius: "var(--radius-pill)",
-                           background: `color-mix(in srgb, ${v.color} 12%, transparent)` }}>{v.label}</span>
-            {r.score != null && <span style={{ fontSize: 11.5, color: "var(--text-muted)" }}>Score {r.score}</span>}
-          </div>
-          <div style={{ fontSize: 11.5, color: "var(--text-soft)", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis",
-                        whiteSpace: "nowrap" }}>
-            {r.report_id} · {when(r.generated_at)} · {Math.max(1, Math.round(r.size_bytes / 1024))} KB
-          </div>
+    <div className="report-row" style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px" }}>
+      <CoverThumb verdictColor={v.color} small />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 13.5, fontWeight: 600, color: "var(--text-h)" }}>Audit v{r.version}</span>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11.5, fontWeight: 500, color: v.color }}>
+            <span style={{ width: 6, height: 6, borderRadius: "50%", background: v.color }} />
+            {v.label}
+          </span>
         </div>
+        <div style={{ fontSize: 12, color: "var(--text-soft)", marginTop: 3 }}>{when(r.generated_at)}</div>
       </div>
-      <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-        <button type="button" onClick={() => setViewing(true)} className="report-btn" style={btn(false)}>
-          <Eye size={13} /> View
-        </button>
-        <a href={`${url}?download=1`} className="report-btn" style={btn(true)}>
-          <Download size={13} /> Download
-        </a>
-      </div>
+      <button type="button" onClick={() => setViewing(true)} className="report-icon-btn"
+              aria-label="View report" title="View" style={iconBtn(false)}>
+        <Eye size={15} />
+      </button>
+      <a href={`${url}?download=1`} className="report-icon-btn" aria-label="Download report" title="Download"
+         style={iconBtn(true)}>
+        <Download size={15} />
+      </a>
       {viewing && (
         <ReportViewer url={url} title={`Audit report · ${r.audit_id.replace(":v", " v")}`}
                       subtitle={`${r.filename} · PDF`} onClose={() => setViewing(false)} />
@@ -97,13 +95,13 @@ function ReportRow({ report: r }: { report: ReportItem }) {
   );
 }
 
-function btn(primary: boolean): React.CSSProperties {
+function iconBtn(primary: boolean): React.CSSProperties {
   return {
-    ...font, display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 8,
-    fontSize: 12.5, fontWeight: 500, textDecoration: "none", cursor: "pointer",
-    border: primary ? "1px solid var(--primary)" : "1px solid var(--border-strong)",
+    width: 32, height: 32, flexShrink: 0, display: "inline-flex", alignItems: "center", justifyContent: "center",
+    borderRadius: 8, cursor: "pointer", textDecoration: "none",
+    border: primary ? "1px solid var(--primary)" : "1px solid var(--border)",
     background: primary ? "var(--primary)" : "transparent",
-    color: primary ? "var(--bg)" : "var(--text-h)",
+    color: primary ? "var(--on-primary)" : "var(--text-muted)",
   };
 }
 

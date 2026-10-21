@@ -424,13 +424,14 @@ code, .id { font-family: 'JetBrains Mono Variable', monospace; }
 .reply-choices button:focus-visible { outline: 2px solid var(--text-h); outline-offset: 2px; }
 .reply-choices button:disabled { cursor: default; opacity: 0.6; }
 
-/* Report tab buttons */
-#xai-panel .report-btn {
-  transition: opacity 0.15s ease, background 0.15s ease;
-}
-#xai-panel .report-btn:hover {
-  opacity: 0.88;
-}
+/* Report tab: compact rows with icon buttons */
+#xai-panel .report-row + .report-row { border-top: 1px solid var(--border-light); }
+#xai-panel .report-row { transition: background 0.15s ease; }
+#xai-panel .report-row:hover { background: var(--surface-muted); }
+#xai-panel .report-icon-btn { transition: background 0.15s ease, color 0.15s ease, opacity 0.15s ease; }
+#xai-panel .report-icon-btn:hover { color: var(--text-h); background: var(--surface); }
+#xai-panel a.report-icon-btn:hover { color: var(--on-primary); background: var(--primary); opacity: 0.88; }
+#xai-panel .report-icon-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 
 /* ── Report file card (chat) and in-app viewer ── */
 .report-card {
