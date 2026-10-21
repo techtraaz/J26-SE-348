@@ -1,15 +1,18 @@
+import threading
 from collections import Counter
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass, field
 from typing import TypedDict
 
 from langgraph.graph import END, START, StateGraph
 
+from app.construction.changes import describe
 from app.construction.chunker import chunk_document
 from app.construction.classify import classify_document
 from app.construction.context import GraphReader, GraphSnapshot, base_context
 from app.construction.documents import Chunk, LoadedDocument
-from app.construction.llm import LLM, LLMError
+from app.construction.llm import LLM, LLMError, LLMUnavailable
 from app.construction.prompts import SYSTEM, build_user_prompt
 from app.construction.resolve import Resolution, resolve
 from app.construction.schema import ChunkExtraction, ExtractionContext
@@ -19,6 +22,7 @@ from app.ontology.seed import validate as validate_plan
 from app.ontology.seed import write as write_plan
 
 KG_KINDS = {"standard", "amendment", "legislation"}
+STAGES = ("chunk", "classify", "retrieve_context", "extract", "validate", "resolve", "write")
 MIN_CHARS = 40
 EMBED_BATCH = 32
 
@@ -34,8 +38,13 @@ class IngestState(TypedDict, total=False):
     resolution: Resolution
     skipped: list[str]
     errors: dict[str, str]
+    llm_unavailable: str | None
     plan_errors: list[str]
     written: dict[str, int]
+
+
+# called as progress(stage, info) when a stage starts and while paragraphs are extracted
+Progress = Callable[[str, dict], None]
 
 
 @dataclass
@@ -52,13 +61,15 @@ class IngestResult:
     proposals: list[dict] = field(default_factory=list)
     plan_errors: list[str] = field(default_factory=list)
     written: dict[str, int] = field(default_factory=dict)
+    llm_unavailable: str | None = None
+    changes: dict = field(default_factory=dict)
 
     def summary(self) -> dict:
         ext = [r.extraction for r in self.results]
         return {
             "file": self.file, "code": self.code, "kind": self.kind, "chunks": self.chunks,
             "sent_to_llm": len(self.results) + len(self.errors), "skipped": len(self.skipped),
-            "llm_errors": len(self.errors),
+            "llm_errors": len(self.errors), "llm_unavailable": self.llm_unavailable,
             "requirements": sum(len(e.requirements) for e in ext),
             "definitions": sum(len(e.definitions) for e in ext),
             "equations": sum(len(e.equations) for e in ext),
@@ -100,13 +111,25 @@ class KGPipeline:
         self.max_chunks = max_chunks
         self.workers = max(1, workers)
         self.onto = load_ontology()
+        self.progress: Progress | None = None
         self.graph = self._build()
+
+    def _notify(self, stage: str, **info) -> None:
+        if self.progress:
+            self.progress(stage, info)
+
+    def _step(self, name: str):
+        fn = getattr(self, name)
+
+        def step(state: IngestState) -> dict:
+            self._notify(name)
+            return fn(state)
+        return step
 
     def _build(self):
         g = StateGraph(IngestState)
-        for name in ("chunk", "classify", "retrieve_context", "extract", "validate",
-                     "resolve", "write"):
-            g.add_node(name, getattr(self, name))
+        for name in STAGES:
+            g.add_node(name, self._step(name))
         g.add_edge(START, "chunk")
         g.add_edge("chunk", "classify")
         g.add_conditional_edges("classify", lambda s: "kg" if s["kind"] in KG_KINDS else "skip",
@@ -135,20 +158,38 @@ class KGPipeline:
         if self.max_chunks is not None:
             skipped += [c.id for c in todo[self.max_chunks:]]
             todo = todo[:self.max_chunks]
+        # once the server is unreachable the remaining paragraphs are not sent
+        down: list[str] = []
+        lock = threading.Lock()
+        done = 0
+        self._notify("extract", done=0, total=len(todo))
+
         def one(chunk: Chunk) -> ChunkExtraction | LLMError:
+            nonlocal done
             ctx = ExtractionContext(base.line_items, base.account_classes, base.document_types,
                                     snap.known(chunk.id))
-            try:
-                return self.llm.extract(SYSTEM, build_user_prompt(chunk, doc.code, ctx),
-                                        ChunkExtraction)
-            except LLMError as exc:
-                return exc
+            if down:
+                out = LLMUnavailable(f"not sent: {down[0]}")
+            else:
+                try:
+                    out = self.llm.extract(SYSTEM, build_user_prompt(chunk, doc.code, ctx),
+                                           ChunkExtraction)
+                except LLMUnavailable as exc:
+                    down.append(str(exc))
+                    out = exc
+                except LLMError as exc:
+                    out = exc
+            with lock:
+                done += 1
+                self._notify("extract", done=done, total=len(todo))
+            return out
 
         with ThreadPoolExecutor(max_workers=self.workers) as pool:
             outs = list(pool.map(one, todo))
         extractions = {c.id: o for c, o in zip(todo, outs, strict=True) if not isinstance(o, LLMError)}
         errors = {c.id: str(o) for c, o in zip(todo, outs, strict=True) if isinstance(o, LLMError)}
-        return {"extractions": extractions, "errors": errors, "skipped": skipped}
+        return {"extractions": extractions, "errors": errors, "skipped": skipped,
+                "llm_unavailable": down[0] if down else None}
 
     def validate(self, state: IngestState) -> dict:
         by_id = {c.id: c for c in state["chunks"]}
@@ -180,8 +221,12 @@ class KGPipeline:
                              confidence=1.0)
         return {"plan_errors": errors, "written": written}
 
-    def run(self, doc: LoadedDocument) -> IngestResult:
-        out = self.graph.invoke({"doc": doc})
+    def run(self, doc: LoadedDocument, progress: Progress | None = None) -> IngestResult:
+        self.progress = progress
+        try:
+            out = self.graph.invoke({"doc": doc})
+        finally:
+            self.progress = None
         res = out.get("resolution")
         return IngestResult(
             file=doc.file, code=doc.code, kind=out["kind"], chunks=len(out["chunks"]),
@@ -189,7 +234,8 @@ class KGPipeline:
             errors=out.get("errors", {}),
             matched=res.matched if res else Counter(), created=res.created if res else Counter(),
             proposals=res.proposals if res else [], plan_errors=out.get("plan_errors", []),
-            written=out.get("written", {}))
+            written=out.get("written", {}), llm_unavailable=out.get("llm_unavailable"),
+            changes=describe(res, self.onto) if res else {})
 
     def mermaid(self) -> str:
         return self.graph.get_graph().draw_mermaid()
