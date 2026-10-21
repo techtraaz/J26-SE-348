@@ -1,0 +1,286 @@
+"""Audit result store (FR6): every run of a case is a new version; old versions
+are never overwritten.
+
+One record per run, shared with Component-04 (same MongoDB database):
+  _id "<case_id>:v<version>", every AuditResult field at the top level, plus
+  "case": the exact input case that version was computed from.
+Version numbers come from an atomic per-case counter, so concurrent runs never
+get the same number.
+
+MongoStore fails loudly (StoreError) when MongoDB cannot be used; the API then
+answers 503 instead of returning a result that was not saved.
+"""
+import re
+import threading
+
+from app import config
+from app.schemas.case import AuditCase
+from app.schemas.findings import AuditResult, TraceEntry
+
+
+class StoreError(RuntimeError):
+    """The result store cannot be read or written."""
+
+
+class ResultStore:
+    def next_version(self, case_id: str) -> int: raise NotImplementedError
+    def save(self, case: AuditCase, result: AuditResult) -> None: raise NotImplementedError
+    def get(self, case_id: str, version: int) -> dict | None: raise NotImplementedError
+    def latest(self, case_id: str) -> dict | None: raise NotImplementedError
+    def versions(self, case_id: str) -> list[dict]: raise NotImplementedError
+    def latest_all(self, limit: int = 200) -> list[dict]:
+        """Newest version of every case, newest first."""
+        raise NotImplementedError
+    def traces_collection(self):
+        """Return the MongoDB collection for XAI callback traces, or None."""
+        return None
+
+    def trace_exporter(self):
+        """The background writer for XAI trace events, or None (no tracing)."""
+
+    def set_events(self, case_id: str, version: int, published: bool,
+                   note: str | None) -> None:
+        """Record whether every XAI step was queued for C4, known after pipeline_end."""
+        raise NotImplementedError
+
+
+def _record(case: AuditCase, result: AuditResult) -> dict:
+    return {"_id": f"{result.case_id}:v{result.version}", **result.model_dump(),
+            "case": case.model_dump()}
+
+
+
+
+
+def _events_entry(note: str) -> dict:
+    return TraceEntry(agent_name="events", decision_type="events", detail=note).model_dump()
+
+
+def _summary(rec: dict) -> dict:
+    return {"version": rec["version"], "status": rec["status"],
+            "created_at": rec["created_at"], "findings": len(rec.get("findings", [])),
+            "docs": len(rec.get("case", {}).get("docs", [])),
+            "verdict": rec.get("verdict"), "score": rec.get("score")}  # absent in records before the report block
+
+
+def doc_title(doc: dict) -> str:
+    """What an auditor calls a document: its file name without the dataset number
+    prefix, extension and underscores ("04_Tax_Invoice_X.pdf" -> "Tax Invoice X"),
+    else its document type."""
+    stem = re.sub(r"\.[A-Za-z0-9]{2,5}$", "", doc.get("name") or "")
+    stem = re.sub(r"^\d+[A-Za-z]?[_\- ]+", "", stem).replace("_", " ").strip()
+    return stem or (doc.get("doc_type") or "document").replace("_", " ").capitalize()
+
+
+SUPPORTING_TYPES = {"purchase_order", "goods_received_note", "receipt", "payment_voucher"}
+
+
+def case_title(docs: list[dict]) -> str:
+    """A case named after its main document plus a count. The main document is the one
+    the others support, else the first that is not a supporting document (PO, GRN...).
+    The frontend names unaudited drafts the same way (lib/caseList.ts)."""
+    if not docs:
+        return "Empty case"
+    parents = {d.get("parent_doc_id") for d in docs}
+    main = (next((d for d in docs if d["doc_id"] in parents), None)
+            or next((d for d in docs if d.get("doc_type") not in SUPPORTING_TYPES), docs[0]))
+    more = len(docs) - 1
+    return doc_title(main) + (f" + {more} more" if more else "")
+
+
+def case_summary(rec: dict) -> dict:
+    """One line per case for lists: a readable title, newest version, verdict and finding counts."""
+    findings = rec.get("findings", [])
+    rule = [f for f in findings if not f["rule_id"].startswith("REV-")]
+    docs = rec.get("case", {}).get("docs", [])
+    return {"case_id": rec["case_id"], "title": case_title(docs), "version": rec["version"],
+            "status": rec["status"], "verdict": rec.get("verdict"), "score": rec.get("score"),
+            "created_at": rec["created_at"], "docs": len(docs),
+            "materiality": rec.get("case", {}).get("materiality"),
+            "findings": len(rule), "high": sum(f["severity"] == "high" for f in rule),
+            "needs_review": sum(f["review_status"] == "needs_more_evidence" for f in findings)}
+
+
+class MemoryStore(ResultStore):
+    """Process-only store for tests and offline development."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._counters: dict[str, int] = {}
+        self._records: dict[str, dict[int, dict]] = {}
+
+    def next_version(self, case_id):
+        with self._lock:
+            self._counters[case_id] = self._counters.get(case_id, 0) + 1
+            return self._counters[case_id]
+
+    def save(self, case, result):
+        with self._lock:
+            runs = self._records.setdefault(result.case_id, {})
+            if result.version in runs:
+                raise StoreError(f"version {result.version} of {result.case_id} already saved")
+            runs[result.version] = _record(case, result)
+
+    def set_events(self, case_id, version, published, note):
+        with self._lock:
+            rec = self._records[case_id][version]
+            rec["events_published"] = published
+            if note:
+                rec["trace"] = [*rec["trace"], _events_entry(note)]
+
+
+
+    def get(self, case_id, version):
+        rec = self._records.get(case_id, {}).get(version)
+        return dict(rec) if rec else None
+
+    def latest(self, case_id):
+        runs = self._records.get(case_id, {})
+        return dict(runs[max(runs)]) if runs else None
+
+    def versions(self, case_id):
+        return [_summary(r) for _, r in sorted(self._records.get(case_id, {}).items())]
+
+    def latest_all(self, limit=200):
+        with self._lock:
+            newest = [dict(runs[max(runs)]) for runs in self._records.values() if runs]
+        return sorted(newest, key=lambda r: r["created_at"], reverse=True)[:limit]
+
+
+class MongoConnection:
+    """One lazily opened MongoDB client, shared by the result and chat stores.
+    Every failure becomes StoreError, so callers never see driver exceptions."""
+
+    def __init__(self, uri: str | None = None, db_name: str | None = None, client=None) -> None:
+        self._uri = config.MONGODB_URI if uri is None else uri
+        self._db_name = db_name or config.MONGODB_DB
+        self._client = client
+        self._indexes: set[str] = set()
+        self._lock = threading.Lock()
+
+    def db(self):
+        with self._lock:
+            if self._client is None:
+                if not self._uri:
+                    raise StoreError("C03_MONGODB_URI is not configured")
+                from pymongo import MongoClient
+                self._client = MongoClient(self._uri, serverSelectionTimeoutMS=config.MONGODB_TIMEOUT_MS,
+                                           appname="nomos-c03")
+            return self._client[self._db_name]
+
+    def run(self, fn):
+        from pymongo.errors import PyMongoError
+        try:
+            return fn(self.db())
+        except PyMongoError as exc:
+            raise StoreError(f"MongoDB error: {exc}") from exc
+
+    def ensure_index(self, collection: str, keys: list, **options) -> None:
+        key = f"{collection}:{keys}"
+        if key not in self._indexes:
+            self.run(lambda db: db[collection].create_index(keys, **options))
+            self._indexes.add(key)
+
+
+_mongo: MongoConnection | None = None
+_mongo_lock = threading.Lock()
+
+
+def shared_mongo() -> MongoConnection:
+    global _mongo
+    with _mongo_lock:
+        if _mongo is None:
+            _mongo = MongoConnection()
+        return _mongo
+
+
+class MongoStore(ResultStore):
+    def __init__(self, uri: str | None = None, db_name: str | None = None,
+                 client=None, conn: MongoConnection | None = None) -> None:
+        self._conn = conn or MongoConnection(uri, db_name, client)
+        self._exporter = None
+        self._exporter_lock = threading.Lock()
+
+    def _db(self):
+        return self._conn.db()
+
+    def _run(self, fn):
+        self._conn.ensure_index(config.RESULTS_COLLECTION, [("case_id", 1), ("version", -1)], unique=True)
+        return self._conn.run(fn)
+
+    def next_version(self, case_id):
+        from pymongo import ReturnDocument
+        doc = self._run(lambda db: db[config.COUNTERS_COLLECTION].find_one_and_update(
+            {"_id": case_id}, {"$inc": {"seq": 1}}, upsert=True,
+            return_document=ReturnDocument.AFTER))
+        return int(doc["seq"])
+
+    def save(self, case, result):
+        self._run(lambda db: db[config.RESULTS_COLLECTION].insert_one(_record(case, result)))
+
+    def set_events(self, case_id, version, published, note):
+        change: dict = {"$set": {"events_published": published}}
+        if note:
+            change["$push"] = {"trace": _events_entry(note)}
+        self._run(lambda db: db[config.RESULTS_COLLECTION].update_one(
+            {"_id": f"{case_id}:v{version}"}, change))
+
+    def traces_collection(self):
+        """Return the callback traces collection for XAITracerCallback."""
+        try:
+            # Lazily create indexes on first access
+            self._conn.ensure_index(
+                config.CALLBACK_TRACES_COLLECTION,
+                [("case_id", 1), ("version", 1), ("seq", 1)])
+            return self._conn.db()[config.CALLBACK_TRACES_COLLECTION]
+        except Exception:  # noqa: BLE001 — never block the audit
+            return None
+
+    def trace_exporter(self):
+        """One background writer per store. The collection (and its index) is
+        opened on the writer thread, never on the request path."""
+        if self._exporter is None:
+            from app.services.xai_trace import TraceExporter
+            with self._exporter_lock:
+                if self._exporter is None:
+                    self._exporter = TraceExporter(self.traces_collection)
+        return self._exporter
+
+    def get(self, case_id, version):
+        return self._run(lambda db: db[config.RESULTS_COLLECTION].find_one(
+            {"case_id": case_id, "version": version}))
+
+    def latest(self, case_id):
+        return self._run(lambda db: db[config.RESULTS_COLLECTION].find_one(
+            {"case_id": case_id}, sort=[("version", -1)]))
+
+    def versions(self, case_id):
+        rows = self._run(lambda db: list(db[config.RESULTS_COLLECTION].find(
+            {"case_id": case_id},
+            {"version": 1, "status": 1, "created_at": 1, "findings.finding_id": 1,
+             "case.docs.doc_id": 1}).sort("version", 1)))
+        return [_summary(r) for r in rows]
+
+    def latest_all(self, limit=200):
+        return self._run(lambda db: list(db[config.RESULTS_COLLECTION].aggregate([
+            {"$sort": {"case_id": 1, "version": -1}},
+            {"$group": {"_id": "$case_id", "rec": {"$first": "$$ROOT"}}},
+            {"$replaceRoot": {"newRoot": "$rec"}},
+            {"$sort": {"created_at": -1}},
+            {"$limit": limit}])))
+
+
+_store: ResultStore | None = None
+_store_lock = threading.Lock()
+
+
+def default_store() -> ResultStore:
+    """One store per process, chosen by C03_STORE_MODE."""
+    global _store
+    with _store_lock:
+        if _store is None:
+            mode = config.STORE_MODE.lower()
+            if mode not in ("mongo", "memory"):
+                raise StoreError(f"Unknown C03_STORE_MODE {mode!r}; use mongo|memory.")
+            _store = MongoStore(conn=shared_mongo()) if mode == "mongo" else MemoryStore()
+        return _store

@@ -8,9 +8,15 @@ authors = [
 ]
 requires-python = ">=3.12"
 dependencies = [
+    "alembic>=1.20.0",
+    "boto3>=1.43.115",
     "fastapi[standard]>=0.143.0",
     "paddleocr>=3.7.0",
     "paddlepaddle>=3.3.1",
+    "pillow>=12.3.0",
+    "psycopg[binary]>=3.3.6",
+    "pypdfium2>=5.14.0",
+    "sqlalchemy>=2.1.4",
 ]
 
 [project.scripts]
@@ -28,6 +34,7 @@ pythonpath = ["."]
 
 [dependency-groups]
 dev = [
+    "moto[s3]>=5.2.4",
     "pytest>=9.1.1",
     "ruff>=0.17.0",
 ]

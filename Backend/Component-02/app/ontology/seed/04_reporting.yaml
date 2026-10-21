@@ -1,0 +1,447 @@
+# Financial statements, line items, equations (LKAS 1, 2, 7 and the Conceptual Framework)
+nodes:
+  FinancialStatement:
+    - {code: SFP, name: "Statement of financial position"}
+    - {code: SPLOCI, name: "Statement of profit or loss and other comprehensive income"}
+    - {code: SCE, name: "Statement of changes in equity"}
+    - {code: SCF, name: "Statement of cash flows"}
+    - {code: NOTES, name: "Notes to the financial statements"}
+  AccountClass:
+    - {code: ASSET, name: "Asset", normal_balance: debit}
+    - {code: CURRENT_ASSET, name: "Current asset", normal_balance: debit}
+    - {code: NON_CURRENT_ASSET, name: "Non-current asset", normal_balance: debit}
+    - {code: LIABILITY, name: "Liability", normal_balance: credit}
+    - {code: CURRENT_LIABILITY, name: "Current liability", normal_balance: credit}
+    - {code: NON_CURRENT_LIABILITY, name: "Non-current liability", normal_balance: credit}
+    - {code: EQUITY, name: "Equity", normal_balance: credit}
+    - {code: INCOME, name: "Income", normal_balance: credit}
+    - {code: EXPENSE, name: "Expense", normal_balance: debit}
+  LineItem:
+    - {code: ppe, name: "Property, plant and equipment"}
+    - {code: investment_property, name: "Investment property"}
+    - {code: intangible_assets, name: "Intangible assets"}
+    - {code: financial_assets, name: "Financial assets"}
+    - {code: equity_accounted_investments, name: "Investments accounted for using the equity method"}
+    - {code: biological_assets, name: "Biological assets"}
+    - {code: deferred_tax_assets, name: "Deferred tax assets"}
+    - {code: total_non_current_assets, name: "Total non-current assets"}
+    - {code: inventories, name: "Inventories", aliases: [inventory, closing_inventory]}
+    - {code: trade_receivables, name: "Trade and other receivables", aliases: [receivables]}
+    - {code: current_tax_assets, name: "Current tax assets"}
+    - {code: cash_and_cash_equivalents, name: "Cash and cash equivalents", aliases: [cash]}
+    - {code: assets_held_for_sale, name: "Assets held for sale"}
+    - {code: total_current_assets, name: "Total current assets", aliases: [current_assets]}
+    - {code: total_assets, name: "Total assets", aliases: [assets]}
+    - {code: share_capital, name: "Stated capital", aliases: [stated_capital]}
+    - {code: reserves, name: "Reserves"}
+    - {code: retained_earnings, name: "Retained earnings"}
+    - {code: non_controlling_interests, name: "Non-controlling interests"}
+    - {code: total_equity, name: "Total equity", aliases: [capital, equity]}
+    - {code: financial_liabilities, name: "Interest-bearing borrowings", aliases: [borrowings]}
+    - {code: deferred_tax_liabilities, name: "Deferred tax liabilities"}
+    - {code: total_non_current_liabilities, name: "Total non-current liabilities"}
+    - {code: trade_payables, name: "Trade and other payables", aliases: [payables]}
+    - {code: provisions, name: "Provisions"}
+    - {code: current_tax_liabilities, name: "Current tax liabilities"}
+    - {code: liabilities_held_for_sale, name: "Liabilities held for sale"}
+    - {code: total_current_liabilities, name: "Total current liabilities", aliases: [current_liabilities]}
+    - {code: total_liabilities, name: "Total liabilities", aliases: [liabilities]}
+    - {code: revenue, name: "Revenue", aliases: [sales, turnover]}
+    - {code: cost_of_sales, name: "Cost of sales", aliases: [cogs]}
+    - {code: gross_profit, name: "Gross profit"}
+    - {code: other_income, name: "Other income"}
+    - {code: distribution_costs, name: "Distribution costs"}
+    - {code: administrative_expenses, name: "Administrative expenses"}
+    - {code: other_expenses, name: "Other expenses"}
+    - {code: finance_costs, name: "Finance costs"}
+    - {code: share_of_associates_profit, name: "Share of profit of associates and joint ventures"}
+    - {code: profit_before_tax, name: "Profit before tax", aliases: [pbt]}
+    - {code: tax_expense, name: "Income tax expense"}
+    - {code: discontinued_operations, name: "Profit or loss from discontinued operations"}
+    - {code: profit_for_the_year, name: "Profit for the year", aliases: [net_profit, profit]}
+    - {code: other_comprehensive_income, name: "Other comprehensive income", aliases: [oci]}
+    - {code: total_comprehensive_income, name: "Total comprehensive income", aliases: [tci]}
+    - {code: opening_equity, name: "Equity at beginning of period"}
+    - {code: restatements, name: "Effect of retrospective application or restatement"}
+    - {code: sce_total_comprehensive_income, name: "Total comprehensive income for the period"}
+    - {code: owner_contributions, name: "Contributions by owners", aliases: [share_issue]}
+    - {code: dividends, name: "Dividends"}
+    - {code: closing_equity, name: "Equity at end of period"}
+    - {code: opening_retained_earnings, name: "Retained earnings at beginning of period"}
+    - {code: net_cash_operating, name: "Net cash from operating activities", aliases: [cfo]}
+    - {code: net_cash_investing, name: "Net cash used in investing activities", aliases: [cfi]}
+    - {code: net_cash_financing, name: "Net cash from financing activities", aliases: [cff]}
+    - {code: net_change_in_cash, name: "Net increase or decrease in cash and cash equivalents"}
+    - {code: opening_cash, name: "Cash and cash equivalents at beginning of period"}
+    - {code: fx_effect_on_cash, name: "Effect of exchange rate changes on cash"}
+    - {code: closing_cash, name: "Cash and cash equivalents at end of period"}
+    - {code: opening_inventories, name: "Inventories at beginning of period", aliases: [opening_inventory]}
+    - {code: purchases, name: "Purchases"}
+    - {code: inventory_cost, name: "Inventories at cost"}
+    - {code: inventory_nrv, name: "Inventories at net realisable value"}
+    - {code: estimated_selling_price, name: "Estimated selling price"}
+    - {code: costs_to_complete, name: "Estimated costs of completion"}
+    - {code: costs_to_sell, name: "Estimated costs to make the sale"}
+    - {code: total_debits, name: "Total debits", aliases: [debit_total]}
+    - {code: total_credits, name: "Total credits", aliases: [credit_total]}
+  MeasurementBasis:
+    - {code: HISTORICAL_COST, name: "Historical cost"}
+    - {code: CURRENT_COST, name: "Current cost"}
+    - {code: REALISABLE_VALUE, name: "Realisable (settlement) value"}
+    - {code: PRESENT_VALUE, name: "Present value"}
+    - {code: NRV, name: "Net realisable value"}
+    - {code: FAIR_VALUE, name: "Fair value"}
+  QualitativeCharacteristic:
+    - {code: RELEVANCE, name: "Relevance", type: fundamental}
+    - {code: FAITHFUL_REPRESENTATION, name: "Faithful representation", type: fundamental}
+    - {code: COMPARABILITY, name: "Comparability", type: enhancing}
+    - {code: VERIFIABILITY, name: "Verifiability", type: enhancing}
+    - {code: TIMELINESS, name: "Timeliness", type: enhancing}
+    - {code: UNDERSTANDABILITY, name: "Understandability", type: enhancing}
+  Equation:
+    - {code: EQ-001, name: "Accounting equation", expression: "total_assets == total_liabilities + total_equity", kind: within_statement}
+    - {code: EQ-002, name: "Total assets", expression: "total_assets == total_current_assets + total_non_current_assets", kind: within_statement}
+    - {code: EQ-003, name: "Total liabilities", expression: "total_liabilities == total_current_liabilities + total_non_current_liabilities", kind: within_statement}
+    - {code: EQ-004, name: "Total equity", expression: "total_equity == share_capital + reserves + retained_earnings + non_controlling_interests", kind: within_statement}
+    - {code: EQ-005, name: "Gross profit", expression: "gross_profit == revenue - cost_of_sales", kind: within_statement}
+    - {code: EQ-006, name: "Profit before tax", expression: "profit_before_tax == gross_profit + other_income - distribution_costs - administrative_expenses - other_expenses - finance_costs + share_of_associates_profit", kind: within_statement}
+    - {code: EQ-007, name: "Profit for the year", expression: "profit_for_the_year == profit_before_tax - tax_expense + discontinued_operations", kind: within_statement}
+    - {code: EQ-008, name: "Total comprehensive income", expression: "total_comprehensive_income == profit_for_the_year + other_comprehensive_income", kind: within_statement}
+    - {code: EQ-009, name: "Cost of sales", expression: "cost_of_sales == opening_inventories + purchases - inventories", kind: within_statement}
+    - {code: EQ-010, name: "Equity reconciliation", expression: "closing_equity == opening_equity + restatements + sce_total_comprehensive_income + owner_contributions - dividends", kind: within_statement}
+    - {code: EQ-011, name: "Retained earnings reconciliation", expression: "retained_earnings == opening_retained_earnings + profit_for_the_year - dividends", kind: within_statement}
+    - {code: EQ-012, name: "Net change in cash", expression: "net_change_in_cash == net_cash_operating + net_cash_investing + net_cash_financing", kind: within_statement}
+    - {code: EQ-013, name: "Closing cash", expression: "closing_cash == opening_cash + net_change_in_cash + fx_effect_on_cash", kind: within_statement}
+    - {code: EQ-014, name: "Cash ties to statement of financial position", expression: "closing_cash == cash_and_cash_equivalents", kind: cross_statement}
+    - {code: EQ-015, name: "Equity ties to statement of financial position", expression: "closing_equity == total_equity", kind: cross_statement}
+    - {code: EQ-016, name: "Comprehensive income ties to statement of changes in equity", expression: "sce_total_comprehensive_income == total_comprehensive_income", kind: cross_statement}
+    - {code: EQ-017, name: "Inventory at lower of cost and NRV", expression: "inventories == min(inventory_cost, inventory_nrv)", kind: measurement}
+    - {code: EQ-018, name: "Net realisable value", expression: "inventory_nrv == estimated_selling_price - costs_to_complete - costs_to_sell", kind: measurement}
+    - {code: EQ-019, name: "Debits equal credits", expression: "total_debits == total_credits", kind: bookkeeping}
+  Ratio:
+    - {code: RAT-001, name: "Current ratio", expression: "total_current_assets / total_current_liabilities"}
+    - {code: RAT-002, name: "Quick ratio", expression: "(total_current_assets - inventories) / total_current_liabilities"}
+    - {code: RAT-003, name: "Gross margin", expression: "gross_profit / revenue"}
+    - {code: RAT-004, name: "Net profit margin", expression: "profit_for_the_year / revenue"}
+    - {code: RAT-005, name: "Debt to equity", expression: "total_liabilities / total_equity"}
+    - {code: RAT-006, name: "Inventory turnover", expression: "cost_of_sales / inventories"}
+
+relationships:
+  SUBCLASS_OF:
+    - [AccountClass:CURRENT_ASSET, AccountClass:ASSET]
+    - [AccountClass:NON_CURRENT_ASSET, AccountClass:ASSET]
+    - [AccountClass:CURRENT_LIABILITY, AccountClass:LIABILITY]
+    - [AccountClass:NON_CURRENT_LIABILITY, AccountClass:LIABILITY]
+  DEFINED_BY:
+    - [AccountClass:ASSET, "Definition:DEF:asset"]
+    - [AccountClass:LIABILITY, "Definition:DEF:liability"]
+    - [AccountClass:EQUITY, "Definition:DEF:equity"]
+    - [AccountClass:INCOME, "Definition:DEF:income"]
+    - [AccountClass:EXPENSE, "Definition:DEF:expenses"]
+    - [MeasurementBasis:NRV, "Definition:DEF:nrv"]
+    - [LineItem:inventories, "Definition:DEF:inventories"]
+    - [LineItem:cash_and_cash_equivalents, "Definition:DEF:cash_equivalents"]
+    - [LineItem:profit_for_the_year, "Definition:DEF:profit_or_loss"]
+    - [LineItem:other_comprehensive_income, "Definition:DEF:oci"]
+    - [LineItem:total_comprehensive_income, "Definition:DEF:tci"]
+    - [LineItem:net_cash_operating, "Definition:DEF:operating_activities"]
+    - [LineItem:net_cash_investing, "Definition:DEF:investing_activities"]
+    - [LineItem:net_cash_financing, "Definition:DEF:financing_activities"]
+  PRESENTED_IN:
+    - [LineItem:ppe, FinancialStatement:SFP, {order: 1, section: non_current}]
+    - [LineItem:investment_property, FinancialStatement:SFP, {order: 2, section: non_current}]
+    - [LineItem:intangible_assets, FinancialStatement:SFP, {order: 3, section: non_current}]
+    - [LineItem:financial_assets, FinancialStatement:SFP, {order: 4, section: non_current}]
+    - [LineItem:equity_accounted_investments, FinancialStatement:SFP, {order: 5, section: non_current}]
+    - [LineItem:biological_assets, FinancialStatement:SFP, {order: 6, section: non_current}]
+    - [LineItem:deferred_tax_assets, FinancialStatement:SFP, {order: 7, section: non_current}]
+    - [LineItem:total_non_current_assets, FinancialStatement:SFP, {order: 8, section: non_current}]
+    - [LineItem:inventories, FinancialStatement:SFP, {order: 9, section: current}]
+    - [LineItem:trade_receivables, FinancialStatement:SFP, {order: 10, section: current}]
+    - [LineItem:current_tax_assets, FinancialStatement:SFP, {order: 11, section: current}]
+    - [LineItem:cash_and_cash_equivalents, FinancialStatement:SFP, {order: 12, section: current}]
+    - [LineItem:assets_held_for_sale, FinancialStatement:SFP, {order: 13, section: current}]
+    - [LineItem:total_current_assets, FinancialStatement:SFP, {order: 14, section: current}]
+    - [LineItem:total_assets, FinancialStatement:SFP, {order: 15}]
+    - [LineItem:share_capital, FinancialStatement:SFP, {order: 16, section: equity}]
+    - [LineItem:reserves, FinancialStatement:SFP, {order: 17, section: equity}]
+    - [LineItem:retained_earnings, FinancialStatement:SFP, {order: 18, section: equity}]
+    - [LineItem:non_controlling_interests, FinancialStatement:SFP, {order: 19, section: equity}]
+    - [LineItem:total_equity, FinancialStatement:SFP, {order: 20, section: equity}]
+    - [LineItem:financial_liabilities, FinancialStatement:SFP, {order: 21, section: non_current}]
+    - [LineItem:deferred_tax_liabilities, FinancialStatement:SFP, {order: 22, section: non_current}]
+    - [LineItem:total_non_current_liabilities, FinancialStatement:SFP, {order: 23, section: non_current}]
+    - [LineItem:trade_payables, FinancialStatement:SFP, {order: 24, section: current}]
+    - [LineItem:provisions, FinancialStatement:SFP, {order: 25, section: current}]
+    - [LineItem:current_tax_liabilities, FinancialStatement:SFP, {order: 26, section: current}]
+    - [LineItem:liabilities_held_for_sale, FinancialStatement:SFP, {order: 27, section: current}]
+    - [LineItem:total_current_liabilities, FinancialStatement:SFP, {order: 28, section: current}]
+    - [LineItem:total_liabilities, FinancialStatement:SFP, {order: 29}]
+    - [LineItem:revenue, FinancialStatement:SPLOCI, {order: 1, section: profit_or_loss}]
+    - [LineItem:cost_of_sales, FinancialStatement:SPLOCI, {order: 2, section: profit_or_loss}]
+    - [LineItem:gross_profit, FinancialStatement:SPLOCI, {order: 3, section: profit_or_loss}]
+    - [LineItem:other_income, FinancialStatement:SPLOCI, {order: 4, section: profit_or_loss}]
+    - [LineItem:distribution_costs, FinancialStatement:SPLOCI, {order: 5, section: profit_or_loss}]
+    - [LineItem:administrative_expenses, FinancialStatement:SPLOCI, {order: 6, section: profit_or_loss}]
+    - [LineItem:other_expenses, FinancialStatement:SPLOCI, {order: 7, section: profit_or_loss}]
+    - [LineItem:finance_costs, FinancialStatement:SPLOCI, {order: 8, section: profit_or_loss}]
+    - [LineItem:share_of_associates_profit, FinancialStatement:SPLOCI, {order: 9, section: profit_or_loss}]
+    - [LineItem:profit_before_tax, FinancialStatement:SPLOCI, {order: 10, section: profit_or_loss}]
+    - [LineItem:tax_expense, FinancialStatement:SPLOCI, {order: 11, section: profit_or_loss}]
+    - [LineItem:discontinued_operations, FinancialStatement:SPLOCI, {order: 12, section: profit_or_loss}]
+    - [LineItem:profit_for_the_year, FinancialStatement:SPLOCI, {order: 13, section: profit_or_loss}]
+    - [LineItem:other_comprehensive_income, FinancialStatement:SPLOCI, {order: 14, section: oci}]
+    - [LineItem:total_comprehensive_income, FinancialStatement:SPLOCI, {order: 15, section: oci}]
+    - [LineItem:opening_equity, FinancialStatement:SCE, {order: 1}]
+    - [LineItem:restatements, FinancialStatement:SCE, {order: 2}]
+    - [LineItem:sce_total_comprehensive_income, FinancialStatement:SCE, {order: 3}]
+    - [LineItem:owner_contributions, FinancialStatement:SCE, {order: 4}]
+    - [LineItem:dividends, FinancialStatement:SCE, {order: 5}]
+    - [LineItem:closing_equity, FinancialStatement:SCE, {order: 6}]
+    - [LineItem:opening_retained_earnings, FinancialStatement:SCE, {order: 7}]
+    - [LineItem:net_cash_operating, FinancialStatement:SCF, {order: 1, section: operating}]
+    - [LineItem:net_cash_investing, FinancialStatement:SCF, {order: 2, section: investing}]
+    - [LineItem:net_cash_financing, FinancialStatement:SCF, {order: 3, section: financing}]
+    - [LineItem:net_change_in_cash, FinancialStatement:SCF, {order: 4}]
+    - [LineItem:opening_cash, FinancialStatement:SCF, {order: 5}]
+    - [LineItem:fx_effect_on_cash, FinancialStatement:SCF, {order: 6}]
+    - [LineItem:closing_cash, FinancialStatement:SCF, {order: 7}]
+    - [LineItem:opening_inventories, FinancialStatement:NOTES, {order: 1}]
+    - [LineItem:purchases, FinancialStatement:NOTES, {order: 2}]
+    - [LineItem:inventory_cost, FinancialStatement:NOTES, {order: 3}]
+    - [LineItem:inventory_nrv, FinancialStatement:NOTES, {order: 4}]
+  CLASSIFIED_AS:
+    - [LineItem:ppe, AccountClass:NON_CURRENT_ASSET]
+    - [LineItem:investment_property, AccountClass:NON_CURRENT_ASSET]
+    - [LineItem:intangible_assets, AccountClass:NON_CURRENT_ASSET]
+    - [LineItem:financial_assets, AccountClass:NON_CURRENT_ASSET]
+    - [LineItem:equity_accounted_investments, AccountClass:NON_CURRENT_ASSET]
+    - [LineItem:biological_assets, AccountClass:NON_CURRENT_ASSET]
+    - [LineItem:deferred_tax_assets, AccountClass:NON_CURRENT_ASSET]
+    - [LineItem:total_non_current_assets, AccountClass:NON_CURRENT_ASSET]
+    - [LineItem:inventories, AccountClass:CURRENT_ASSET]
+    - [LineItem:trade_receivables, AccountClass:CURRENT_ASSET]
+    - [LineItem:current_tax_assets, AccountClass:CURRENT_ASSET]
+    - [LineItem:cash_and_cash_equivalents, AccountClass:CURRENT_ASSET]
+    - [LineItem:assets_held_for_sale, AccountClass:CURRENT_ASSET]
+    - [LineItem:total_current_assets, AccountClass:CURRENT_ASSET]
+    - [LineItem:total_assets, AccountClass:ASSET]
+    - [LineItem:share_capital, AccountClass:EQUITY]
+    - [LineItem:reserves, AccountClass:EQUITY]
+    - [LineItem:retained_earnings, AccountClass:EQUITY]
+    - [LineItem:non_controlling_interests, AccountClass:EQUITY]
+    - [LineItem:total_equity, AccountClass:EQUITY]
+    - [LineItem:financial_liabilities, AccountClass:NON_CURRENT_LIABILITY]
+    - [LineItem:deferred_tax_liabilities, AccountClass:NON_CURRENT_LIABILITY]
+    - [LineItem:total_non_current_liabilities, AccountClass:NON_CURRENT_LIABILITY]
+    - [LineItem:trade_payables, AccountClass:CURRENT_LIABILITY]
+    - [LineItem:provisions, AccountClass:CURRENT_LIABILITY]
+    - [LineItem:current_tax_liabilities, AccountClass:CURRENT_LIABILITY]
+    - [LineItem:liabilities_held_for_sale, AccountClass:CURRENT_LIABILITY]
+    - [LineItem:total_current_liabilities, AccountClass:CURRENT_LIABILITY]
+    - [LineItem:total_liabilities, AccountClass:LIABILITY]
+    - [LineItem:revenue, AccountClass:INCOME]
+    - [LineItem:cost_of_sales, AccountClass:EXPENSE]
+    - [LineItem:other_income, AccountClass:INCOME]
+    - [LineItem:distribution_costs, AccountClass:EXPENSE]
+    - [LineItem:administrative_expenses, AccountClass:EXPENSE]
+    - [LineItem:other_expenses, AccountClass:EXPENSE]
+    - [LineItem:finance_costs, AccountClass:EXPENSE]
+    - [LineItem:share_of_associates_profit, AccountClass:INCOME]
+    - [LineItem:tax_expense, AccountClass:EXPENSE]
+    - [LineItem:opening_equity, AccountClass:EQUITY]
+    - [LineItem:restatements, AccountClass:EQUITY]
+    - [LineItem:sce_total_comprehensive_income, AccountClass:EQUITY]
+    - [LineItem:owner_contributions, AccountClass:EQUITY]
+    - [LineItem:dividends, AccountClass:EQUITY]
+    - [LineItem:closing_equity, AccountClass:EQUITY]
+    - [LineItem:opening_retained_earnings, AccountClass:EQUITY]
+    - [LineItem:opening_inventories, AccountClass:CURRENT_ASSET]
+    - [LineItem:purchases, AccountClass:EXPENSE]
+    - [LineItem:inventory_cost, AccountClass:CURRENT_ASSET]
+    - [LineItem:inventory_nrv, AccountClass:CURRENT_ASSET]
+  MEASURED_AT:
+    - [LineItem:inventories, MeasurementBasis:HISTORICAL_COST, {condition: "cost when below NRV (LKAS 2.9)"}]
+    - [LineItem:inventories, MeasurementBasis:NRV, {condition: "NRV when below cost (LKAS 2.9)"}]
+    - [LineItem:ppe, MeasurementBasis:HISTORICAL_COST, {condition: "cost model"}]
+    - [LineItem:ppe, MeasurementBasis:FAIR_VALUE, {condition: "revaluation model"}]
+    - [LineItem:investment_property, MeasurementBasis:FAIR_VALUE, {condition: "fair value model"}]
+    - [LineItem:investment_property, MeasurementBasis:HISTORICAL_COST, {condition: "cost model"}]
+    - [LineItem:biological_assets, MeasurementBasis:FAIR_VALUE, {condition: "fair value less costs to sell"}]
+  USES:
+    - [Equation:EQ-001, LineItem:total_assets, {role: lhs, sign: 1}]
+    - [Equation:EQ-001, LineItem:total_liabilities, {role: rhs, sign: 1}]
+    - [Equation:EQ-001, LineItem:total_equity, {role: rhs, sign: 1}]
+    - [Equation:EQ-002, LineItem:total_assets, {role: lhs, sign: 1}]
+    - [Equation:EQ-002, LineItem:total_current_assets, {role: rhs, sign: 1}]
+    - [Equation:EQ-002, LineItem:total_non_current_assets, {role: rhs, sign: 1}]
+    - [Equation:EQ-003, LineItem:total_liabilities, {role: lhs, sign: 1}]
+    - [Equation:EQ-003, LineItem:total_current_liabilities, {role: rhs, sign: 1}]
+    - [Equation:EQ-003, LineItem:total_non_current_liabilities, {role: rhs, sign: 1}]
+    - [Equation:EQ-004, LineItem:total_equity, {role: lhs, sign: 1}]
+    - [Equation:EQ-004, LineItem:share_capital, {role: rhs, sign: 1}]
+    - [Equation:EQ-004, LineItem:reserves, {role: rhs, sign: 1}]
+    - [Equation:EQ-004, LineItem:retained_earnings, {role: rhs, sign: 1}]
+    - [Equation:EQ-004, LineItem:non_controlling_interests, {role: rhs, sign: 1}]
+    - [Equation:EQ-005, LineItem:gross_profit, {role: lhs, sign: 1}]
+    - [Equation:EQ-005, LineItem:revenue, {role: rhs, sign: 1}]
+    - [Equation:EQ-005, LineItem:cost_of_sales, {role: rhs, sign: -1}]
+    - [Equation:EQ-006, LineItem:profit_before_tax, {role: lhs, sign: 1}]
+    - [Equation:EQ-006, LineItem:gross_profit, {role: rhs, sign: 1}]
+    - [Equation:EQ-006, LineItem:other_income, {role: rhs, sign: 1}]
+    - [Equation:EQ-006, LineItem:distribution_costs, {role: rhs, sign: -1}]
+    - [Equation:EQ-006, LineItem:administrative_expenses, {role: rhs, sign: -1}]
+    - [Equation:EQ-006, LineItem:other_expenses, {role: rhs, sign: -1}]
+    - [Equation:EQ-006, LineItem:finance_costs, {role: rhs, sign: -1}]
+    - [Equation:EQ-006, LineItem:share_of_associates_profit, {role: rhs, sign: 1}]
+    - [Equation:EQ-007, LineItem:profit_for_the_year, {role: lhs, sign: 1}]
+    - [Equation:EQ-007, LineItem:profit_before_tax, {role: rhs, sign: 1}]
+    - [Equation:EQ-007, LineItem:tax_expense, {role: rhs, sign: -1}]
+    - [Equation:EQ-007, LineItem:discontinued_operations, {role: rhs, sign: 1}]
+    - [Equation:EQ-008, LineItem:total_comprehensive_income, {role: lhs, sign: 1}]
+    - [Equation:EQ-008, LineItem:profit_for_the_year, {role: rhs, sign: 1}]
+    - [Equation:EQ-008, LineItem:other_comprehensive_income, {role: rhs, sign: 1}]
+    - [Equation:EQ-009, LineItem:cost_of_sales, {role: lhs, sign: 1}]
+    - [Equation:EQ-009, LineItem:opening_inventories, {role: rhs, sign: 1}]
+    - [Equation:EQ-009, LineItem:purchases, {role: rhs, sign: 1}]
+    - [Equation:EQ-009, LineItem:inventories, {role: rhs, sign: -1}]
+    - [Equation:EQ-010, LineItem:closing_equity, {role: lhs, sign: 1}]
+    - [Equation:EQ-010, LineItem:opening_equity, {role: rhs, sign: 1}]
+    - [Equation:EQ-010, LineItem:restatements, {role: rhs, sign: 1}]
+    - [Equation:EQ-010, LineItem:sce_total_comprehensive_income, {role: rhs, sign: 1}]
+    - [Equation:EQ-010, LineItem:owner_contributions, {role: rhs, sign: 1}]
+    - [Equation:EQ-010, LineItem:dividends, {role: rhs, sign: -1}]
+    - [Equation:EQ-011, LineItem:retained_earnings, {role: lhs, sign: 1}]
+    - [Equation:EQ-011, LineItem:opening_retained_earnings, {role: rhs, sign: 1}]
+    - [Equation:EQ-011, LineItem:profit_for_the_year, {role: rhs, sign: 1}]
+    - [Equation:EQ-011, LineItem:dividends, {role: rhs, sign: -1}]
+    - [Equation:EQ-012, LineItem:net_change_in_cash, {role: lhs, sign: 1}]
+    - [Equation:EQ-012, LineItem:net_cash_operating, {role: rhs, sign: 1}]
+    - [Equation:EQ-012, LineItem:net_cash_investing, {role: rhs, sign: 1}]
+    - [Equation:EQ-012, LineItem:net_cash_financing, {role: rhs, sign: 1}]
+    - [Equation:EQ-013, LineItem:closing_cash, {role: lhs, sign: 1}]
+    - [Equation:EQ-013, LineItem:opening_cash, {role: rhs, sign: 1}]
+    - [Equation:EQ-013, LineItem:net_change_in_cash, {role: rhs, sign: 1}]
+    - [Equation:EQ-013, LineItem:fx_effect_on_cash, {role: rhs, sign: 1}]
+    - [Equation:EQ-014, LineItem:closing_cash, {role: lhs, sign: 1}]
+    - [Equation:EQ-014, LineItem:cash_and_cash_equivalents, {role: rhs, sign: 1}]
+    - [Equation:EQ-015, LineItem:closing_equity, {role: lhs, sign: 1}]
+    - [Equation:EQ-015, LineItem:total_equity, {role: rhs, sign: 1}]
+    - [Equation:EQ-016, LineItem:sce_total_comprehensive_income, {role: lhs, sign: 1}]
+    - [Equation:EQ-016, LineItem:total_comprehensive_income, {role: rhs, sign: 1}]
+    - [Equation:EQ-017, LineItem:inventories, {role: lhs, sign: 1}]
+    - [Equation:EQ-017, LineItem:inventory_cost, {role: rhs, sign: 1}]
+    - [Equation:EQ-017, LineItem:inventory_nrv, {role: rhs, sign: 1}]
+    - [Equation:EQ-018, LineItem:inventory_nrv, {role: lhs, sign: 1}]
+    - [Equation:EQ-018, LineItem:estimated_selling_price, {role: rhs, sign: 1}]
+    - [Equation:EQ-018, LineItem:costs_to_complete, {role: rhs, sign: -1}]
+    - [Equation:EQ-018, LineItem:costs_to_sell, {role: rhs, sign: -1}]
+    - [Equation:EQ-019, LineItem:total_debits, {role: lhs, sign: 1}]
+    - [Equation:EQ-019, LineItem:total_credits, {role: rhs, sign: 1}]
+    - [Ratio:RAT-001, LineItem:total_current_assets, {role: rhs, sign: 1}]
+    - [Ratio:RAT-001, LineItem:total_current_liabilities, {role: rhs, sign: 1}]
+    - [Ratio:RAT-002, LineItem:total_current_assets, {role: rhs, sign: 1}]
+    - [Ratio:RAT-002, LineItem:inventories, {role: rhs, sign: 1}]
+    - [Ratio:RAT-002, LineItem:total_current_liabilities, {role: rhs, sign: 1}]
+    - [Ratio:RAT-003, LineItem:gross_profit, {role: rhs, sign: 1}]
+    - [Ratio:RAT-003, LineItem:revenue, {role: rhs, sign: 1}]
+    - [Ratio:RAT-004, LineItem:profit_for_the_year, {role: rhs, sign: 1}]
+    - [Ratio:RAT-004, LineItem:revenue, {role: rhs, sign: 1}]
+    - [Ratio:RAT-005, LineItem:total_liabilities, {role: rhs, sign: 1}]
+    - [Ratio:RAT-005, LineItem:total_equity, {role: rhs, sign: 1}]
+    - [Ratio:RAT-006, LineItem:cost_of_sales, {role: rhs, sign: 1}]
+    - [Ratio:RAT-006, LineItem:inventories, {role: rhs, sign: 1}]
+  HOLDS_IN:
+    - [Equation:EQ-001, FinancialStatement:SFP]
+    - [Equation:EQ-002, FinancialStatement:SFP]
+    - [Equation:EQ-003, FinancialStatement:SFP]
+    - [Equation:EQ-004, FinancialStatement:SFP]
+    - [Equation:EQ-005, FinancialStatement:SPLOCI]
+    - [Equation:EQ-006, FinancialStatement:SPLOCI]
+    - [Equation:EQ-007, FinancialStatement:SPLOCI]
+    - [Equation:EQ-008, FinancialStatement:SPLOCI]
+    - [Equation:EQ-009, FinancialStatement:SPLOCI]
+    - [Equation:EQ-010, FinancialStatement:SCE]
+    - [Equation:EQ-011, FinancialStatement:SCE]
+    - [Equation:EQ-012, FinancialStatement:SCF]
+    - [Equation:EQ-013, FinancialStatement:SCF]
+    - [Equation:EQ-014, FinancialStatement:SCF]
+    - [Equation:EQ-014, FinancialStatement:SFP]
+    - [Equation:EQ-015, FinancialStatement:SCE]
+    - [Equation:EQ-015, FinancialStatement:SFP]
+    - [Equation:EQ-016, FinancialStatement:SCE]
+    - [Equation:EQ-016, FinancialStatement:SPLOCI]
+    - [Equation:EQ-017, FinancialStatement:SFP]
+    - [Equation:EQ-017, FinancialStatement:NOTES]
+    - [Equation:EQ-018, FinancialStatement:NOTES]
+    - [Ratio:RAT-001, FinancialStatement:SFP]
+    - [Ratio:RAT-002, FinancialStatement:SFP]
+    - [Ratio:RAT-003, FinancialStatement:SPLOCI]
+    - [Ratio:RAT-004, FinancialStatement:SPLOCI]
+    - [Ratio:RAT-005, FinancialStatement:SFP]
+    - [Ratio:RAT-006, FinancialStatement:SPLOCI]
+    - [Ratio:RAT-006, FinancialStatement:SFP]
+  DERIVED_FROM:
+    - [Equation:EQ-001, "Section:CF:4.4"]
+    - [Equation:EQ-002, "Section:LKAS 1:60"]
+    - [Equation:EQ-003, "Section:LKAS 1:60"]
+    - [Equation:EQ-004, "Section:LKAS 1:54"]
+    - [Equation:EQ-005, "Section:LKAS 1:103"]
+    - [Equation:EQ-006, "Section:LKAS 1:82"]
+    - [Equation:EQ-006, "Section:LKAS 1:103"]
+    - [Equation:EQ-007, "Section:LKAS 1:82"]
+    - [Equation:EQ-008, "Section:LKAS 1:7"]
+    - [Equation:EQ-008, "Section:LKAS 1:81A"]
+    - [Equation:EQ-009, "Section:LKAS 2:34"]
+    - [Equation:EQ-010, "Section:LKAS 1:106"]
+    - [Equation:EQ-011, "Section:LKAS 1:106"]
+    - [Equation:EQ-012, "Section:LKAS 7:10"]
+    - [Equation:EQ-013, "Section:LKAS 7:28"]
+    - [Equation:EQ-014, "Section:LKAS 7:45"]
+    - [Equation:EQ-015, "Section:LKAS 1:106"]
+    - [Equation:EQ-016, "Section:LKAS 1:106"]
+    - [Equation:EQ-017, "Section:LKAS 2:9"]
+    - [Equation:EQ-018, "Section:LKAS 2:6"]
+    - [MeasurementBasis:HISTORICAL_COST, "Section:CF:4.55"]
+    - [MeasurementBasis:CURRENT_COST, "Section:CF:4.55"]
+    - [MeasurementBasis:REALISABLE_VALUE, "Section:CF:4.55"]
+    - [MeasurementBasis:PRESENT_VALUE, "Section:CF:4.55"]
+    - [MeasurementBasis:NRV, "Section:LKAS 2:6"]
+    - [MeasurementBasis:FAIR_VALUE, "Standard:SLFRS 13"]
+    - [QualitativeCharacteristic:RELEVANCE, "Section:CF:QC5"]
+    - [QualitativeCharacteristic:FAITHFUL_REPRESENTATION, "Section:CF:QC5"]
+    - [QualitativeCharacteristic:COMPARABILITY, "Section:CF:QC19"]
+    - [QualitativeCharacteristic:VERIFIABILITY, "Section:CF:QC19"]
+    - [QualitativeCharacteristic:TIMELINESS, "Section:CF:QC19"]
+    - [QualitativeCharacteristic:UNDERSTANDABILITY, "Section:CF:QC19"]
+  GOVERNS:
+    - ["Standard:LKAS 1", FinancialStatement:SFP]
+    - ["Standard:LKAS 1", FinancialStatement:SPLOCI]
+    - ["Standard:LKAS 1", FinancialStatement:SCE]
+    - ["Standard:LKAS 1", FinancialStatement:NOTES]
+    - ["Standard:LKAS 7", FinancialStatement:SCF]
+    - ["Standard:LKAS 2", LineItem:inventories]
+    - ["Standard:LKAS 2", LineItem:cost_of_sales]
+    - ["Standard:LKAS 7", LineItem:cash_and_cash_equivalents]
+    - ["Standard:LKAS 12", LineItem:current_tax_assets]
+    - ["Standard:LKAS 12", LineItem:current_tax_liabilities]
+    - ["Standard:LKAS 12", LineItem:deferred_tax_assets]
+    - ["Standard:LKAS 12", LineItem:deferred_tax_liabilities]
+    - ["Standard:LKAS 12", LineItem:tax_expense]
+    - ["Standard:LKAS 16", LineItem:ppe]
+    - ["Standard:LKAS 23", LineItem:finance_costs]
+    - ["Standard:LKAS 28", LineItem:equity_accounted_investments]
+    - ["Standard:LKAS 28", LineItem:share_of_associates_profit]
+    - ["Standard:LKAS 37", LineItem:provisions]
+    - ["Standard:LKAS 38", LineItem:intangible_assets]
+    - ["Standard:LKAS 40", LineItem:investment_property]
+    - ["Standard:LKAS 41", LineItem:biological_assets]
+    - ["Standard:SLFRS 5", LineItem:assets_held_for_sale]
+    - ["Standard:SLFRS 5", LineItem:liabilities_held_for_sale]
+    - ["Standard:SLFRS 5", LineItem:discontinued_operations]
+    - ["Standard:SLFRS 9", LineItem:financial_assets]
+    - ["Standard:SLFRS 9", LineItem:financial_liabilities]
+    - ["Standard:SLFRS 9", LineItem:trade_receivables]
+    - ["Standard:SLFRS 9", LineItem:trade_payables]
+    - ["Standard:SLFRS 10", LineItem:non_controlling_interests]
+    - ["Standard:SLFRS 15", LineItem:revenue]

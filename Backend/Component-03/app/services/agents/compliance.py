@@ -1,0 +1,48 @@
+"""Agent 2: Compliance. Per-document KG check rules (accounting equation,
+debit = credit, statement tie-outs) and KG policy limits.
+
+If the KG cannot give the rules for a document type, the audit carries on and
+a REV-007 review item says which checks did not run (never a clean look).
+Every rule run is recorded (passed ones too) with the values it used.
+"""
+from app.schemas.case import AuditCase
+from app.schemas.findings import Finding, RuleApplication, TraceEntry
+from app.services import rules
+from app.services.kg_client import KGClient, KGError
+
+
+def run(case: AuditCase, kg: KGClient) -> tuple[list[Finding], list[TraceEntry], list[RuleApplication]]:
+    findings: list[Finding] = []
+    applied: list[RuleApplication] = []
+    skipped: list[str] = []
+    ran = 0
+    for d in case.docs:
+        try:
+            check_rules = rules.rules_for(kg.get_check_rules(d.doc_type), anomaly=False)
+            policy = kg.get_rules(d.doc_type)
+        except (ValueError, KGError) as exc:
+            findings.append(rules.review(
+                f"{d.doc_id}-REV007-compliance", "REV-007",
+                f"Compliance rules for {rules.label(d)} ({d.doc_type}) could not be loaded "
+                f"from the knowledge graph: {exc}. These checks did not run.",
+                [d.doc_id], severity="medium"))
+            continue
+        for rule in check_rules:
+            finding, skip, outcome = rules.check_rule(rule, d, materiality=case.materiality)
+            ran += 1
+            applied.append(outcome)
+            if finding:
+                findings.append(finding)
+            if skip:
+                skipped.append(skip)
+        policy_found, policy_applied = rules.policy_check(d, policy)
+        findings += policy_found
+        applied += policy_applied
+    trace = [TraceEntry(agent_name="compliance", decision_type="check",
+                        detail=f"Compliance ran {ran} rule check(s) on {len(case.docs)} "
+                               f"document(s): {len(findings)} finding(s).")]
+    trace += rules.materiality_trace("compliance", case.materiality, findings)
+    if skipped:
+        trace.append(TraceEntry(agent_name="compliance", decision_type="skip",
+                                detail="Not applicable (inputs missing): " + "; ".join(skipped) + "."))
+    return findings, trace, applied
