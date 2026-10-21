@@ -2,9 +2,9 @@ import type { Severity } from "@/types/audit";
 import { AlertTriangle, CheckCircle, Info, XCircle } from "lucide-react";
 
 const map: Record<Severity, { bg: string; icon: React.ReactNode }> = {
-  high: { bg: "background:#FEE2E2;color:var(--danger)", icon: <XCircle size={14} /> },
-  medium: { bg: "background:#FEF3C7;color:var(--warning)", icon: <AlertTriangle size={14} /> },
-  low: { bg: "background:#E0F2FE;color:var(--info)", icon: <Info size={14} /> },
+  high: { bg: "background:color-mix(in srgb,var(--danger) 14%,var(--surface));color:var(--danger)", icon: <XCircle size={14} /> },
+  medium: { bg: "background:color-mix(in srgb,var(--warning) 16%,var(--surface));color:var(--warning)", icon: <AlertTriangle size={14} /> },
+  low: { bg: "background:color-mix(in srgb,var(--info) 14%,var(--surface));color:var(--info)", icon: <Info size={14} /> },
 };
 
 export function SeverityBadge({ s }: { s: Severity }) {
@@ -26,5 +26,5 @@ export function EmptyState({ text }: { text: string }) {
 }
 
 export function ErrorState({ text }: { text: string }) {
-  return <div className="rounded-xl border border-[var(--danger)] bg-[#FEE2E2] p-4 text-sm">{text}</div>;
+  return <div className="rounded-xl border border-[var(--danger)] bg-[color-mix(in_srgb,var(--danger)_10%,var(--surface))] p-4 text-sm">{text}</div>;
 }

@@ -165,19 +165,18 @@ export function XaiPanel() {
             style={{
               ...fontBase,
               flex: 1,
-              padding: "6px 16px",
+              padding: "8px 16px",
               borderRadius: "var(--radius-pill)",
-              fontSize: "13px",
-              fontWeight: 500,
-              border: xaiActiveTab === tab
-                ? "1px solid var(--tab-active-border)"
-                : "1px solid transparent",
+              fontSize: "14px",
+              fontWeight: 600,
+              border: "1px solid transparent",
               background: xaiActiveTab === tab
-                ? "var(--tab-active-bg)"
+                ? "var(--seg-active-bg)"
                 : "transparent",
               color: xaiActiveTab === tab
-                ? "var(--text-h)"
+                ? "var(--seg-active-text)"
                 : "var(--text-muted)",
+              boxShadow: xaiActiveTab === tab ? "var(--shadow-sm)" : "none",
               cursor: "pointer",
               transition: "all 0.2s ease",
             }}

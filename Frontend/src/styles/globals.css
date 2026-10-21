@@ -48,10 +48,11 @@ body {
 }
 
 .heading-serif {
-  font-family: 'Instrument Serif', 'Georgia', serif;
-  font-weight: 400;
+  /* a strong, official serif, as on the Air Force design */
+  font-family: Georgia, 'Times New Roman', serif;
+  font-weight: 700;
   color: var(--text-h);
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
 }
 
 .num, td.amount { font-variant-numeric: tabular-nums; }
@@ -436,4 +437,150 @@ code, .id { font-family: 'JetBrains Mono Variable', monospace; }
 .viewer-btn:hover {
   background: rgba(255, 255, 255, 0.08) !important;
   color: #f5f0ea !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Sri Lanka Air Force theme: navy chrome (header, sidebar) over a sky page
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* Inside the navy chrome, the shared tokens switch to light-on-dark, so every
+   component placed there (buttons, menus, tooltips, inputs) reads correctly. */
+.slaf-chrome {
+  --bg: var(--chrome-mid);
+  --surface: #143a74;
+  --surface-muted: rgba(255, 255, 255, 0.12);
+  --border: rgba(255, 255, 255, 0.2);
+  --border-light: rgba(255, 255, 255, 0.12);
+  --border-strong: rgba(255, 255, 255, 0.38);
+  --text: #dce8f8;
+  --text-h: #ffffff;
+  --text-muted: #b3c8e6;
+  --text-soft: #8fa9cf;
+  --sidebar-hover: rgba(255, 255, 255, 0.08);
+  --sidebar-active: rgba(120, 175, 245, 0.2);
+  --input-bg: rgba(255, 255, 255, 0.08);
+  --input-border: rgba(255, 255, 255, 0.2);
+  --primary: #8cc0ff;
+  --success: #8fd8a8;
+  --warning: #f2c46b;
+  --danger: #ff9ea1;
+  --info: #9cc8ff;
+  color: var(--text);
+}
+
+/* ── Header ── */
+.slaf-header {
+  position: relative;
+  flex-shrink: 0;
+  height: 84px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 16px;
+  padding: 0 24px 0 20px;
+  overflow: hidden;
+  background:
+    radial-gradient(120% 140% at 72% 0%, color-mix(in srgb, var(--chrome-glow) 45%, transparent) 0%, transparent 55%),
+    linear-gradient(90deg, var(--chrome-deep) 0%, var(--chrome-mid) 45%, var(--chrome-high) 100%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 2px 10px rgba(4, 18, 44, 0.25);
+  z-index: 3;
+}
+.slaf-header-art { position: absolute; inset: 0; pointer-events: none; }
+.slaf-header-jet {
+  position: absolute; right: 26%; top: 6px; width: 190px; height: 78px;
+  color: #9cc4f2; opacity: 0.32; transform: rotate(-4deg);
+}
+.slaf-header-flag {
+  position: absolute; right: 0; top: 0; height: 100%; width: auto; max-width: 30%;
+  object-fit: cover; object-position: left center; opacity: 0.85;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 45%);
+          mask-image: linear-gradient(90deg, transparent 0%, #000 45%);
+}
+.slaf-brand { position: relative; display: flex; align-items: center; gap: 14px; min-width: 0; }
+.slaf-brand-crest { height: 64px; width: auto; flex-shrink: 0; filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.35)); }
+.slaf-brand-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.15; }
+.slaf-brand-name {
+  font-family: Georgia, 'Times New Roman', serif; font-weight: 700; font-size: 22px;
+  letter-spacing: 0.04em; text-transform: uppercase; color: #ffffff; white-space: nowrap;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+.slaf-brand-product {
+  font-size: 12.5px; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase;
+  color: #b9d3f3; white-space: nowrap; margin-top: 3px;
+}
+
+/* Library / Chat */
+.slaf-tabs {
+  position: relative; display: flex; gap: 4px; padding: 4px; border-radius: 999px;
+  background: rgba(4, 18, 44, 0.45); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+.slaf-tab {
+  padding: 8px 22px; border-radius: 999px; font-size: 15px; font-weight: 600; text-decoration: none;
+  color: #dbe8fa; transition: background 0.2s ease, color 0.2s ease;
+}
+.slaf-tab:hover { color: #ffffff; background: rgba(255, 255, 255, 0.08); }
+.slaf-tab-active, .slaf-tab-active:hover { background: #ffffff; color: #0c2d5e; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2); }
+.slaf-tab:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+
+.slaf-header-actions { position: relative; display: flex; justify-content: flex-end; }
+.slaf-explain {
+  display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 16px;
+  border-radius: 10px; border: 1.5px solid rgba(255, 255, 255, 0.85);
+  background: rgba(4, 18, 44, 0.35); color: #ffffff; font: 600 15px/1 inherit; font-family: inherit;
+  cursor: pointer; transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+.slaf-explain:hover { background: rgba(255, 255, 255, 0.12); }
+.slaf-explain[aria-pressed="true"] { background: rgba(255, 255, 255, 0.18); box-shadow: 0 0 0 3px rgba(140, 192, 255, 0.25); }
+.slaf-explain:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+
+@media (max-width: 900px) {
+  .slaf-brand-name { font-size: 16px; }
+  .slaf-brand-product { display: none; }
+  .slaf-header-jet { display: none; }
+}
+
+/* ── Sidebar ── */
+.slaf-sidebar {
+  background: linear-gradient(180deg, var(--chrome-mid) 0%, var(--chrome-deep) 100%);
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+}
+.slaf-sidebar-crest {
+  position: absolute; left: 50%; bottom: 70px; transform: translateX(-50%);
+  width: 220px; max-width: 80%; opacity: 0.07; pointer-events: none; filter: grayscale(1) brightness(2);
+}
+.slaf-sidebar .side-row-active { box-shadow: inset 0 0 0 1px rgba(140, 192, 255, 0.25); }
+.slaf-sidebar .side-group { color: #c9daf2; }
+
+/* ── Sky page behind the content ── */
+.slaf-stage { position: relative; flex: 1; min-width: 0; min-height: 0; display: flex; }
+.slaf-stage > main, .slaf-stage > #xai-panel { position: relative; z-index: 1; }
+.slaf-sky {
+  position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 0;
+  background: linear-gradient(180deg, var(--sky-top) 0%, var(--sky-mid) 55%, var(--sky-low) 100%);
+}
+.slaf-sky-crest {
+  position: absolute; left: 50%; top: 14%; transform: translateX(-50%);
+  width: min(360px, 40%); opacity: 0.06; filter: grayscale(1);
+}
+.slaf-sky-jet { position: absolute; color: var(--sky-art); }
+.slaf-sky-jet-a { left: 4%; bottom: 16%; width: min(300px, 26%); opacity: var(--sky-art-opacity); transform: rotate(-10deg); }
+.slaf-sky-jet-b { right: 18%; top: 9%; width: min(150px, 13%); opacity: calc(var(--sky-art-opacity) * 0.6); transform: rotate(-6deg); }
+.slaf-sky-mountains {
+  position: absolute; left: 0; right: 0; bottom: 0; width: 100%; height: 26%;
+  color: var(--sky-art); opacity: calc(var(--sky-art-opacity) * 1.1);
+}
+
+/* the Explainability card floats on the sky */
+#xai-panel { box-shadow: var(--shadow-lg) !important; }
+
+
+/* phones: crest only, compact tabs, so the header never overlaps */
+@media (max-width: 640px) {
+  .slaf-header { grid-template-columns: auto 1fr auto; gap: 8px; padding: 0 12px; height: 68px; }
+  .slaf-tabs { justify-self: center; }
+  .slaf-brand-text, .slaf-header-flag { display: none; }
+  .slaf-brand-crest { height: 46px; }
+  .slaf-tab { padding: 7px 13px; font-size: 14px; }
+  .slaf-explain { height: 36px; padding: 0 11px; font-size: 14px; }
 }
