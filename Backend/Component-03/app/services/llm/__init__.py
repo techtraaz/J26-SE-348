@@ -61,7 +61,8 @@ def _get() -> LLMProvider | None:
             if cls is None:
                 logger.warning("Unknown C03_LLM_PROVIDER %r; LLM off.", config.LLM_PROVIDER)
                 return None
-            _provider = cls(config.LLM_BASE_URL, config.MODEL_NAME, config.LLM_API_KEY)
+            _provider = cls(config.LLM_BASE_URL, config.MODEL_NAME, config.LLM_API_KEY,
+                            config.LLM_REASONING_EFFORT)
         return _provider
 
 

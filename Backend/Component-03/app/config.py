@@ -47,6 +47,9 @@ MODEL_NAME: str = os.getenv("C03_LLM_MODEL", os.getenv("C03_MODEL_NAME", "phi4-m
 LLM_BASE_URL: str = os.getenv("C03_LLM_BASE_URL", os.getenv(
     "OLLAMA_HOST", "http://localhost:11434" if LLM_PROVIDER == "ollama" else "http://localhost:8080/v1"))
 LLM_API_KEY: str = os.getenv("C03_LLM_API_KEY", "")  # only if the local server needs one
+# For models that think before answering (e.g. Qwen 3.5): "none" turns thinking off
+# (faster, clean JSON); low | medium | high; empty = the server's default (phi4-mini).
+LLM_REASONING_EFFORT: str = os.getenv("C03_LLM_REASONING_EFFORT", "").strip().lower()
 LLM_TIMEOUT: float = float(os.getenv("C03_LLM_TIMEOUT", "8"))  # audit trace narration
 # The case summary written for the auditor (Reasoning agent): a few paragraphs,
 # so it needs longer than a trace line. Rejected if it uses a number not in the facts.
