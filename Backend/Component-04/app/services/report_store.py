@@ -90,14 +90,22 @@ def _storage() -> tuple[Any, str]:
     return _s3, _bucket or config.GARAGE_BUCKET
 
 
+def _storage_errors() -> tuple[type[BaseException], ...]:
+    """Object storage errors, if boto3 is installed (MongoDB calls must not depend on it)."""
+    try:
+        from botocore.exceptions import BotoCoreError, ClientError
+    except ImportError:
+        return ()
+    return BotoCoreError, ClientError
+
+
 async def _run(fn, *args):
-    from botocore.exceptions import BotoCoreError, ClientError
     from pymongo.errors import PyMongoError
     try:
         return await asyncio.to_thread(fn, *args)
     except PyMongoError as exc:
         raise StoreUnavailable(f"MongoDB error: {exc}") from exc
-    except (BotoCoreError, ClientError) as exc:
+    except _storage_errors() as exc:
         raise StoreUnavailable(f"Object storage error: {type(exc).__name__}") from exc
 
 

@@ -25,6 +25,20 @@ uv sync
 uv run uvicorn app.main:app --reload --port 8004
 ```
 
+Without `uv`, use a plain virtual environment (the packages are the ones in
+`pyproject.toml`):
+
+```powershell
+python -m venv .venv
+.venv\Scripts\python.exe -m pip install "fastapi[standard]" aiosqlite httpx pymongo pydantic sse-starlette reportlab boto3 python-dotenv
+.venv\Scripts\python.exe -m uvicorn app.main:app --reload --port 8004
+```
+
+Settings are read from `.env` and every name starts with `C04_` (or `GARAGE_` for
+object storage); see `.env.example`. With a thinking model such as Qwen 3.5, set
+`C04_LLM_REASONING_EFFORT=none`, otherwise its thinking can use up the answer and
+the review falls back to the fixed wording ("the AI answer was cut off").
+
 Tests use an in-memory MongoDB and S3 bucket and never touch real services:
 
 ```powershell

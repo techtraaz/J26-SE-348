@@ -10,6 +10,7 @@ import {
   runHeadline,
   runTitle,
   stageSummary,
+  type FallbackReason,
   type Review,
   type Run,
   type Stage,
@@ -19,6 +20,14 @@ import {
   type Verdict,
   type XaiEvent,
 } from "./timeline";
+
+/** Why the Review Agent wrote the summary itself, in the reviewer's words. */
+const FALLBACK_NOTE: Record<FallbackReason, string> = {
+  unreachable: "AI unavailable",
+  cut_off: "the AI answer was cut off",
+  no_answer: "the AI gave no answer",
+  not_faithful: "the AI summary did not match the facts",
+};
 
 // A Claude-style "thinking" dropdown per run: one collapsible block for each
 // audit or Copilot turn, stages (agents) inside it, steps inside each stage.
@@ -280,7 +289,7 @@ function ReviewCard({ review, kind }: { review: Review; kind: Run["kind"] }) {
           )}
           <p style={{ fontSize: 11, color: "var(--text-soft)", marginTop: 10 }}>
             {review.source === "rules"
-              ? "Written from this trace (AI unavailable)."
+              ? `Written from this trace (${FALLBACK_NOTE[review.fallbackReason ?? "unreachable"]}).`
               : "AI summary of this trace."}
             {" "}{chat ? "Verdict from the steps above." : "Verdict and next steps from the checks."}
           </p>

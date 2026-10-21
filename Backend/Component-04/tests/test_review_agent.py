@@ -35,8 +35,9 @@ def _run_key(case_id: str) -> str:
                 if e["event_type"] == "pipeline_start" and e["case_id"] == case_id)
 
 
-def _llm(reply: str | None):
-    return patch.object(review_agent, "_call_llm", AsyncMock(return_value=reply))
+def _llm(reply: str | None, reason: str = review_agent.UNREACHABLE):
+    return patch.object(review_agent, "_call_llm",
+                        AsyncMock(return_value=(reply, None if reply else reason)))
 
 
 async def test_failed_checks_mean_action_needed_with_concrete_next_steps():
@@ -61,7 +62,7 @@ async def test_ai_summary_is_used_when_faithful():
 async def test_invented_numbers_are_rejected_for_the_fixed_summary():
     with _llm("The audit found 97 problems worth Rs 4,200,000."):
         review = await review_agent.review_run("ACME-1", _run_key("ACME-1"), 3)
-    assert review["source"] == "rules"
+    assert review["source"] == "rules" and review["fallback_reason"] == "not_faithful"
     assert "97" not in review["summary"]
     assert review["summary"].endswith("The audit raised 3 finding(s).")
 
@@ -70,6 +71,7 @@ async def test_offline_model_still_gets_a_review():
     with _llm(None):
         review = await review_agent.review_run("ACME-1", _run_key("ACME-1"), 3)
     assert review["source"] == "rules" and review["model"] is None
+    assert review["fallback_reason"] == "unreachable"
     assert "checked 3 document(s)" in review["summary"]
 
 
@@ -107,6 +109,7 @@ def test_openai_compatible_server_request(monkeypatch):
     monkeypatch.setattr(config, "LLM_API_URL", "https://gpu-pod.example/v1")
     monkeypatch.setattr(config, "LLM_MODEL", "qwen2.5-14b-instruct")
     monkeypatch.setattr(config, "LLM_API_KEY", "k")
+    monkeypatch.setattr(config, "LLM_REASONING_EFFORT", "")
     url, headers, body = review_agent._llm_request("facts")
     assert url == "https://gpu-pod.example/v1/chat/completions"
     assert headers == {"Authorization": "Bearer k"}
@@ -174,3 +177,55 @@ def test_chat_verdicts():
     assert "language model could not be reached" in steps[0]
     failed = review_agent.TurnFacts(failed=[{"target": "CHK-004 on TXN", "detail": "cash out with no asset in"}])
     assert review_agent.decide_turn(failed)[0] == "action_required"
+
+
+class _Reply:
+    def __init__(self, data: dict):
+        self.status_code, self._data = 200, data
+
+    def raise_for_status(self):
+        pass
+
+    def json(self):
+        return self._data
+
+
+def _server(data: dict):
+    """The LLM server answering every request with `data`."""
+    client = AsyncMock()
+    client.__aenter__.return_value = client
+    client.post = AsyncMock(return_value=_Reply(data))
+    return patch.object(review_agent.httpx, "AsyncClient", return_value=client)
+
+
+def _openai(content: str, finish: str = "stop") -> dict:
+    return {"choices": [{"message": {"content": content}, "finish_reason": finish}]}
+
+
+async def test_reply_cut_off_while_thinking_is_reported_as_cut_off(monkeypatch):
+    monkeypatch.setattr(config, "LLM_PROVIDER", "openai")
+    with _server(_openai("", "length")):
+        assert await review_agent._call_llm("facts") == (None, review_agent.CUT_OFF)
+
+
+async def test_inline_thinking_is_stripped(monkeypatch):
+    monkeypatch.setattr(config, "LLM_PROVIDER", "openai")
+    with _server(_openai('<think>first the facts...</think>{"summary": "All 9 checks passed."}')):
+        assert await review_agent._call_llm("facts") == ("All 9 checks passed.", None)
+
+
+async def test_server_down_is_reported_as_unreachable(monkeypatch):
+    monkeypatch.setattr(config, "LLM_PROVIDER", "openai")
+    with patch.object(review_agent.httpx, "AsyncClient", side_effect=OSError("refused")):
+        assert await review_agent._call_llm("facts") == (None, review_agent.UNREACHABLE)
+
+
+def test_ollama_thinking_switch(monkeypatch):
+    monkeypatch.setattr(config, "LLM_PROVIDER", "ollama")
+    monkeypatch.setattr(config, "LLM_REASONING_EFFORT", "none")
+    assert review_agent._llm_request("facts")[2]["think"] is False
+
+
+def test_mongodb_password_is_never_logged():
+    from app.services.trace_reader import _host_only
+    assert _host_only("mongodb+srv://user:s3cret@cluster0.ab.mongodb.net/?retryWrites=true")         == "mongodb+srv://cluster0.ab.mongodb.net"
