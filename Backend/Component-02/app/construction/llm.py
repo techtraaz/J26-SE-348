@@ -17,6 +17,11 @@ class LLMError(RuntimeError):
     pass
 
 
+class LLMUnavailable(LLMError):
+    """The server could not be reached or refused the request; retrying other paragraphs
+    will not help."""
+
+
 class LLM(Protocol):
     def extract(self, system: str, user: str, schema: type[T]) -> T: ...
 
@@ -71,6 +76,9 @@ class OpenAICompatibleLLM:
                 if self._format == len(self.FORMATS) - 1:
                     raise
                 self._format += 1
+            except (openai.APIConnectionError, openai.APIStatusError) as exc:
+                raise LLMUnavailable(f"LLM server unavailable ({self.s.llm_base_url}): "
+                                     f"{type(exc).__name__}") from exc
 
     def extract(self, system: str, user: str, schema: type[T]) -> T:
         messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
@@ -90,7 +98,10 @@ class OpenAICompatibleLLM:
         raise LLMError(f"No valid {schema.__name__} after retries: {last_error}")
 
     def embed(self, texts: list[str]) -> list[list[float]]:
-        resp = self.embed_client.embeddings.create(model=self.s.embedding_model, input=texts)
+        try:
+            resp = self.embed_client.embeddings.create(model=self.s.embedding_model, input=texts)
+        except openai.APIError as exc:
+            raise LLMUnavailable(f"Embedding server unavailable: {type(exc).__name__}") from exc
         vectors = [d.embedding for d in resp.data]
         if vectors and len(vectors[0]) != self.s.embedding_dim:
             raise LLMError(f"Embedding size {len(vectors[0])} does not match "
@@ -123,6 +134,22 @@ class FakeLLM:
             norm = math.sqrt(sum(v * v for v in raw)) or 1.0
             out.append([v / norm for v in raw])
         return out
+
+
+def ping(settings: Settings | None = None, timeout: float = 5.0) -> tuple[str, str | None]:
+    """("up" | "down" | "fake", reason). Lists the server's models, which needs no GPU time."""
+    s = settings or get_settings()
+    if s.llm_provider == "fake":
+        return "fake", "LLM_PROVIDER=fake, no server used"
+    try:
+        client = openai.OpenAI(base_url=s.llm_base_url, api_key=s.llm_api_key, timeout=timeout,
+                               max_retries=0)
+        models = [m.id for m in client.models.list()]
+    except openai.APIError as exc:
+        return "down", f"{s.llm_base_url}: {type(exc).__name__}"
+    if models and s.llm_model not in models:
+        return "up", f"model '{s.llm_model}' not in the server's list"
+    return "up", None
 
 
 def get_llm(settings: Settings | None = None) -> LLM:

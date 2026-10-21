@@ -76,6 +76,28 @@ model runs again. A failing file is logged and the batch continues. Totals go to
 | `GET /kg/jobs` | All jobs, newest first. |
 | `GET /kg/pipeline` | The pipeline as a Mermaid diagram. |
 
+A running job also has `stage` (what runs now), `stages_done` and `progress` (`{done, total}`
+paragraphs sent to the LLM). A finished job has `totals` (graph nodes and relationships before
+and after) and `changes`: the new nodes per type and the touched part of the graph for drawing.
+
+If the LLM server cannot be reached, the remaining paragraphs are not sent. Standard, Sections
+and SourceChunks are still written and `summary.llm_unavailable` says why; run it again once
+the server is up.
+
+## Policies (frontend upload)
+
+The Policies page uploads PDFs here. They are stored in Garage (`GARAGE_*` in `.env`) under
+`c02-policies/` in the shared bucket, and the last run of each file is saved next to it as
+`c02-policies/_runs/<file>.json`, so it is still shown after a restart.
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /policies` | Stored policies with the status of their last KG update. |
+| `POST /policies` | Multipart `file` (+ optional `code`): store, then update the KG as a job (`202`). |
+| `POST /policies/{name}/ingest` | Run the KG update again from the stored copy. |
+| `GET /policies/{name}/run` | The running or last job, with its `changes`. |
+| `GET /policies/{name}/file` | The PDF (`?download=true` to save it). |
+
 ## Pipeline diagram
 
 Generated from the LangGraph definition by `python -m scripts.export_ontology`.

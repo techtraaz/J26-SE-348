@@ -537,6 +537,8 @@ code, .id { font-family: 'JetBrains Mono Variable', monospace; }
 .slaf-tab:hover { color: #ffffff; background: rgba(255, 255, 255, 0.08); }
 .slaf-tab-active, .slaf-tab-active:hover { background: #ffffff; color: #0c2d5e; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2); }
 .slaf-tab:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.slaf-nav { position: relative; display: flex; align-items: center; gap: 10px; }
+.slaf-tab-icon { display: inline-flex; align-items: center; gap: 7px; }
 
 .slaf-header-actions { position: relative; display: flex; justify-content: flex-end; }
 .slaf-explain {
@@ -593,7 +595,8 @@ code, .id { font-family: 'JetBrains Mono Variable', monospace; }
 /* phones: crest only, compact tabs, so the header never overlaps */
 @media (max-width: 640px) {
   .slaf-header { grid-template-columns: auto 1fr auto; gap: 8px; padding: 0 12px; height: 68px; }
-  .slaf-tabs { justify-self: center; }
+  .slaf-nav { justify-self: center; gap: 6px; }
+  .slaf-tab-icon svg { display: none; }
   .slaf-brand-text, .slaf-header-flag { display: none; }
   .slaf-brand-crest { height: 46px; }
   .slaf-tab { padding: 7px 13px; font-size: 14px; }
@@ -618,3 +621,28 @@ code, .id { font-family: 'JetBrains Mono Variable', monospace; }
 .slaf-jet-img { height: auto; object-fit: contain; }
 .slaf-sky-jet.slaf-jet-img { opacity: 0.9; }
 .slaf-header-jet.slaf-jet-img { height: auto; opacity: 0.9; }
+
+/* ── Policies: knowledge graph change view ── */
+:root {
+  --kg-standard: #0c2d5e;
+  --kg-section: #2b6cb4;
+  --kg-requirement: #b4621a;
+  --kg-definition: #2c7a4b;
+  --kg-equation: #7a4fc0;
+  --kg-other: #8195b4;
+  --kg-new: #e7b632;
+}
+[data-theme="dark"] {
+  --kg-standard: #c6d8f5;
+  --kg-section: #5b9cf0;
+  --kg-requirement: #f0a35e;
+  --kg-definition: #6fcf97;
+  --kg-equation: #b394f0;
+  --kg-other: #647ca3;
+}
+.kg-new-ring { animation: kg-pulse 1.8s ease-out 3; transform-box: fill-box; transform-origin: center; }
+@keyframes kg-pulse {
+  0% { opacity: 0.9; transform: scale(1); }
+  100% { opacity: 0; transform: scale(2.4); }
+}
+@media (prefers-reduced-motion: reduce) { .kg-new-ring { animation: none; opacity: 0; } }

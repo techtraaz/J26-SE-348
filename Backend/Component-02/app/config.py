@@ -38,6 +38,17 @@ class Settings(BaseSettings):
     query_cypher_timeout: float = 10.0
     query_cypher_max_rows: int = 500
 
+    # S3-compatible object storage (Garage), same bucket as the other components
+    garage_endpoint: str = ""
+    garage_access_key: str = ""
+    garage_secret_key: str = ""
+    garage_bucket: str = "uploads"
+    policies_prefix: str = "c02-policies"
+    policy_max_mb: int = 50
+
+    # comma separated origins allowed to call the API from a browser (the frontend)
+    cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
+
 
 @lru_cache
 def get_settings() -> Settings:
