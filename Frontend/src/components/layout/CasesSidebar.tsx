@@ -7,11 +7,12 @@ import { env } from "@/config/env";
 import { useUI } from "@/store/ui";
 import { IconButton } from "@/components/ui/IconButton";
 import { VERDICT } from "@/lib/verdict";
+import { SidebarArt } from "@/components/layout/BrandArt";
 import type { Tone } from "@/types/audit";
 
-// The Chat page's sidebar, full height from the top of the window (Claude-style):
-// brand and hide button on top, "New case", the cases (one chat each) grouped by
-// date, the account at the bottom. Collapses to a narrow rail (Ctrl+B).
+// The Chat page's sidebar, below the navy top bar: hide button and "New case" on
+// top, the cases (one chat each) grouped by date, the account at the bottom, the
+// crest as a faint watermark. Collapses to a narrow rail (Ctrl+B).
 
 const SEARCH_FROM = 8; // the filter box appears once the list is this long
 
@@ -64,52 +65,45 @@ export function CasesSidebar() {
   }
 
   return (
-    <aside aria-label="Cases" style={{
-      width: open ? "260px" : "56px", flexShrink: 0, height: "100%",
-      borderRight: "1px solid var(--border-light)", background: "var(--sidebar-bg)",
+    <aside aria-label="Cases" className="slaf-chrome slaf-sidebar" style={{
+      width: open ? "288px" : "60px", flexShrink: 0, height: "100%",
       display: "flex", flexDirection: "column", overflow: open ? "hidden" : "visible",
-      transition: "width 0.2s ease",
+      transition: "width 0.2s ease", position: "relative",
     }}>
-      {/* ── Brand + hide (same height as the top bar) ── */}
-      <div style={{
-        height: "60px", flexShrink: 0, display: "flex", alignItems: "center", gap: "8px",
-        padding: "0 12px", justifyContent: open ? "flex-start" : "center",
-      }}>
-        <IconButton tip={open ? "Hide sidebar" : "Show sidebar"} shortcut="Ctrl+B"
-                    tipSide={open ? "bottom" : "right"} onClick={toggleSidebar}>
-          <PanelLeft size={18} strokeWidth={1.6} />
-        </IconButton>
-        {open && (
-          <span className="heading-serif" style={{ fontSize: "24px", lineHeight: 1, userSelect: "none" }}>
-            NOMOS
-          </span>
-        )}
-      </div>
+      <SidebarArt />
 
-      {/* ── New case: opens a blank case, listed once it holds something ── */}
-      <div style={{ padding: "4px 12px 8px", display: "flex", justifyContent: open ? "stretch" : "center" }}>
+      {/* ── Hide / show and New case (opens a blank case, listed once it holds something) ── */}
+      <div style={{ padding: "16px 12px 8px", display: "flex", alignItems: "center", gap: "6px",
+                    flexDirection: open ? "row" : "column", position: "relative" }}>
         {open ? (
           <button type="button" className={blank ? "side-row side-row-active" : "side-row"}
                   aria-current={blank ? "page" : undefined} onClick={startNewCase} style={rowStyle(blank)}>
             <span style={{
-              width: "24px", height: "24px", borderRadius: "50%", flexShrink: 0,
+              width: "30px", height: "30px", borderRadius: "50%", flexShrink: 0,
               background: "var(--surface-muted)", border: "1px solid var(--border-strong)",
               display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-h)",
             }}>
-              <Plus size={14} strokeWidth={2} />
+              <Plus size={16} strokeWidth={2} />
             </span>
-            <span style={{ fontSize: "13.5px", color: "var(--text-h)", fontWeight: 500 }}>New case</span>
+            <span style={{ fontSize: "14.5px", color: "var(--text-h)", fontWeight: 600 }}>New case</span>
           </button>
         ) : (
           <IconButton tip="New case" tipSide="right" onClick={startNewCase}>
             <Plus size={18} strokeWidth={1.6} />
           </IconButton>
         )}
+        <span style={{ order: open ? 1 : -1 }}>
+          <IconButton tip={open ? "Hide sidebar" : "Show sidebar"} shortcut="Ctrl+B"
+                      tipSide={open ? "bottom-end" : "right"} onClick={toggleSidebar}>
+            <PanelLeft size={18} strokeWidth={1.6} />
+          </IconButton>
+        </span>
       </div>
 
       {/* ── Cases ── */}
       {open ? (
-        <div className="thin-scroll" style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "4px 12px 12px" }}>
+        <div className="thin-scroll" style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "4px 12px 12px",
+                                              position: "relative" }}>
           <SessionButton active={selectedCase === null} onClick={() => setCase(null)} sessionId={generalSessionId}
                          title="General questions" line={{ tone: null, text: "rules, standards, what-ifs" }} />
           {entries.length >= SEARCH_FROM && (
@@ -144,7 +138,7 @@ export function CasesSidebar() {
       )}
 
       {/* ── Account ── */}
-      <div style={{ borderTop: "1px solid var(--border-light)", padding: "10px 12px",
+      <div style={{ borderTop: "1px solid var(--border-light)", padding: "12px 12px 14px", position: "relative",
                     display: "flex", justifyContent: open ? "flex-start" : "center" }}>
         <button type="button" className="icon-btn" aria-label="Account" data-tip="Account"
                 data-tip-side={open ? "top" : "right"}

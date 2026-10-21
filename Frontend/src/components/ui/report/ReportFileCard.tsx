@@ -96,26 +96,28 @@ export function ReportFileCard({ url, filename, caseId }: { url: string; filenam
   );
 }
 
-/** A miniature of the report's cover page: every NOMOS report opens with the brown band. */
-export function CoverThumb({ verdictColor }: { verdictColor?: string }) {
+/** A miniature report cover in the Air Force colours: a navy band with a gold rule. */
+export function CoverThumb({ verdictColor, small = false }: { verdictColor?: string; small?: boolean }) {
+  const k = small ? 0.78 : 1;
   return (
     <div aria-hidden style={{
-      width: 52, height: 66, flexShrink: 0, borderRadius: 5, overflow: "hidden", background: "#fff",
-      border: "1px solid var(--border-strong)", boxShadow: "0 1px 3px rgba(0,0,0,0.12)", display: "flex",
+      width: 52 * k, height: 66 * k, flexShrink: 0, borderRadius: 5, overflow: "hidden", background: "#fff",
+      border: "1px solid var(--border-strong)", boxShadow: "0 1px 3px rgba(12,45,94,0.14)", display: "flex",
       flexDirection: "column",
     }}>
-      <div style={{ height: 15, background: "#3d3429", display: "flex", alignItems: "center", padding: "0 4px" }}>
-        <span style={{ fontFamily: "Georgia, serif", fontSize: 6.5, fontWeight: 700, color: "#f5f0ea", letterSpacing: 0.2 }}>
+      <div style={{ height: 15 * k, background: "linear-gradient(90deg, #08214a, #1a4f97)", display: "flex",
+                    alignItems: "center", padding: "0 4px" }}>
+        <span style={{ fontFamily: "Georgia, serif", fontSize: 6.5 * k, fontWeight: 700, color: "#ffffff", letterSpacing: 0.2 }}>
           NOMOS
         </span>
       </div>
-      <div style={{ height: 1.5, background: "#b07c2e" }} />
-      <div style={{ padding: "5px 4px", display: "flex", flexDirection: "column", gap: 3 }}>
-        <div style={{ height: 3, width: "70%", background: "#3d3429", borderRadius: 1 }} />
-        <div style={{ height: 9, borderRadius: 2, background: "#f3eee7",
-                      borderLeft: `2px solid ${verdictColor ?? "#a69d93"}` }} />
+      <div style={{ height: 1.5, background: "#e7b632" }} />
+      <div style={{ padding: `${5 * k}px 4px`, display: "flex", flexDirection: "column", gap: 3 * k }}>
+        <div style={{ height: 3, width: "70%", background: "#0c2d5e", borderRadius: 1 }} />
+        <div style={{ height: 9 * k, borderRadius: 2, background: "#eef4fc",
+                      borderLeft: `2px solid ${verdictColor ?? "#8195b4"}` }} />
         {[90, 75, 85, 60].map((w) => (
-          <div key={w} style={{ height: 2, width: `${w}%`, background: "#e3ddd5", borderRadius: 1 }} />
+          <div key={w} style={{ height: 2, width: `${w}%`, background: "#dbe7f5", borderRadius: 1 }} />
         ))}
       </div>
     </div>

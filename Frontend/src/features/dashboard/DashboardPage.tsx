@@ -184,7 +184,7 @@ export function DashboardPage() {
             </div>
           </div>
           <p style={{ textAlign: "center", fontSize: "11px", color: "var(--text-soft)", marginTop: "8px" }}>
-            NOMOS can make mistakes. Verify important findings against the evidence.
+            AI Audit can make mistakes. Verify important findings against the evidence.
           </p>
         </div>
       </div>

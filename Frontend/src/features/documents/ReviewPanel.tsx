@@ -170,7 +170,7 @@ export function ReviewPanel({ name, preview, parents, busy, onConfirm, onReread,
 
       <div style={{ display: "flex", gap: "8px", marginTop: "14px", alignItems: "center", flexWrap: "wrap" }}>
         <button onClick={confirm} disabled={busy || !docType || !yearOk}
-                style={{ ...pillButton, background: "var(--text-h)", color: "#f5f0ea", border: "none" }}>
+                style={{ ...pillButton, background: "var(--primary)", color: "var(--on-primary)", border: "none" }}>
           Add to case
         </button>
         <button onClick={onDiscard} disabled={busy} style={pillButton}>Discard</button>

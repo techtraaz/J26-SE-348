@@ -1,80 +1,121 @@
+/* ── Sri Lanka Air Force · AI Auditing Platform ─────────────────────────────
+   Light: a clear-sky page under a dark navy header and sidebar ("chrome").
+   Dark: the same design at night. Components only use these tokens; the
+   header and sidebar re-define them under .slaf-chrome (see globals.css).
+   ──────────────────────────────────────────────────────────────────────── */
 :root {
-  /* ── Warm Beige Palette (matching reference design) ── */
-  --bg: #f5f0ea;
+  --bg: #e2eefa;
   --surface: #ffffff;
-  --surface-muted: #ece7e0;
-  --border: #ddd7ce;
-  --border-light: #e8e3dc;
-  --border-strong: #cbc2b6; /* outlines of cards and inputs that must stand out */
+  --surface-muted: #eef4fc;
+  --border: #c8daef;
+  --border-light: #dbe7f5;
+  --border-strong: #a9c2e2; /* outlines of cards and inputs that must stand out */
 
-  --text: #3d3429;
-  --text-h: #1a1410;
-  --text-muted: #8a7e72;
-  --text-soft: #a69d93;
+  --text: #22395c;
+  --text-h: #0c2d5e;
+  --text-muted: #566d91;
+  --text-soft: #8195b4;
 
-  --nav: #f5f0ea;
-  --primary: #3d3429;
-  --primary-hover: #2a231c;
+  --nav: #0b2a5a;
+  --primary: #1f5fbf;
+  --primary-hover: #194f9f;
+  --on-primary: #ffffff;
 
-  --success: #3d7a4a;
-  --warning: #b07c2e;
-  --danger: #a33b3b;
-  --info: #4a7090;
+  --success: #2c7a4b;
+  --warning: #ad7419;
+  --danger: #b2383d;
+  --info: #2b6cb4;
 
-  --accent: #3d3429;
-  --accent-bg: rgba(61, 52, 41, 0.06);
+  --accent: #1f5fbf;
+  --accent-bg: rgba(31, 95, 191, 0.07);
+  --gold: #e7b632; /* the crest's eagle */
 
   --radius: 10px;
   --radius-lg: 16px;
   --radius-xl: 20px;
   --radius-pill: 999px;
 
-  --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
-  --shadow-md: 0 2px 8px rgba(0,0,0,0.06);
-  --shadow-lg: 0 4px 16px rgba(0,0,0,0.08);
+  --shadow-sm: 0 1px 2px rgba(12, 45, 94, 0.06);
+  --shadow-md: 0 4px 14px rgba(12, 45, 94, 0.09);
+  --shadow-lg: 0 10px 30px rgba(12, 45, 94, 0.14);
 
   --tab-active-bg: #ffffff;
   --tab-active-border: var(--border);
   --tab-inactive: var(--text-muted);
+  --seg-active-bg: var(--primary);     /* the panel's Thinking / Report switch */
+  --seg-active-text: #ffffff;
 
-  --sidebar-bg: #f5f0ea;
-  --sidebar-hover: rgba(61,52,41,0.06);
-  --sidebar-active: rgba(61,52,41,0.1);
+  --sidebar-bg: var(--chrome-mid);
+  --sidebar-hover: rgba(31, 95, 191, 0.07);
+  --sidebar-active: rgba(31, 95, 191, 0.12);
 
-  --input-bg: #f0ebe5;
-  --input-border: #ddd7ce;
+  --input-bg: rgba(255, 255, 255, 0.86);
+  --input-border: #b8cfea;
+
+  /* chrome: the navy header and sidebar */
+  --chrome-deep: #08214a;
+  --chrome-mid: #0c2c5f;
+  --chrome-high: #1a4f97;
+  --chrome-glow: #3f86d6;
+
+  /* sky: the page behind the content */
+  --sky-top: #c7def5;
+  --sky-mid: #e0edf9;
+  --sky-low: #d2e4f6;
+  --sky-art: #8fb5df;       /* jets, mountains */
+  --sky-art-opacity: 0.32;
 }
 
 [data-theme="dark"] {
-  --bg: #1a1714;
-  --surface: #242019;
-  --surface-muted: #2e2a22;
-  --border: #3a352c;
-  --border-light: #3a352c;
-  --border-strong: #4d473c;
+  --bg: #0b1730;
+  --surface: #12223f;
+  --surface-muted: #172a4b;
+  --border: #253c63;
+  --border-light: #1e3356;
+  --border-strong: #35527f;
 
-  --text: #c9bfb3;
-  --text-h: #f0ebe5;
-  --text-muted: #8a7e72;
-  --text-soft: #6b6058;
+  --text: #c6d4ea;
+  --text-h: #eef4ff;
+  --text-muted: #8ba1c5;
+  --text-soft: #647ca3;
 
-  --nav: #1a1714;
-  --primary: #c9bfb3;
-  --primary-hover: #f0ebe5;
+  --nav: #06142c;
+  --primary: #5b9cf0;
+  --primary-hover: #7db1f4;
+  --on-primary: #06142c;
 
   /* Lighter status colours: the light-theme ones are unreadable on a dark background. */
-  --success: #7fb38a;
-  --warning: #d9a75a;
-  --danger: #e07a7a;
-  --info: #8fb3d1;
+  --success: #6fc18c;
+  --warning: #e3b25b;
+  --danger: #ef8a8d;
+  --info: #7fb2ee;
 
-  --tab-active-bg: #2e2a22;
-  --tab-active-border: #3a352c;
+  --accent: #5b9cf0;
+  --accent-bg: rgba(91, 156, 240, 0.1);
 
-  --sidebar-bg: #1a1714;
-  --sidebar-hover: rgba(201,191,179,0.06);
-  --sidebar-active: rgba(201,191,179,0.1);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.35);
+  --shadow-lg: 0 10px 30px rgba(0, 0, 0, 0.45);
 
-  --input-bg: #2e2a22;
-  --input-border: #3a352c;
+  --tab-active-bg: #1b3157;
+  --tab-active-border: #2d4772;
+  --seg-active-bg: #5b9cf0;
+  --seg-active-text: #06142c;
+
+  --sidebar-hover: rgba(91, 156, 240, 0.08);
+  --sidebar-active: rgba(91, 156, 240, 0.14);
+
+  --input-bg: rgba(18, 34, 63, 0.9);
+  --input-border: #2d4772;
+
+  --chrome-deep: #040f24;
+  --chrome-mid: #071a3a;
+  --chrome-high: #0f3266;
+  --chrome-glow: #2a63ad;
+
+  --sky-top: #0a1a36;
+  --sky-mid: #0d2041;
+  --sky-low: #0a1932;
+  --sky-art: #3c5f92;
+  --sky-art-opacity: 0.35;
 }
