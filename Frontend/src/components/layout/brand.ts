@@ -9,5 +9,6 @@ export const BRAND = {
   pageBackground: "/brand/bg.png",
   jet: "/brand/jet.png",
   name: "Sri Lanka Air Force",
+  system: "NOMOS",
   product: "AI Auditing Platform",
 };

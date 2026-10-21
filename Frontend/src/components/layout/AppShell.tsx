@@ -28,7 +28,11 @@ export function AppShell() {
           <BrandImage src={BRAND.crest} alt="Sri Lanka Air Force crest" className="slaf-brand-crest" />
           <div className="slaf-brand-text">
             <span className="slaf-brand-name">{BRAND.name}</span>
-            <span className="slaf-brand-product">{BRAND.product}</span>
+            <span className="slaf-brand-product">
+              <span className="slaf-brand-system">{BRAND.system}</span>
+              <span className="slaf-brand-sep" aria-hidden>|</span>
+              {BRAND.product}
+            </span>
           </div>
         </div>
 

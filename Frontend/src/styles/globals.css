@@ -286,7 +286,7 @@ code, .id { font-family: 'JetBrains Mono Variable', monospace; }
 }
 
 /* ── A run opened from a chat reply's "Explain" ──
-   A soft gradient ring (theme info / success / warning colours) sweeps once
+   A soft gradient ring (dark to light blue) sweeps once
    around the run, 6px outside it, with a faint glow, then fades away. */
 @property --xai-ring-angle {
   syntax: "<angle>";
@@ -300,6 +300,16 @@ code, .id { font-family: 'JetBrains Mono Variable', monospace; }
   0% { opacity: 0; }
   12%, 72% { opacity: 1; }
   100% { opacity: 0; }
+}
+#xai-panel {
+  --xai-ring-dark: #0c2d5e;
+  --xai-ring-mid: #1f5fbf;
+  --xai-ring-light: #7cc0ff;
+}
+[data-theme="dark"] #xai-panel {
+  --xai-ring-dark: #1f5fbf;
+  --xai-ring-mid: #4f95ef;
+  --xai-ring-light: #b5dbff;
 }
 #xai-panel .xai-focused {
   position: relative;
@@ -320,7 +330,7 @@ code, .id { font-family: 'JetBrains Mono Variable', monospace; }
 #xai-panel .xai-focused::before {
   padding: 2px;
   background: conic-gradient(from var(--xai-ring-angle),
-    var(--info), var(--success), var(--warning), var(--info));
+    var(--xai-ring-dark), var(--xai-ring-mid), var(--xai-ring-light), var(--xai-ring-mid), var(--xai-ring-dark));
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
   mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
@@ -330,10 +340,10 @@ code, .id { font-family: 'JetBrains Mono Variable', monospace; }
 /* the glow: a faint coloured halo and tint behind the run */
 #xai-panel .xai-focused::after {
   z-index: -1;
-  background: color-mix(in srgb, var(--info) 5%, transparent);
+  background: color-mix(in srgb, var(--xai-ring-mid) 5%, transparent);
   box-shadow:
-    0 0 14px color-mix(in srgb, var(--info) 22%, transparent),
-    0 0 26px color-mix(in srgb, var(--success) 12%, transparent);
+    0 0 14px color-mix(in srgb, var(--xai-ring-mid) 24%, transparent),
+    0 0 26px color-mix(in srgb, var(--xai-ring-light) 18%, transparent);
 }
 @media (prefers-reduced-motion: reduce) {
   #xai-panel .xai-focused::before {
@@ -508,7 +518,11 @@ code, .id { font-family: 'JetBrains Mono Variable', monospace; }
 .slaf-brand-product {
   font-size: 14px; font-weight: 400; letter-spacing: 0.06em; text-transform: uppercase;
   color: #a9c8ee; white-space: nowrap; margin-top: 4px;
+  display: flex; align-items: center; gap: 8px;
 }
+/* the system name, in Air Force gold */
+.slaf-brand-system { font-weight: 700; letter-spacing: 0.14em; color: var(--gold); }
+.slaf-brand-sep { color: rgba(169, 200, 238, 0.5); font-weight: 300; }
 
 /* Library / Chat */
 .slaf-tabs {
@@ -547,7 +561,7 @@ code, .id { font-family: 'JetBrains Mono Variable', monospace; }
 }
 .slaf-sidebar-crest {
   position: absolute; left: 50%; bottom: 70px; transform: translateX(-50%);
-  width: 230px; max-width: 82%; opacity: 0.085; pointer-events: none; filter: grayscale(1) brightness(1.6);
+  width: 170px; max-width: 62%; opacity: 0.085; pointer-events: none; filter: grayscale(1) brightness(1.6);
 }
 .slaf-sidebar .side-row-active { box-shadow: inset 0 0 0 1px rgba(140, 192, 255, 0.25); }
 .slaf-sidebar .side-group { color: #c9daf2; }
