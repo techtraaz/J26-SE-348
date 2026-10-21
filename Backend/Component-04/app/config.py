@@ -64,3 +64,6 @@ LLM_MODEL: str = os.getenv("C04_LLM_MODEL", "phi4")
 LLM_PROVIDER: str = os.getenv("C04_LLM_PROVIDER", "ollama").strip().lower()
 LLM_API_KEY: str = os.getenv("C04_LLM_API_KEY", "")
 LLM_TIMEOUT: int = int(os.getenv("C04_LLM_TIMEOUT", "60"))
+# Thinking models (e.g. Qwen 3.5): "none" turns thinking off, "low"/"medium"/"high"
+# set how much. Empty leaves the server default. Sent as reasoning_effort (openai provider).
+LLM_REASONING_EFFORT: str = os.getenv("C04_LLM_REASONING_EFFORT", "").strip().lower()

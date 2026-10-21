@@ -111,6 +111,15 @@ def test_openai_compatible_server_request(monkeypatch):
     assert url == "https://gpu-pod.example/v1/chat/completions"
     assert headers == {"Authorization": "Bearer k"}
     assert body["model"] == "qwen2.5-14b-instruct" and body["messages"][0]["content"] == "facts"
+    assert "reasoning_effort" not in body  # left to the server unless configured
+
+
+def test_thinking_model_reasoning_effort(monkeypatch):
+    monkeypatch.setattr(config, "LLM_PROVIDER", "openai")
+    monkeypatch.setattr(config, "LLM_API_URL", "https://gpu-pod.example/v1")
+    monkeypatch.setattr(config, "LLM_REASONING_EFFORT", "none")
+    _, _, body = review_agent._llm_request("facts")
+    assert body["reasoning_effort"] == "none"
 
 
 def test_clean_run_is_all_clear():

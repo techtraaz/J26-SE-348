@@ -193,8 +193,11 @@ def _llm_request(prompt: str) -> tuple[str, dict, dict]:
         url = config.LLM_API_URL.rstrip("/")
         if not url.endswith("/chat/completions"):
             url += "/chat/completions"
-        return url, headers, {"model": config.LLM_MODEL, "messages": messages, "temperature": 0,
-                              "max_tokens": 300, "response_format": {"type": "json_object"}}
+        body = {"model": config.LLM_MODEL, "messages": messages, "temperature": 0,
+                "max_tokens": 300, "response_format": {"type": "json_object"}}
+        if config.LLM_REASONING_EFFORT:
+            body["reasoning_effort"] = config.LLM_REASONING_EFFORT
+        return url, headers, body
     return config.LLM_API_URL, headers, {"model": config.LLM_MODEL, "messages": messages, "stream": False,
                                          "format": "json", "options": {"temperature": 0}}
 
