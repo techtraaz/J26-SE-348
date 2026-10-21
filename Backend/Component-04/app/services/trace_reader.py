@@ -547,6 +547,14 @@ async def _starting_point(col) -> _ObjectId | None:
     return start
 
 
+
+def _host_only(uri: str) -> str:
+    """The MongoDB URI without its user and password, safe to log."""
+    scheme, sep, rest = uri.partition("://")
+    if not sep:
+        return "(MongoDB)"
+    return f"{scheme}://{rest.rpartition('@')[2].split('/')[0].split('?')[0]}"
+
 async def run_reader() -> None:
     """Poll MongoDB for new callback traces and process them.
 
@@ -566,7 +574,7 @@ async def run_reader() -> None:
                 await asyncio.sleep(30)
                 continue
 
-            logger.info("Connecting to MongoDB at %s …", config.MONGODB_URI[:40])
+            logger.info("Connecting to MongoDB at %s …", _host_only(config.MONGODB_URI))
             client = MongoClient(config.MONGODB_URI, serverSelectionTimeoutMS=5000,
                                  appname="nomos-c04-reader")
             db_handle = client[config.MONGODB_DB_NAME]

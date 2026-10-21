@@ -185,6 +185,17 @@ def is_faithful(text: str, prompt: str) -> bool:
     return all(n.replace(",", "") in given for n in _NUMBER.findall(t))
 
 
+# Room for the JSON answer, plus a little for a model that still thinks a bit first.
+LLM_MAX_TOKENS = 500
+_THINK = re.compile(r"<think>.*?(?:</think>|$)", re.DOTALL | re.IGNORECASE)
+
+# Why a review fell back to the fixed summary (shown under the review, kept in c04_reviews).
+UNREACHABLE = "unreachable"     # no reply from the server (down, timeout, HTTP error)
+CUT_OFF = "cut_off"             # the reply hit the token limit before the answer
+NO_ANSWER = "no_answer"         # a reply, but no summary in it
+NOT_FAITHFUL = "not_faithful"   # a summary that used a number not in the facts
+
+
 def _llm_request(prompt: str) -> tuple[str, dict, dict]:
     """(url, headers, body) for the configured LLM server."""
     messages = [{"role": "user", "content": prompt}]
@@ -193,14 +204,20 @@ def _llm_request(prompt: str) -> tuple[str, dict, dict]:
         url = config.LLM_API_URL.rstrip("/")
         if not url.endswith("/chat/completions"):
             url += "/chat/completions"
-        return url, headers, {"model": config.LLM_MODEL, "messages": messages, "temperature": 0,
-                              "max_tokens": 300, "response_format": {"type": "json_object"}}
-    return config.LLM_API_URL, headers, {"model": config.LLM_MODEL, "messages": messages, "stream": False,
-                                         "format": "json", "options": {"temperature": 0}}
+        body = {"model": config.LLM_MODEL, "messages": messages, "temperature": 0,
+                "max_tokens": LLM_MAX_TOKENS, "response_format": {"type": "json_object"}}
+        if config.LLM_REASONING_EFFORT:
+            body["reasoning_effort"] = config.LLM_REASONING_EFFORT
+        return url, headers, body
+    body = {"model": config.LLM_MODEL, "messages": messages, "stream": False,
+            "format": "json", "options": {"temperature": 0, "num_predict": LLM_MAX_TOKENS}}
+    if config.LLM_REASONING_EFFORT:
+        body["think"] = config.LLM_REASONING_EFFORT != "none"  # Ollama's own switch
+    return config.LLM_API_URL, headers, body
 
 
-async def _call_llm(prompt: str) -> str | None:
-    """Ask the shared LLM for the summary. None when it is unavailable."""
+async def _call_llm(prompt: str) -> tuple[str | None, str | None]:
+    """Ask the shared LLM for the summary: (summary, None), or (None, why it gave none)."""
     url, headers, body = _llm_request(prompt)
     try:
         async with httpx.AsyncClient(timeout=config.LLM_TIMEOUT) as client:
@@ -212,17 +229,27 @@ async def _call_llm(prompt: str) -> str | None:
             resp.raise_for_status()
             data = resp.json()
         if config.LLM_PROVIDER == "openai":
-            content = (data.get("choices") or [{}])[0].get("message", {}).get("content") or ""
+            choice = (data.get("choices") or [{}])[0]
+            content = choice.get("message", {}).get("content") or ""
+            finish = choice.get("finish_reason")
         else:
-            content = data.get("message", {}).get("content", "")
-        content = content.strip()
+            content = data.get("message", {}).get("content") or ""
+            finish = data.get("done_reason")
+        content = _THINK.sub("", content).strip()  # some servers put the thinking inline
     except Exception as exc:  # noqa: BLE001 - any failure means: use the fixed summary
-        logger.warning("Review agent: LLM unavailable (%s)", exc)
-        return None
+        logger.warning("Review agent: LLM unreachable (%s)", exc)
+        return None, UNREACHABLE
     try:
-        return str(json.loads(content).get("summary", "")).strip() or None
+        summary = str(json.loads(content).get("summary", "")).strip()
     except (json.JSONDecodeError, AttributeError):
-        return content or None
+        summary = "" if finish == "length" else content  # a cut-off JSON is not a summary
+    if summary:
+        return summary, None
+    reason = CUT_OFF if finish == "length" else NO_ANSWER
+    logger.warning("Review agent: LLM gave no summary (finish_reason=%s, %d chars of content)%s",
+                   finish, len(content),
+                   " - a thinking model? set C04_LLM_REASONING_EFFORT=none" if reason == CUT_OFF else "")
+    return None, reason
 
 
 # ── Public entry point ─────────────────────────────────────────────────
@@ -247,22 +274,23 @@ async def _saved(case_id: str, stream_id: str | None, run_key: str) -> dict | No
 async def _deliver(case_id: str, stream_id: str | None, base: dict, verdict: str, headline: str,
                    next_steps: list[str], prompt: str, fallback: str) -> dict:
     """Explain + fallback, stream the finished review and save it in MongoDB."""
-    summary = await _call_llm(prompt)
+    summary, fallback_reason = await _call_llm(prompt)
     source = "ai"
-    if summary is None or not is_faithful(summary, prompt):
-        if summary is not None:
-            logger.info("Review agent: LLM summary rejected (not faithful): %s", summary[:120])
+    if summary is not None and not is_faithful(summary, prompt):
+        logger.info("Review agent: LLM summary rejected (not faithful): %s", summary[:120])
+        summary, fallback_reason = None, NOT_FAITHFUL
+    if summary is None:
         summary, source = fallback, "rules"
     review = {
         **base, "event_type": "insight_summary", "stream_id": stream_id,
         "verdict": verdict, "headline": headline, "summary": summary,
-        "next_steps": next_steps, "source": source,
+        "next_steps": next_steps, "source": source, "fallback_reason": fallback_reason,
         "model": config.LLM_MODEL if source == "ai" else None,
         "generated_at": datetime.now(UTC).isoformat(),
     }
     await _publish(case_id, stream_id, review)
-    logger.info("Review  case=%s  kind=%s  verdict=%s  source=%s",
-                case_id, base["run_kind"], verdict, source)
+    logger.info("Review  case=%s  kind=%s  verdict=%s  source=%s%s", case_id, base["run_kind"], verdict,
+                source, f" ({fallback_reason})" if fallback_reason else "")
     try:
         await review_store.save_review(review)
     except report_store.StoreUnavailable:

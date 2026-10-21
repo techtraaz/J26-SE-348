@@ -84,6 +84,16 @@ describe("ThinkingTimeline", () => {
     expect(review.textContent).not.toContain("Next steps");
   });
 
+  it("says why a review was written without the AI", () => {
+    const cutOff = caseStream.map((e) =>
+      e.event_type === "insight_summary" && e.run_kind === "copilot"
+        ? { ...e, source: "rules" as const, fallback_reason: "cut_off" as const } : e);
+    renderStream(cutOff);
+    const chat = screen.getByRole("region", { name: /why did CHK-001 fail/ });
+    expect(within(chat).getByLabelText("Review agent").textContent)
+      .toContain("Written from this trace (the AI answer was cut off).");
+  });
+
   it("keeps the footer to a status line, with the reply only on request", async () => {
     renderStream(caseStream);
     const chat = screen.getByRole("region", { name: /why did CHK-001 fail/ }); // latest run: open

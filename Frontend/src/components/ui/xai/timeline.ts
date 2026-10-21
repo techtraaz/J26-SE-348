@@ -41,8 +41,12 @@ export interface XaiEvent {
   headline?: string;
   next_steps?: string[];
   source?: "ai" | "rules";
+  fallback_reason?: FallbackReason | null;
   model?: string | null;
 }
+
+/** Why a review was written from the trace instead of by the AI. */
+export type FallbackReason = "unreachable" | "cut_off" | "no_answer" | "not_faithful";
 
 export type Verdict = "clear" | "review" | "action_required";
 
@@ -54,6 +58,7 @@ export interface Review {
   summary: string;
   nextSteps: string[];
   source: "ai" | "rules" | null;
+  fallbackReason: FallbackReason | null;
   model: string | null;
 }
 
@@ -217,6 +222,7 @@ function toReview(e: XaiEvent): Review {
     summary: pending ? "" : (e.summary ?? e.detail ?? ""),
     nextSteps: e.next_steps ?? [],
     source: e.source ?? (pending ? null : "ai"),
+    fallbackReason: e.fallback_reason ?? null,
     model: e.model ?? null,
   };
 }
