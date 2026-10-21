@@ -206,6 +206,8 @@ text -> entities (code) -> intent (rules if confident, else LLM among the top 3)
 - **Context counts:** documents attached to an already-audited case are added
   to it (evidence append) unless the text explicitly asks for a fresh audit.
 - **Any model:** set `C03_LLM_PROVIDER`, `C03_LLM_MODEL` and `C03_LLM_BASE_URL`.
+  Thinking models (e.g. the team's Qwen 3.5 35B, block in `.env.example`) also set
+  `C03_LLM_REASONING_EFFORT=none`; any `<think>…</think>` text is removed from replies.
   New providers go in `app/services/llm/providers.py`.
 
 SO5 evaluation (`eval/copilot_intents.jsonl`, 63 labelled queries):
